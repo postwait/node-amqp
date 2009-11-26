@@ -2,8 +2,8 @@ var sys = require('sys');
 var tcp = require('tcp');
 
 require.paths.unshift('.');
-require("frame");
-require("method");
+Frame  = require("frame");
+Method = require("method");
 
 function matchMethod(message, method) {
   return (message.method[0] == method[0] && message.method[1] == method[1]);

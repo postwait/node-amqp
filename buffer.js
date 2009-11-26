@@ -1,4 +1,4 @@
-Buffer = function(data) {
+exports.fromBytes = function(data) {
   var index = 0;
   var data = data;
 

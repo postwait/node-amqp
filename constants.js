@@ -8,5 +8,7 @@ Connection = {
 }
 
 Channel = {
-  All: 0
+  All: 0,
+  Open:   [20, 10, 'shortst'],
+  OpenOk: [20, 11, 'longstr']
 }
