@@ -1,0 +1,10 @@
+NodeJS and RabbitMQ can be best friends
+
+This is totally not complete at all - you can't even subscribe or publish yet so it's a bit useless currently.
+
+See client.js for an example
+
+Major TODOs:
+- Subscribe to a queue
+- Publish to an exchange
+- Generate constants.js from amqp xml spec
