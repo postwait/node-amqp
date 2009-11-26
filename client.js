@@ -1,7 +1,7 @@
 var sys = require('sys');
 var tcp = require('tcp');
 
-require.paths.unshift('.');
+require.paths.unshift('lib/amqp');
 Frame  = require("frame");
 Method = require("method");
 
