@@ -10,4 +10,7 @@ var conn = AMQP.createConnection({
 
 conn.addListener("connect", function() {
   sys.puts("Connected to AMQP server");
+  var queue = conn.queue('events');
+  queue.addListener("message", function() {
+  });
 });
