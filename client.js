@@ -9,10 +9,13 @@ var conn = AMQP.createConnection({
 });
 
 conn.addListener("connect", function() {
-  sys.puts("Connected to AMQP server");
-  var queue = conn.queue('events');
+  var queue = conn.queue('my-events-receiver');
+
+
+  queue.addListener("connect", function() {
+    queue.bind('events');
+  });
   queue.addListener("receive", function(content) {
-    sys.puts("RECEIVE");
-    sys.puts(content);
+    sys.puts("RECV: " + content);
   });
 });
