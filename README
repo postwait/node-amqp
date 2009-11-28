@@ -1,10 +1,16 @@
 NodeJS and RabbitMQ can be best friends
 
-This is totally not complete at all - you can't even subscribe or publish yet so it's a bit useless currently.
+This is totally not complete at all - you can subscribe to a queue,
+but you can't publish or interact with exchanges yet.
 
 See client.js for an example
 
+Part of this code is generated from the AMQP spec. Before using,
+you must run:
+
+  rake generate_from_xml
+
 Major TODOs:
-- Subscribe to a queue
+- Helper interfaces for receiving messages
 - Publish to an exchange
-- Generate constants.js from amqp xml spec
+- Test suite
