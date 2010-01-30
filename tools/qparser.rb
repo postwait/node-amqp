@@ -2,6 +2,7 @@
 # Adapted from qrack code
 # Soz it's a bit of a mess
 
+require 'rubygems'
 require 'nokogiri'
 require 'erb'
 require 'pathname'
