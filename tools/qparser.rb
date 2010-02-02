@@ -1,6 +1,5 @@
 #!/usr/bin/env ruby
-# Adapted from qrack code
-# Soz it's a bit of a mess
+# USAGE: ruby tools/qparser.rb tools/xml/amqp-0.8.xml > amqp-0-8.js
 
 require 'rubygems'
 require 'nokogiri'
@@ -27,22 +26,22 @@ def spec_details(doc)
   spec_details
 end
 
+def jscase(s)
+  t = s.gsub(/\s|-/, '_').camelcase
+  t[0] = t[0].downcase
+  t
+end
+
 def process_constants(doc)
   # AMQP constants
 
-  frame_constants = {}
-  other_constants = {}
+  constants = {}
 
   doc.xpath('//constant').each do |element|
-    if element['name'].match(/^frame/)
-      frame_constants[element['value'].to_i] =
-      element['name'].sub(/^frame./,'').split(/\s|-/).map{|w| w.downcase.capitalize}.join
-    else
-      other_constants[element['value']] = element['name']
-    end
+    constants[element['value'].to_i] = jscase(element['name'])
   end
 
-  [frame_constants.sort, other_constants.sort]
+  constants.sort
 end
 
 def domain_types(doc, major, minor, revision)
@@ -68,8 +67,8 @@ def classes(doc, major, minor, revision)
 
   doc.xpath('amqp/class').each do |element|
     cls_hash = {}
-    cls_hash[:name] = element['name']
-    cls_hash[:index] = element['index']
+    cls_hash[:name] = jscase(element['name'])
+    cls_hash[:index] = element['index'].to_i
     # Get fields for class
     field_arr = fields(doc, element)
     cls_hash[:fields] = field_arr
@@ -94,8 +93,8 @@ def class_methods(doc, cls)
   # Get methods for class
   cls.xpath('./method').each do |method|
     meth_hash = {}
-    meth_hash[:name] = method['name']
-    meth_hash[:index] = method['index']
+    meth_hash[:name] = jscase(method['name'])
+    meth_hash[:index] = method['index'].to_i
     # Get fields for method
     field_arr = fields(doc, method)
     meth_hash[:fields] = field_arr
@@ -112,7 +111,7 @@ def fields(doc, element)
   # Get fields for element
   element.xpath('./field').each do |field|
     field_hash = {}
-    field_hash[:name] = field['name'].tr(' ', '-')
+    field_hash[:name] = jscase(field['name'].tr(' ', '-'))
     field_hash[:domain] = field['type'] || field['domain']
 
     # Convert domain type if necessary
@@ -219,12 +218,10 @@ spec_info = spec_details(doc)
 # Constants
 constants = process_constants(doc)
 
-p "CONSTANTS"
-p constants
 
 # Frame constants
-frame_constants = constants[0].select {|k,v| k <= 8}
-frame_footer = constants[0].select {|k,v| v == 'End'}[0][0]
+#frame_constants = constants[0].select {|k,v| k <= 8}
+#frame_footer = constants[0].select {|k,v| v == 'End'}[0][0]
 
 # Other constants
 other_constants = constants[1]
@@ -235,27 +232,11 @@ data_types = domain_types(doc, spec_info['major'], spec_info['minor'], spec_info
 # Classes
 class_defs = classes(doc, spec_info['major'], spec_info['minor'], spec_info['revision'])
 
-p class_defs
 
 def format_name(name)
   name.split('-').collect {|x| x.camelcase }.join
 end
 
-o = class_defs.inject({}) do |a, klass|
-  a.update(klass[:name].camelcase => klass[:methods].inject({}) do |methods, method|
-    methods.update(format_name(method[:name]) => [klass[:index].to_i, method[:index].to_i] + method[:fields].collect {|x| x[:domain] })
-  end)
-end
-output = ERB.new(<<-EOS)
-<% class_defs.each do |klass| %>
-  <%= klass[:name].camelcase %> = {
-    <% klass[:methods].each do |method| %>
-      <%= method[:name] %> = <%= [klass[:index].to_i, method[:index].to_i].to_json %>,
-    <% end %>
-  }
-<% end %>
-EOS
 
-File.open(File.dirname(__FILE__) + "/../lib/amqp/constants-generated.js", "w") do |f|
-  f.puts "process.mixin(exports, #{o.to_json})"
-end
+puts "exports.constants = " + constants.to_json + ";"
+puts "exports.classes = " + class_defs.to_json + ";"
