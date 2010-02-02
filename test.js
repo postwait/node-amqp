@@ -1,7 +1,6 @@
-require.paths.unshift('lib');
 
 var sys =  require('sys');
-var amqp = require('amqp');
+var amqp = require('./amqp');
 
 var conn = amqp.createConnection({
   host: 'dev.rabbitmq.com',

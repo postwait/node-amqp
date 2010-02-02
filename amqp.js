@@ -8,25 +8,54 @@ function debug (x) {
 
 var Buffer = process.Buffer;
 
-
-Buffer.prototype.toString = function () {
-  /*
-  var out = "[";
-  for (var i = 0; i < this.length; i++) {
-    out += this[i];
-    if (i != this.length - 1)  out += ", ";
-  }
-  out += "]";
-  return out;
-  */
+process.Buffer.prototype.toString = function () {
   return this.utf8Slice(0, this.length);
 };
 
-
+process.Buffer.prototype.toJSON = function () {
+  return this.utf8Slice(0, this.length);
+};
 
 var sys = require('sys');
 var net = require('net');
-var constants = require('./constants');
+var protocol = require('./amqp-0-8');
+
+// a look up table for methods recieved
+// indexed on class id, method id
+var methodTable = {};
+
+// methods keyed on their name
+var methods = {};
+
+(function () { // anon scope for init
+  debug("initializing amqp methods...");
+  for (var i = 0; i < protocol.classes.length; i++) {
+    var classInfo = protocol.classes[i];
+    for (var j = 0; j < classInfo.methods.length; j++) {
+      var methodInfo = classInfo.methods[j];
+
+      var name = classInfo.name
+               + methodInfo.name[0].toUpperCase()
+               + methodInfo.name.slice(1);
+      debug(name);
+
+      var method = { name: name
+                   , fields: methodInfo.fields
+                   , methodIndex: methodInfo.index
+                   , classIndex: classInfo.index
+                   };
+
+      if (!methodTable[classInfo.index]) methodTable[classInfo.index] = {};
+      methodTable[classInfo.index][methodInfo.index] = method;
+      methods[name] = method;
+    }
+  }
+})(); // end anon scope
+
+
+
+// parser
+
 
 
 // AMQP frame parser states
@@ -37,7 +66,7 @@ var s_frameHeader = 1,
 var s_handshake = 1;
 
 
-var maxFrameBuffer = 8 * 1024;
+var maxFrameBuffer = 131072; // same as rabbitmq
 
 
 // An interruptible AMQP parser.
@@ -46,7 +75,7 @@ var maxFrameBuffer = 8 * 1024;
 // version is '0-8' or '0-9-1'. Currently only supporting '0-8'.
 //
 // Instances of this class have several callbacks
-// - onMethod(channel, classId, methodId, args);
+// - onMethod(channel, method, args);
 // - onHeartBeat()
 // - onContent(channel, buffer);
 //
@@ -116,7 +145,7 @@ AMQPParser.prototype.execute = function (data) {
         if (this.frameBuffer.used == this.frameSize) {
           // Finished buffering the frame. Parse the frame.
           switch (this.frameType) {
-            case constants.frameMethod:
+            case 1:
               this._parseMethodFrame(this.frameChannel, this.frameBuffer);
               break;
 
@@ -144,7 +173,7 @@ AMQPParser.prototype.execute = function (data) {
 
       case s_frameEnd:
         // Frames are terminated by a single octet.
-        if (data[i] != constants.frameEnd) throw new Error("Oversized frame");
+        if (data[i] != 206 /* constants.frameEnd */) throw new Error("Oversized frame");
         this.state = s_frameHeader;
         break;
     }
@@ -271,32 +300,36 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
 
 
   // Make sure that this is a method that we understand.
-  if (!constants.methods[classId] || !constants.methods[classId][methodId]) {
+  if (!methodTable[classId] || !methodTable[classId][methodId]) {
     throw new Error("Received unknown [classId, methodId] pair [" +
                     classId + ", " + methodId + "]");
   }
 
-  var method = constants.methods[classId][methodId];
+  var method = methodTable[classId][methodId];
 
-  var args = [];
+  if (!method) throw new Error("bad method?");
+
+  var args = {};
 
   var bitIndex = 0;
 
-  for (var i = 0; i < method.params.length; i++) {
-    debug("parsing param " + method.params[i]);
-    switch (method.params[i]) {
+  var value;
+  for (var i = 0; i < method.fields.length; i++) {
+    var field = method.fields[i];
+    debug("parsing field " + field.name);
+    switch (field.domain) {
       case 'bit':
         // 8 bits can be packed into one octet.
 
         // XXX check if bitIndex greater than 7?
 
         if (buffer[buffer.read] & (1 << bitIndex)) {
-          args.push(true);
+          value = true;
         } else {
-          args.push(false);
+          value = false;
         }
 
-        if (method.params[i+1] == 'bit')  {
+        if (method.fields[i+1].domain == 'bit') {
           bitIndex++;
         } else {
           bitIndex = 0;
@@ -305,42 +338,42 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
         break;
 
       case 'octet':
-        args.push(buffer[buffer.read]);
-        buffer.read += 1;
+        value = buffer[buffer.read++];
         break;
 
       case 'short':
-        args.push(parseShort(buffer));
+        value = parseShort(buffer);
         break;
 
       case 'long':
-        args.push(parseLong(buffer));
+        value = parseLong(buffer);
         break;
 
       case 'longlong':
-        args.push(parseLongLong(buffer));
+        value = parseLongLong(buffer);
         break;
 
       case 'shortstr':
-        args.push(parseShortString(buffer));
+        value = parseShortString(buffer);
         break;
 
       case 'longstr':
-        args.push(parseLongString(buffer));
+        value = parseLongString(buffer);
         break;
 
       case 'table':
-        args.push(parseTable(buffer));
+        value = parseTable(buffer);
         break;
 
       default:
-        throw new Error("Unhandled parameter type " + paramType);
+        throw new Error("Unhandled parameter type " + field.domain);
     }
-    debug("got " + args[args.length-1]);
+    debug("got " + value);
+    args[field.name] = value;
   }
 
   if (this.onMethod) {
-    this.onMethod(channel, classId, methodId, args);
+    this.onMethod(channel, method, args);
   }
 };
 
@@ -507,86 +540,6 @@ function serializeTable (b, object) {
 }
 
 
-function sendMethod (conn, method, channel) {
-  var b = new Buffer(maxFrameBuffer);
-  b.used = 0;
-
-  b[b.used++] = constants.frameMethod;
-
-  serializeInt(b, 2, channel);
-
-  var lengthIndex = b.used;
-
-  serializeInt(b, 4, 42); // replace with actual length.
-
-  var startIndex = b.used;
-
-
-  serializeInt(b, 2, method[0]); // short, classId
-  serializeInt(b, 2, method[1]); // short, methodId
-
-  for (var i = 2; i < method.length; i++) {
-    var arg = method[i];
-    var param = arguments[i+1];
-
-    //debug("arg: " + arg + " param: " + param);
-    var s = b.used;
-
-    switch (arg) {
-      case 'octet':
-        b[b.used++] = param;
-        break;
-
-      case 'short':
-        serializeInt(b, 2, param);
-        break;
-
-      case 'long':
-        serializeInt(b, 4, param);
-        break;
-
-      case 'longlong':
-        serializeInt(b, 8, param);
-        break;
-
-      case 'shortstr':
-        serializeShortString(b, param);
-        break;
-
-      case 'longstr':
-        serializeLongString(b, param);
-        break;
-
-      case 'table':
-        serializeTable(b, param);
-        break;
-
-      default:
-        throw new Error("Unknown arg value type " + arg);
-    }
-    //debug("enc: " + b.slice(s, b.used));
-  }
-
-  var endIndex = b.used;
-
-  // write in the frame length now that we know it.
-  b.used = lengthIndex;
-  serializeInt(b, 4, endIndex - startIndex);
-  b.used = endIndex;
-
-  b[b.used++] = constants.frameEnd;
-
-  var c = b.slice(0, b.used);
-
-  debug("sending frame: " + c);
-
-  conn.send(c);
-}
-
-
-function match (classId, methodId, method) {
-  return classId == method[0] && methodId == method[1];
-}
 
 
 exports.Connection = function (options) {
@@ -602,12 +555,12 @@ exports.Connection = function (options) {
 
   var parser = new AMQPParser('0-8', 'client');
 
-  var state;
+  var state = 'handshake';
 
   conn.addListener("connect", function () {
     debug("connected...");
     conn.send("AMQP" + String.fromCharCode(1,1,8,0));
-    state = s_handshake;
+    state = 'handshake';
   });
 
   conn.addListener('close', function () {
@@ -624,25 +577,42 @@ exports.Connection = function (options) {
     parser.execute(data);
   });
 
-  parser.onMethod = function (channel, classId, methodId, args) {
+  parser.onMethod = function (channel, method, args) {
+    debug("recv " + method.name + " " + JSON.stringify(args));
     switch (state) {
-      case s_handshake:
-        debug("args: " + JSON.stringify(args));
-        if (match(classId, methodId, constants.Connection.Start)) {
-          sendMethod( conn
-                    , constants.Connection.StartOk
-                    , constants.Channel.All
-                    , { version: '0.0.1'
-                      , platform: 'node'
-                      , information: 'no'
-                      , product: 'node-amqp'
-                      }
-                    , 'AMQPLAIN'
-                    , { LOGIN: opts.login
-                      , PASSWORD: opts.password
-                      }
-                    , 'en_US'
-                    );
+      case 'handshake':
+        if (method == methods.connectionStart) {
+          self._send(0, methods.connectionStartOk, 
+              { clientProperties:
+                { version: '0.0.1'
+                , platform: 'node-' + process.version
+                , product: 'node-amqp'
+                }
+              , mechanism: 'AMQPLAIN'
+              , response:
+                { LOGIN: opts.login
+                , PASSWORD: opts.password
+                }
+              , locale: 'en_US'
+              });
+          state = 'tune';
+        }
+        break;
+
+      case 'tune':
+        if (method == methods.connectionTune) {
+          self._send(0, methods.connectionTuneOk,
+              { channelMax: 0
+              , frameMax: maxFrameBuffer
+              , heartbeat: 0
+              });
+          self._send(0, methods.connectionOpen,
+              { virtualHost: opts.vhost
+              , capabilities: ''
+              , insist: false
+              });
+        } else if (method == methods.connectionOpenOk) {
+          self.emit('connect');
         }
         break;
     }
@@ -677,6 +647,121 @@ exports.Connection = function (options) {
 sys.inherits(exports.Connection, process.EventEmitter);
 
 var proto = exports.Connection.prototype;
+
+proto._send = function (channel, method, args) {
+  var b = new Buffer(maxFrameBuffer);
+  b.used = 0;
+
+  b[b.used++] = 1; // constants.frameMethod
+
+  serializeInt(b, 2, channel);
+
+  var lengthIndex = b.used;
+
+  serializeInt(b, 4, 42); // replace with actual length.
+
+  var startIndex = b.used;
+
+
+  serializeInt(b, 2, method.classIndex); // short, classId
+  serializeInt(b, 2, method.methodIndex); // short, methodId
+
+  var bitField = 0;
+  var bitIndex = 0;
+
+  for (var i = 0; i < method.fields.length; i++) {
+    var field = method.fields[i];
+    var domain = field.domain;
+    
+    if (!(field.name in args)) {
+      debug(JSON.stringify(args));
+      throw new Error("Missing method field '" + field.name + "' of type " + domain);
+    }
+    var param = args[field.name];
+
+    //debug("domain: " + domain + " param: " + param);
+    var s = b.used;
+
+
+    switch (domain) {
+      case 'bit':
+        if (typeof(param) != "boolean") {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+
+        bitField &= (1 << (7 - bitIndex))
+
+        if (!method.fields[i+1] || method.fields[i+1].domain != 'bit') {
+          b[b.used++] = bitField;
+          bitField = 0;
+          bitIndex = 0;
+        }
+        break;
+
+      case 'octet':
+        if (typeof(param) != "number" || param > 0xFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        b[b.used++] = param;
+        break;
+
+      case 'short':
+        if (typeof(param) != "number" || param > 0xFFFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeInt(b, 2, param);
+        break;
+
+      case 'long':
+        if (typeof(param) != "number" || param > 0xFFFFFFFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeInt(b, 4, param);
+        break;
+
+      case 'longlong':
+        serializeInt(b, 8, param);
+        break;
+
+      case 'shortstr':
+        if (typeof(param) != "string" || param.length > 0xFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeShortString(b, param);
+        break;
+
+      case 'longstr':
+        serializeLongString(b, param);
+        break;
+
+      case 'table':
+        if (typeof(param) != "object") {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeTable(b, param);
+        break;
+
+      default:
+        throw new Error("Unknown domain value type " + domain);
+    }
+    //debug("enc: " + b.slice(s, b.used));
+  }
+
+  var endIndex = b.used;
+
+  // write in the frame length now that we know it.
+  b.used = lengthIndex;
+  serializeInt(b, 4, endIndex - startIndex);
+  b.used = endIndex;
+
+  b[b.used++] = 206; // constants.frameEnd;
+
+  var c = b.slice(0, b.used);
+
+  debug("sending frame: " + c);
+
+  this.connection.send(c);
+};
 
 
 proto.queue = function (name) {
