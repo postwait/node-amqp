@@ -1,21 +1,24 @@
 require.paths.unshift('lib');
 
 var sys =  require('sys');
-var AMQP = require('amqp');
+var amqp = require('amqp');
 
-var conn = AMQP.createConnection({
-  host: 'localhost',
+var conn = amqp.createConnection({
+  host: 'dev.rabbitmq.com',
   port: 5672
 });
 
 conn.addListener("connect", function() {
+  sys.puts('connect');
+
   var queue = conn.queue('my-events-receiver');
 
 
   queue.addListener("connect", function() {
     queue.bind('events');
   });
-  queue.addListener("receive", function(content) {
-    sys.puts("RECV: " + content);
+
+  queue.addListener("message", function (m) {
+    sys.puts("RECV: " + m);
   });
 });

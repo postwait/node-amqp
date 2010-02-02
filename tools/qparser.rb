@@ -7,7 +7,7 @@ require 'nokogiri'
 require 'erb'
 require 'pathname'
 require 'yaml'
-require 'activesupport'
+require 'active_support'
 require 'json'
 
 class InputError < StandardError; end
@@ -219,6 +219,9 @@ spec_info = spec_details(doc)
 # Constants
 constants = process_constants(doc)
 
+p "CONSTANTS"
+p constants
+
 # Frame constants
 frame_constants = constants[0].select {|k,v| k <= 8}
 frame_footer = constants[0].select {|k,v| v == 'End'}[0][0]
@@ -231,6 +234,8 @@ data_types = domain_types(doc, spec_info['major'], spec_info['minor'], spec_info
 
 # Classes
 class_defs = classes(doc, spec_info['major'], spec_info['minor'], spec_info['revision'])
+
+p class_defs
 
 def format_name(name)
   name.split('-').collect {|x| x.camelcase }.join
