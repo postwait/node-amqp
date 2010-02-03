@@ -3,6 +3,8 @@ var events = require('events'),
     net = require('net'),  // requires net2 branch of node
     protocol = require('./amqp-0-8');
 
+
+
 var Buffer = process.Buffer;
 
 process.Buffer.prototype.toString = function () {
@@ -13,6 +15,8 @@ process.Buffer.prototype.toJSON = function () {
   return this.utf8Slice(0, this.length);
 };
 
+
+
 var debugLevel = 0;
 if ('NODE_DEBUG_AMQP' in process.ENV) debugLevel = 1;
 function debug (x) {
@@ -20,6 +24,8 @@ function debug (x) {
     process.stdio.writeError(x + '\n');
   }
 }
+
+
 
 // a look up table for methods recieved
 // indexed on class id, method id
@@ -58,15 +64,6 @@ var methods = {};
 // parser
 
 
-
-// AMQP frame parser states
-var s_frameHeader = 1,
-    s_bufferFrame = 2,
-    s_frameEnd = 3;
-
-var s_handshake = 1;
-
-
 var maxFrameBuffer = 131072; // same as rabbitmq
 
 
@@ -85,7 +82,7 @@ var maxFrameBuffer = 131072; // same as rabbitmq
 // be fine.
 function AMQPParser (version, type) {
   this.isClient = (type == 'client');
-  this.state = this.isClient ? s_frameHeader : s_protocolHeader;
+  this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
 
   if (version != '0-8') throw new Error("Unsupported protocol version");
 
@@ -101,7 +98,7 @@ AMQPParser.prototype.execute = function (data) {
   // It delegats to other functions for parsing the frame-body.
   for (var i = 0; i < data.length; i++) {
     switch (this.state) {
-      case s_frameHeader:
+      case 'frameHeader':
         // Here we buffer the frame header. Remember, this is a fully
         // interruptible parser - it could be (although unlikely)
         // that we receive only several octets of the frame header
@@ -133,11 +130,11 @@ AMQPParser.prototype.execute = function (data) {
           // TODO use a free list and keep a bunch of 8k buffers around
           this.frameBuffer = new Buffer(this.frameSize);
           this.frameBuffer.used = 0;
-          this.state = s_bufferFrame;
+          this.state = 'bufferFrame';
         }
         break;
 
-      case s_bufferFrame:
+      case 'bufferFrame':
         // Buffer the entire frame. I would love to avoid this, but doing
         // otherwise seems to be extremely painful.
 
@@ -170,14 +167,14 @@ AMQPParser.prototype.execute = function (data) {
               throw new Error("Unhandled frame type " + this.frameType);
               break;
           }
-          this.state = s_frameEnd;
+          this.state = 'frameEnd';
         }
         break;
 
-      case s_frameEnd:
+      case 'frameEnd':
         // Frames are terminated by a single octet.
         if (data[i] != 206 /* constants.frameEnd */) throw new Error("Oversized frame");
-        this.state = s_frameHeader;
+        this.state = 'frameHeader';
         break;
     }
   }
