@@ -1,10 +1,7 @@
-var debugLevel = 0;
-if ('NODE_DEBUG' in process.ENV) debugLevel = 1;
-function debug (x) {
-  if (debugLevel > 0) {
-    process.stdio.writeError(x + '\n');
-  }
-}
+var events = require('events'),
+    sys = require('sys'),
+    net = require('net'),  // requires net2 branch of node
+    protocol = require('./amqp-0-8');
 
 var Buffer = process.Buffer;
 
@@ -16,9 +13,13 @@ process.Buffer.prototype.toJSON = function () {
   return this.utf8Slice(0, this.length);
 };
 
-var sys = require('sys');
-var net = require('net');
-var protocol = require('./amqp-0-8');
+var debugLevel = 0;
+if ('NODE_DEBUG_AMQP' in process.ENV) debugLevel = 1;
+function debug (x) {
+  if (debugLevel > 0) {
+    process.stdio.writeError(x + '\n');
+  }
+}
 
 // a look up table for methods recieved
 // indexed on class id, method id
@@ -28,7 +29,7 @@ var methodTable = {};
 var methods = {};
 
 (function () { // anon scope for init
-  debug("initializing amqp methods...");
+  //debug("initializing amqp methods...");
   for (var i = 0; i < protocol.classes.length; i++) {
     var classInfo = protocol.classes[i];
     for (var j = 0; j < classInfo.methods.length; j++) {
@@ -37,7 +38,7 @@ var methods = {};
       var name = classInfo.name
                + methodInfo.name[0].toUpperCase()
                + methodInfo.name.slice(1);
-      debug(name);
+      //debug(name);
 
       var method = { name: name
                    , fields: methodInfo.fields
@@ -118,10 +119,12 @@ AMQPParser.prototype.execute = function (data) {
 
           this.frameHeader.used = 0; // for reuse
 
+          /*
           debug("got frame: " + JSON.stringify([ this.frameType
                                                , this.frameChannel
                                                , this.frameSize
                                                ]));
+          */
 
           if (this.frameSize > maxFrameBuffer) {
             throw new Error("Oversized frame");
@@ -316,7 +319,7 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
   var value;
   for (var i = 0; i < method.fields.length; i++) {
     var field = method.fields[i];
-    debug("parsing field " + field.name);
+    // debug("parsing field " + field.name);
     switch (field.domain) {
       case 'bit':
         // 8 bits can be packed into one octet.
@@ -368,7 +371,7 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
       default:
         throw new Error("Unhandled parameter type " + field.domain);
     }
-    debug("got " + value);
+    //debug("got " + value);
     args[field.name] = value;
   }
 
@@ -390,19 +393,6 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
 
   //var flags = parseShort(buffer);
 
-};
-
-
-exports.createConnection = function (opts) {
-  return new exports.Connection(opts);
-};
-
-exports.defaultOptions = {
-  host: 'localhost',
-  port: 5672,
-  login: 'guest',
-  vhost: '/',
-  password: 'guest'
 };
 
 
@@ -540,13 +530,14 @@ function serializeTable (b, object) {
 }
 
 
-
-
-exports.Connection = function (options) {
+function Connection (options) {
   process.EventEmitter.call(this);
 
   var self = this;
   var opts = {};
+  this.opts = opts;
+
+  this.channels = [];
 
   process.mixin(opts, exports.defaultOptions, options);
 
@@ -556,12 +547,6 @@ exports.Connection = function (options) {
   var parser = new AMQPParser('0-8', 'client');
 
   var state = 'handshake';
-
-  conn.addListener("connect", function () {
-    debug("connected...");
-    conn.send("AMQP" + String.fromCharCode(1,1,8,0));
-    state = 'handshake';
-  });
 
   conn.addListener('close', function () {
     self.emit('close');
@@ -577,49 +562,25 @@ exports.Connection = function (options) {
     parser.execute(data);
   });
 
-  parser.onMethod = function (channel, method, args) {
-    debug("recv " + method.name + " " + JSON.stringify(args));
-    switch (state) {
-      case 'handshake':
-        if (method == methods.connectionStart) {
-          self._send(0, methods.connectionStartOk, 
-              { clientProperties:
-                { version: '0.0.1'
-                , platform: 'node-' + process.version
-                , product: 'node-amqp'
-                }
-              , mechanism: 'AMQPLAIN'
-              , response:
-                { LOGIN: opts.login
-                , PASSWORD: opts.password
-                }
-              , locale: 'en_US'
-              });
-          state = 'tune';
-        }
-        break;
+  conn.addListener("connect", function () {
+    debug("connected...");
+    // Time to start the AMQP 7-way connection initialization handshake!
+    // 1. The client sends the server a version string
+    conn.send("AMQP" + String.fromCharCode(1,1,8,0));
+    state = 'handshake';
+  });
 
-      case 'tune':
-        if (method == methods.connectionTune) {
-          self._send(0, methods.connectionTuneOk,
-              { channelMax: 0
-              , frameMax: maxFrameBuffer
-              , heartbeat: 0
-              });
-          self._send(0, methods.connectionOpen,
-              { virtualHost: opts.vhost
-              , capabilities: ''
-              , insist: false
-              });
-        } else if (method == methods.connectionOpenOk) {
-          self.emit('connect');
-        }
-        break;
-    }
+  parser.onMethod = function (channel, method, args) {
+    self._onMethod(channel, method, args);
   };
 
   parser.onContent = function (channel, data) {
-    debug("content: " + data);
+    var i = channel-1;
+    if (self.channels[i] && self.channels[i]._onContent) {
+      self.channels[i]._onContent(channel, data);
+    } else {
+      debug("unhandled content: " + data);
+    }
   };
 
   parser.onHeartBeat = function () {
@@ -644,11 +605,95 @@ exports.Connection = function (options) {
   */
 
 };
-sys.inherits(exports.Connection, process.EventEmitter);
+sys.inherits(Connection, process.EventEmitter);
+exports.Connection = Connection;
 
-var proto = exports.Connection.prototype;
+exports.createConnection = function (opts) {
+  return new Connection(opts);
+};
 
-proto._send = function (channel, method, args) {
+exports.defaultOptions = {
+  host: 'localhost',
+  port: 5672,
+  login: 'guest',
+  vhost: '/',
+  password: 'guest'
+};
+
+
+Connection.prototype._onMethod = function (channel, method, args) {
+  debug(channel + " > " + method.name + " " + JSON.stringify(args));
+
+  if (channel) {
+    if (!this.channels[channel-1]) {
+      debug("received message on untracked channel.");
+      return;
+    }
+    if (!this.channels[channel-1]._onMethod) return;
+    this.channels[channel-1]._onMethod(channel, method, args);
+    return;
+  }
+
+  // channel 0
+
+  switch (method) {
+    // 2. The server responds, after the version string, with the
+    // 'connectionStart' method (contains various useless information)
+    case methods.connectionStart:
+      // We check that they're serving us AMQP 0-8
+      if (args.versionMajor != 8 && args.versionMinor != 0) {
+        this.connection.close();
+        this.emit("error", new Error("Bad server version"));
+      } else {
+        // 3. Then we reply with StartOk, containing our useless information.
+        this._send(0, methods.connectionStartOk,
+            { clientProperties:
+              { version: '0.0.1'
+              , platform: 'node-' + process.version
+              , product: 'node-amqp'
+              }
+            , mechanism: 'AMQPLAIN'
+            , response:
+              { LOGIN: this.opts.login
+              , PASSWORD: this.opts.password
+              }
+            , locale: 'en_US'
+            });
+      }
+      break;
+
+    // 4. The server responds with a connectionTune request
+    case methods.connectionTune:
+      // 5. We respond with connectionTuneOk
+      this._send(0, methods.connectionTuneOk,
+          { channelMax: 0
+          , frameMax: maxFrameBuffer
+          , heartbeat: 0
+          });
+      // 6. Then we have to send a connectionOpen request
+      this._send(0, methods.connectionOpen,
+          { virtualHost: this.opts.vhost
+          , capabilities: ''
+          , insist: true
+          });
+      break;
+
+
+    case methods.connectionOpenOk:
+      // 7. Finally they respond with connectionOpenOk
+      // Whew! That's why they call it the Advanced MQP.
+      this.emit('connect');
+      break;
+
+
+    default:
+      throw new Error("Uncaught method '" + method.name + "' with args " +
+          JSON.stringify(args));
+  }
+};
+
+Connection.prototype._send = function (channel, method, args) {
+  debug(channel + " < " + method.name + " " + JSON.stringify(args));
   var b = new Buffer(maxFrameBuffer);
   b.used = 0;
 
@@ -758,12 +803,123 @@ proto._send = function (channel, method, args) {
 
   var c = b.slice(0, b.used);
 
-  debug("sending frame: " + c);
+  //debug("sending frame: " + c);
 
   this.connection.send(c);
 };
 
 
-proto.queue = function (name) {
-  return new Queue.Queue(this.conn, {name: name});
+Connection.prototype.queue = function (name, options) {
+  var channel = this.channels.length + 1;
+  var q = new Queue(this, channel, name, options);
+  this.channels.push(q);
+  return q;
 };
+
+
+function Queue (connection, channel, name, options) {
+  process.EventEmitter.call(this);
+  this.connection = connection;
+  this.channel = channel;
+  this.name = name;
+  this.options = options;
+
+  this._bindQueue = [];
+
+  this.state = "open channel";
+  //this.connection._send(channel, methods.channelOpen, {outOfBand: ""});
+  this.connection._send(channel, methods.channelOpen, {outOfBand: ""});
+}
+sys.inherits(Queue, events.EventEmitter);
+
+Queue.prototype._onContent = function (channel, data) {
+  this.emit('message', data);
+};
+
+Queue.prototype._onMethod = function (channel, method, args) {
+  switch (method) {
+    case methods.channelOpenOk:
+      this.connection._send(channel, methods.queueDeclare,
+          { ticket: 0
+          , queue: this.name
+          , passive: false
+          , durable: false
+          , exclusive: false
+          , autoDelete: false
+          , nowait: true
+          , "arguments": {}
+          });
+      this.state = "declare queue";
+      break;
+
+    case methods.queueDeclareOk:
+      this.connection._send(channel, methods.basicConsume,
+          { ticket: 0
+          , queue: this.name
+          , consumerTag: "."
+          , noLocal: false
+          , noAck: true
+          , exclusive: false
+          , nowait: true
+          , "arguments": {}
+          });
+      this.state = "consuming";
+      break;
+
+    case methods.basicConsumeOk:
+      this.state = "open";
+      this._bindQueueFlush();
+      break;
+
+    case methods.queueBindOk:
+      var b = this._bindQueue.shift();
+      b.promise.emitSuccess();
+      break;
+
+    case methods.channelClose:
+      this.state = "closed";
+      var e = new Error(args.replyText);
+      e.code = args.replyCode;
+      this.emit('close', e);
+      break;
+
+    case methods.basicDeliver:
+      break;
+
+    default:
+      throw new Error("Uncaught method '" + method.name + "' with args " +
+          JSON.stringify(args));
+  }
+};
+
+
+Queue.prototype.bind = function (exchange, routingKey, opts) {
+  var promise = new events.Promise();
+  this._bindQueue.push({ promise: promise
+                       , sent: false
+                       , args: Array.prototype.slice.call(arguments)
+                       });
+  this._bindQueueFlush();
+  return promise;
+};
+
+
+Queue.prototype._bindQueueFlush = function () {
+  if (this.state != 'open') return;
+
+  for (var i = 0; i < this._bindQueue.length; i++) {
+    var b = this._bindQueue[i];
+    if (b.sent) continue;
+    this.connection._send(this.channel, methods.queueBind,
+        { ticket: 0
+        , queue: this.name
+        , exchange: b.args[0]
+        , routingKey: b.args[1]
+        , nowait: true
+        , "arguments": {}
+        });
+  }
+};
+
+
+

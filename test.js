@@ -10,14 +10,12 @@ var conn = amqp.createConnection({
 conn.addListener("connect", function() {
   sys.puts('connect');
 
-  var queue = conn.queue('my-events-receiver');
+  var q = conn.queue('my-events-receiver');
 
+  q.bind("amq.rabbitmq.log", "*");
 
-  queue.addListener("connect", function() {
-    queue.bind('events');
-  });
-
-  queue.addListener("message", function (m) {
+  q.addListener("message", function (m) {
     sys.puts("RECV: " + m);
   });
 });
+
