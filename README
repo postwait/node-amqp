@@ -1,7 +1,10 @@
 Node AMQP
 
+IMPORTANT: You need to use the net2 branch of node to use this!
+
 This is totally not complete at all - you can subscribe to a queue,
 but you can't publish or interact with exchanges yet.
+
 
 Examples:
 
