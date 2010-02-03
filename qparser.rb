@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# USAGE: ruby tools/qparser.rb tools/xml/amqp-0.8.xml > amqp-0-8.js
+# USAGE: ruby qparser.rb amqp-0.8.xml > amqp-definitions-0-8.js
 
 require 'rubygems'
 require 'nokogiri'

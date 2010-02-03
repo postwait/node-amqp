@@ -1,7 +1,7 @@
 var events = require('events'),
     sys = require('sys'),
     net = require('net'),  // requires net2 branch of node
-    protocol = require('./amqp-0-8');
+    protocol = require('./amqp-definitions-0-8');
 
 
 

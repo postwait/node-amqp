@@ -1,4 +1,3 @@
-
 var sys =  require('sys');
 var amqp = require('./amqp');
 
