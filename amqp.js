@@ -194,7 +194,7 @@ function parseInt (buffer, size) {
     case 4:
       return (buffer[buffer.read++] << 24) + (buffer[buffer.read++] << 16) +
              (buffer[buffer.read++] << 8)  + buffer[buffer.read++];
-        
+
     case 8:
       return (buffer[buffer.read++] << 56) + (buffer[buffer.read++] << 48) +
              (buffer[buffer.read++] << 40) + (buffer[buffer.read++] << 32) +
@@ -207,25 +207,6 @@ function parseInt (buffer, size) {
 }
 
 
-function parseShort (buffer) {
-  return parseInt(buffer, 2);
-}
-
-
-function parseLong (buffer) {
-  return parseInt(buffer, 4);
-}
-
-
-function parseLongLong (buffer) {
-  // 64-bit integers? What the fuck.
-  // Yeah, like we're going to be sending +4gig files through
-  // the message queue. Thanks for covering all the bases, AMQP
-  // committee.
-  return parseInt(buffer, 8);
-}
-
-
 function parseShortString (buffer) {
   var length = buffer[buffer.read++];
   var s = buffer.utf8Slice(buffer.read, buffer.read+length);
@@ -235,7 +216,7 @@ function parseShortString (buffer) {
 
 
 function parseLongString (buffer) {
-  var length = parseLong(buffer);
+  var length = parseInt(buffer, 4);
   var s = buffer.slice(buffer.read, buffer.read + length);
   buffer.read += length;
   return s;
@@ -243,7 +224,7 @@ function parseLongString (buffer) {
 
 
 function parseSignedInteger (buffer) {
-  var int = parseLong(buffer);
+  var int = parseInt(buffer, 4);
   if (int & 0x80000000) {
     int |= 0xEFFFFFFF;
     int = -int;
@@ -253,7 +234,7 @@ function parseSignedInteger (buffer) {
 
 
 function parseTable (buffer) {
-  var length = parseLong(buffer);
+  var length = parseInt(buffer, 4);
   var table = {};
   while (buffer.read < length) {
     var field = parseShortString(buffer);
@@ -268,7 +249,7 @@ function parseTable (buffer) {
 
       case 'D'.charCodeAt(0):
         var decimals = buffer[buffer.read++];
-        var int = parseLong(buffer);
+        var int = parseInt(buffer, 4);
         // TODO make into float...?
         // FIXME this isn't correct
         table[field] = '?';
@@ -276,7 +257,7 @@ function parseTable (buffer) {
 
       case 'T'.charCodeAt(0):
         // 64bit time stamps. Awesome.
-        var int = parseLongLong(buffer);
+        var int = parseInt(buffer, 8);
         // TODO FIXME this isn't correct
         table[field] = '?';
         break;
@@ -295,8 +276,8 @@ function parseTable (buffer) {
 
 AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
   buffer.read = 0;
-  var classId = parseShort(buffer),
-     methodId = parseShort(buffer);
+  var classId = parseInt(buffer, 2),
+     methodId = parseInt(buffer, 2);
 
 
   // Make sure that this is a method that we understand.
@@ -342,15 +323,15 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
         break;
 
       case 'short':
-        value = parseShort(buffer);
+        value = parseInt(buffer, 2);
         break;
 
       case 'long':
-        value = parseLong(buffer);
+        value = parseInt(buffer, 4);
         break;
 
       case 'longlong':
-        value = parseLongLong(buffer);
+        value = parseInt(buffer, 8);
         break;
 
       case 'shortstr':
@@ -383,12 +364,12 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
   buffer.read = 0;
 
   /*
-  var class = parseShort(buffer);
-  var weight = parseShort(buffer);
-  var size = parseLongLong(buffer);
+  var class = parseInt(buffer, 2);
+  var weight = parseInt(buffer, 2);
+  var size = parseInt(buffer, 8);
   */
 
-  //var flags = parseShort(buffer);
+  //var flags = parseInt(buffer, 2);
 
 };
 
