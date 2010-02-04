@@ -76,6 +76,7 @@ var maxFrameBuffer = 131072; // same as rabbitmq
 // - onMethod(channel, method, args);
 // - onHeartBeat()
 // - onContent(channel, buffer);
+// - onContentHeader(channel, class, weight, size);
 //
 // This class does not subclass EventEmitter, in order to reduce the speed
 // of emitting the callbacks. Since this is an internal class, that should
@@ -124,7 +125,7 @@ AMQPParser.prototype.execute = function (data) {
           */
 
           if (this.frameSize > maxFrameBuffer) {
-            throw new Error("Oversized frame");
+            throw new Error("Oversized frame " + this.frameSize);
           }
 
           // TODO use a free list and keep a bunch of 8k buffers around
@@ -360,17 +361,17 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
 
 
 AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
-  // Does anyone even know what header frames are for? Ignoring.
   buffer.read = 0;
 
-  /*
   var class = parseInt(buffer, 2);
   var weight = parseInt(buffer, 2);
   var size = parseInt(buffer, 8);
-  */
 
-  //var flags = parseInt(buffer, 2);
+  // ignore flags for now.
 
+  if (this.onContentHeader) {
+    this.onContentHeader(channel, class, weight, size);
+  }
 };
 
 
@@ -528,7 +529,10 @@ function Connection (options) {
 
   conn.addListener('close', function () {
     self.emit('close');
-    debug('close');
+  });
+
+  conn.addListener('error', function (e) {
+    self.emit('error', e);
   });
 
   conn.addListener('end', function () {
@@ -553,11 +557,22 @@ function Connection (options) {
   };
 
   parser.onContent = function (channel, data) {
+    debug(channel + " > content " + data.length);
     var i = channel-1;
     if (self.channels[i] && self.channels[i]._onContent) {
       self.channels[i]._onContent(channel, data);
     } else {
       debug("unhandled content: " + data);
+    }
+  };
+
+  parser.onContentHeader = function (channel, class, weight, size) {
+    debug(channel + " > content header " + [class, weight, size]);
+    var i = channel-1;
+    if (self.channels[i] && self.channels[i]._onContentHeader) {
+      self.channels[i]._onContentHeader(channel, class, weight, size);
+    } else {
+      debug("unhandled content header");
     }
   };
 
@@ -621,7 +636,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
       // We check that they're serving us AMQP 0-8
       if (args.versionMajor != 8 && args.versionMinor != 0) {
         this.connection.close();
-        this.emit("error", new Error("Bad server version"));
+        this.emit('error', new Error("Bad server version"));
       } else {
         // 3. Then we reply with StartOk, containing our useless information.
         this._send(0, methods.connectionStartOk,
@@ -795,8 +810,37 @@ Connection.prototype.queue = function (name, options) {
 };
 
 
+
+
+function Message (queue, args) {
+  events.EventEmitter.call(this);
+
+  this.queue = queue;
+
+  this.deliveryTag = args.deliveryTag;
+  this.redelivered = args.redelivered;
+  this.exchange    = args.exchange;
+  this.routingKey  = args.routingKey;
+}
+sys.inherits(Message, events.EventEmitter);
+
+
+// Acknowledge recept of message.
+// Set first arg to 'true' to acknowledge this and all previous messages
+// received on this channel.
+Message.prototype.acknowledge = function (all) {
+  this.queue.connection._send(this.queue.channel, methods.basicAck,
+      { ticket: 0
+      , deliveryTag: this.deliveryTag
+      , multiple: all ? true : false
+      });
+};
+
+
+
+
 function Queue (connection, channel, name, options) {
-  process.EventEmitter.call(this);
+  events.EventEmitter.call(this);
   this.connection = connection;
   this.channel = channel;
   this.name = name;
@@ -810,9 +854,28 @@ function Queue (connection, channel, name, options) {
 }
 sys.inherits(Queue, events.EventEmitter);
 
-Queue.prototype._onContent = function (channel, data) {
-  this.emit('message', data);
+
+Queue.prototype._onContentHeader = function (channel, classId, weight, size) {
+  var m = this.currentMessage;
+
+  m.weight = weight;
+  m.size = size;
+  m.read = 0;
+
+  this.emit('message', m);
 };
+
+
+Queue.prototype._onContent = function (channel, data) {
+  var m = this.currentMessage;
+
+  m.read += data.length
+
+  m.emit('data', data);
+
+  if (m.read == m.size) m.emit('end');
+};
+
 
 Queue.prototype._onMethod = function (channel, method, args) {
   switch (method) {
@@ -862,6 +925,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.basicDeliver:
+      this.currentMessage = new Message(this, args);
       break;
 
     default:
@@ -869,6 +933,11 @@ Queue.prototype._onMethod = function (channel, method, args) {
           JSON.stringify(args));
   }
 };
+
+
+
+
+
 
 
 Queue.prototype.bind = function (exchange, routingKey, opts) {

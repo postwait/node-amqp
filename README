@@ -6,27 +6,7 @@ This is totally not complete at all - you can subscribe to a queue,
 but you can't publish or interact with exchanges yet.
 
 
-Examples:
-
-  var amqp = require('./amqp');
-
-  var conn = amqp.createConnection({ host: 'dev.rabbitmq.com', port: 5672 });
-
-  conn.addListener("connect", function() {
-    var q = conn.queue('my-events-receiver');
-
-    q.bind("amq.rabbitmq.log", "*");
-
-    q.addListener("message", function (m) {
-      sys.puts(JSON.stringify(m));
-    });
-  });
-
-  conn.addListener("error", function(e) {
-    sys.puts("Error occurred " + e.message);
-  });
-
-
+See test.js for an example.
 
 
 
