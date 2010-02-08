@@ -611,7 +611,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
       }
       this.serverProperties = args.serverProperties;
       // 3. Then we reply with StartOk, containing our useless information.
-      this._send(0, methods.connectionStartOk,
+      this._sendMethod(0, methods.connectionStartOk,
           { clientProperties:
             { version: '0.0.1'
             , platform: 'node-' + process.version
@@ -629,13 +629,13 @@ Connection.prototype._onMethod = function (channel, method, args) {
     // 4. The server responds with a connectionTune request
     case methods.connectionTune:
       // 5. We respond with connectionTuneOk
-      this._send(0, methods.connectionTuneOk,
+      this._sendMethod(0, methods.connectionTuneOk,
           { channelMax: 0
           , frameMax: maxFrameBuffer
           , heartbeat: 0
           });
       // 6. Then we have to send a connectionOpen request
-      this._send(0, methods.connectionOpen,
+      this._sendMethod(0, methods.connectionOpen,
           { virtualHost: this.options.vhost
           , capabilities: ''
           , insist: true
@@ -649,6 +649,11 @@ Connection.prototype._onMethod = function (channel, method, args) {
       this.emit('ready');
       break;
 
+    case methods.connectionClose:
+      var e = new Error(args.replyText);
+      e.code = args.replyCode;
+      this.forceClose(e);
+      break;
 
     default:
       throw new Error("Uncaught method '" + method.name + "' with args " +
@@ -657,7 +662,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
 };
 
 
-Connection.prototype._send = function (channel, method, args) {
+Connection.prototype._sendMethod = function (channel, method, args) {
   debug(channel + " < " + method.name + " " + JSON.stringify(args));
   var b = new Buffer(maxFrameBuffer);
   b.used = 0;
@@ -775,6 +780,111 @@ Connection.prototype._send = function (channel, method, args) {
 };
 
 
+function sendHeader (connection, channel, size, properties) {
+  var b = new Buffer(maxFrameBuffer);
+  b.used = 0;
+
+  // 7 OCTET FRAME HEADER
+
+  b[b.used++] = 2; // constants.frameHeader
+
+  serializeInt(b, 2, channel);
+
+  var lengthStart = b.used;
+
+  serializeInt(b, 4, 0 /*dummy*/); // length
+
+  var bodyStart = b.used;
+
+  // HEADER'S BODY
+
+  serializeInt(b, 2, 60);   // class 60 for Basic
+  serializeInt(b, 2, 0);    // weight, always 0 for rabbitmq
+  serializeInt(b, 8, size); // byte size of body
+
+  // properties
+  var props = {'Content-Type': 'application/octet-stream'};
+  process.mixin(props, properties);
+  serializeTable(b, props);
+
+  var bodyEnd = b.used;
+
+  // 1 OCTET END
+
+  b[b.used++] = 206; // constants.frameEnd;
+
+  // Go back to the header and write in the length now that we know it.
+  b.used = lengthStart;
+  serializeInt(b, 4, bodyEnd - bodyStart);
+  b.used = bodyEnd + 1;
+
+  connection.send(b);
+};
+
+
+Connection.prototype._sendBody = function (channel, body) {
+  // Handles 3 cases
+  // - body is utf8 string
+  // - body is instance of Buffer
+  // - body is an object and its JSON representation is sent 
+  if (typeof(body) == 'string') {
+    var length = Buffer.utf8ByteLength(body);
+
+    sendHeader(this, channel, length);
+
+    var b = new Buffer(7+length+1);
+    b.used = 0;
+
+    b[b.used++] = 3; // constants.frameBody
+    serializeInt(b, 2, channel);
+    serializeInt(b, 4, length);
+
+    b.utf8Write(body, b.used);
+    b.used += length;
+
+    b[b.used++] = 206; // constants.frameEnd;
+    this.send(b);
+  } else if (body instanceof Buffer) {
+    sendHeader(this, channel, body.length);
+
+    var b = new Buffer(7);
+    b.used = 0;
+
+    b[b.used++] = 3; // constants.frameBody
+    serializeInt(b, 2, channel);
+    serializeInt(b, 4, body.length);
+
+    this.send(b);
+
+    this.send(body);
+
+    var b = new Buffer(1);
+    b[0] = 206;
+    this.send(b);
+  } else {
+    // Optimize for JSON. 
+    // Use asciiWrite() which is much faster than utf8Write().
+    var jsonBody = JSON.stringify(body);
+    var length = jsonBody.length;
+
+    sendHeader(this, channel, length);
+
+    var b = new Buffer(7+length+1);
+    b.used = 0;
+
+    b[b.used++] = 3; // constants.frameBody
+    serializeInt(b, 2, channel);
+    serializeInt(b, 4, length);
+
+    b.asciiWrite(jsonBody, b.used);
+    b.used += length;
+
+    b[b.used++] = 206; // constants.frameEnd;
+    this.send(b);
+  }
+};
+
+
 // Options
 // - passive (boolean)
 // - durable (boolean)
@@ -826,7 +936,7 @@ sys.inherits(Message, events.EventEmitter);
 // Set first arg to 'true' to acknowledge this and all previous messages
 // received on this queue.
 Message.prototype.acknowledge = function (all) {
-  this.queue.connection._send(this.queue.channel, methods.basicAck,
+  this.queue.connection._sendMethod(this.queue.channel, methods.basicAck,
       { ticket: 0
       , deliveryTag: this.deliveryTag
       , multiple: all ? true : false
@@ -843,21 +953,22 @@ function Queue (connection, channel, name, options) {
   this.name = name;
   this.options = options || {};
 
-  this._bindQueue = [];
+  this._tasks = [];
 
   this.subscriptionState = 'closed';
 
-  this.connection._send(channel, methods.channelOpen, {outOfBand: ""});
+  this.connection._sendMethod(channel, methods.channelOpen, {outOfBand: ""});
 }
 sys.inherits(Queue, events.EventEmitter);
 
 
 Queue.prototype.subscribe = function (messageListener) {
   this.addListener('message', messageListener);
-  if (this.state == 'declared') {
-    this.connection._send(channel, methods.basicConsume,
+  var self = this;
+  return this._taskPush(methods.basicConsumeOk, function () {
+    self.connection._sendMethod(self.channel, methods.basicConsume,
         { ticket: 0
-        , queue: this.name
+        , queue: self.name
         , consumerTag: "."
         , noLocal: false
         , noAck: true
@@ -865,46 +976,60 @@ Queue.prototype.subscribe = function (messageListener) {
         , nowait: true
         , "arguments": {}
         });
-    this.state = "consumption request";
-  }
+  });
 };
 
 
 Queue.prototype.bind = function (exchange, routingKey, options) {
+  var self = this;
+  return this._taskPush(methods.queueBindOk, function () {
+    var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+    self.connection._sendMethod(self.channel, methods.queueBind,
+        { ticket: 0
+        , queue: self.name
+        , exchange: exchangeName
+        , routingKey: routingKey
+        , nowait: true
+        , "arguments": {}
+        });
+  });
+};
+
+
+Queue.prototype._taskPush = function (reply, cb) {
   var promise = new events.Promise();
-  this._bindQueue.push({ promise: promise
-                       , sent: false
-                       , args: Array.prototype.slice.call(arguments)
-                       });
-  this._bindQueueFlush();
+  this._tasks.push({ promise: promise
+                   , reply: reply
+                   , sent: false
+                   , cb: cb
+                   });
+  this._tasksFlush();
   return promise;
 };
 
 
-Queue.prototype._bindQueueFlush = function () {
+Queue.prototype._tasksFlush = function () {
   if (this.state != 'open') return;
 
-  for (var i = 0; i < this._bindQueue.length; i++) {
-    var b = this._bindQueue[i];
+  for (var i = 0; i < this._tasks.length; i++) {
+    var b = this._tasks[i];
     if (b.sent) continue;
-    var exchangeName = b.args[0] instanceof Exchange ? b.args[0].name
-                                                     : b.args[0];
-    this.connection._send(this.channel, methods.queueBind,
-        { ticket: 0
-        , queue: this.name
-        , exchange: exchangeName
-        , routingKey: b.args[1]
-        , nowait: true
-        , "arguments": {}
-        });
+    b.cb();
+    b.sent = true;
   }
 };
 
 
 Queue.prototype._onMethod = function (channel, method, args) {
+  var task = this._tasks[0];
+  if (task.reply == method) {
+    this._tasks.shift();
+    task.promise.emitSuccess();
+  }
+
   switch (method) {
     case methods.channelOpenOk:
-      this.connection._send(channel, methods.queueDeclare,
+      this.connection._sendMethod(channel, methods.queueDeclare,
           { ticket: 0
           , queue: this.name
           , passive: this.options.passive ? true : false
@@ -918,18 +1043,13 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.queueDeclareOk:
-      this.state = "declared";
-      this.s
+      this.state = "open";
       break;
 
     case methods.basicConsumeOk:
-      this.state = "open";
-      this._bindQueueFlush();
       break;
 
     case methods.queueBindOk:
-      var b = this._bindQueue.shift();
-      b.promise.emitSuccess();
       break;
 
     case methods.channelClose:
@@ -947,6 +1067,8 @@ Queue.prototype._onMethod = function (channel, method, args) {
       throw new Error("Uncaught method '" + method.name + "' with args " +
           JSON.stringify(args));
   }
+
+  this._tasksFlush();
 };
 
 
@@ -978,7 +1100,7 @@ function Exchange (connection, channel, name, options) {
   this.name = name;
   this.options = options || {};
 
-  this.connection._send(channel, methods.channelOpen, {outOfBand: ""});
+  this.connection._sendMethod(channel, methods.channelOpen, {outOfBand: ""});
 }
 sys.inherits(Exchange, events.EventEmitter);
 
@@ -986,7 +1108,7 @@ sys.inherits(Exchange, events.EventEmitter);
 Exchange.prototype._onMethod = function (channel, method, args) {
   switch (method) {
     case methods.channelOpenOk:
-      this.connection._send(channel, methods.exchangeDeclare,
+      this.connection._sendMethod(channel, methods.exchangeDeclare,
           { ticket: 0
           , exchange:   this.name
           , type:       this.options.type || 'topic'
@@ -1002,6 +1124,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
     case methods.exchangeDeclareOk:
       this.state = 'declared';
+      this.emit('declared');
       break;
 
     case methods.channelClose:
@@ -1018,3 +1141,20 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 };
 
 
+// exchange.publish('routing.key', "hello world");
+//
+// the thrid argument can specify additional options
+// - mandatory (boolean, default false)
+// - immediate (boolean, default false)
+Exchange.prototype.publish = function (routingKey, data, options) {
+  if (this.state != 'declared') throw new Error('Exchange not yet declared');
+  this.connection._sendMethod(this.channel, methods.basicPublish,
+      { ticket: 0
+      , exchange:   this.name
+      , routingKey: routingKey
+      , mandatory:  this.options.mandatory ? true : false
+      , immediate:  this.options.immediate ? true : false
+      });
+  // TODO streaming bodies?
+  this.connection._sendBody(this.channel, data);
+};

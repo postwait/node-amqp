@@ -21,7 +21,10 @@ connection.addListener('ready', function () {
 
   var q = connection.queue('my-events-receiver');
 
-  q.bind(exchange, "*");
+  q.bind(exchange, "*").addCallback(function () {
+    //sys.puts("publishing message");
+    //exchange.publish("hello", "hello world");
+  });
 
   q.subscribe(function (m) {
     sys.puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
