@@ -17,9 +17,11 @@ connection.addListener('close', function (e) {
 connection.addListener('ready', function () {
   sys.puts("connected to " + connection.serverProperties.product);  
 
+  var exchange = connection.exchange('ex');
+
   var q = connection.queue('my-events-receiver');
 
-  q.bind("", "*");
+  q.bind(exchange, "*");
 
   q.subscribe(function (m) {
     sys.puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");

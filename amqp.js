@@ -508,6 +508,8 @@ function serializeTable (b, object) {
 }
 
 
+
+
 function Connection (options) {
   net.Socket.call(this);
 
@@ -516,6 +518,7 @@ function Connection (options) {
   // channel 0 is the control channel.
   this.channels = [this];
   this.queues = {};
+  this.exchanges = {};
 
   this.options = options || {};
 
@@ -787,6 +790,23 @@ Connection.prototype.queue = function (name, options) {
 };
 
 
+// connection.exchange('my-exchange', { type: 'topic' });
+// Options
+// - type 'direct' or 'topic' (default)
+// - passive (boolean)
+// - durable (boolean)
+// - autoDelete (boolean)
+// - internal (boolean)
+Connection.prototype.exchange = function (name, options) {
+  if (this.exchanges[name]) return this.exchanges[name];
+  var channel = this.channels.length;
+  var exchange = new Exchange(this, channel, name, options);
+  this.channels.push(exchange);
+  this.exchanges[name] = exchange;
+  return exchange;
+};
+
+
 
 
 function Message (queue, args) {
@@ -867,10 +887,12 @@ Queue.prototype._bindQueueFlush = function () {
   for (var i = 0; i < this._bindQueue.length; i++) {
     var b = this._bindQueue[i];
     if (b.sent) continue;
+    var exchangeName = b.args[0] instanceof Exchange ? b.args[0].name
+                                                     : b.args[0];
     this.connection._send(this.channel, methods.queueBind,
         { ticket: 0
         , queue: this.name
-        , exchange: b.args[0]
+        , exchange: exchangeName
         , routingKey: b.args[1]
         , nowait: true
         , "arguments": {}
@@ -945,4 +967,54 @@ Queue.prototype._onContent = function (channel, data) {
   m.emit('data', data);
   if (m.read == m.size) m.emit('end');
 };
+
+
+
+
+function Exchange (connection, channel, name, options) {
+  events.EventEmitter.call(this);
+  this.connection = connection;
+  this.channel = channel;
+  this.name = name;
+  this.options = options || {};
+
+  this.connection._send(channel, methods.channelOpen, {outOfBand: ""});
+}
+sys.inherits(Exchange, events.EventEmitter);
+
+
+Exchange.prototype._onMethod = function (channel, method, args) {
+  switch (method) {
+    case methods.channelOpenOk:
+      this.connection._send(channel, methods.exchangeDeclare,
+          { ticket: 0
+          , exchange:   this.name
+          , type:       this.options.type || 'topic'
+          , passive:    this.options.passive    ? true : false
+          , durable:    this.options.durable    ? true : false
+          , autoDelete: this.options.autoDelete ? true : false
+          , internal:   this.options.internal   ? true : false
+          , nowait:     true
+          , "arguments": {}
+          });
+      this.state = 'declaring';
+      break;
+
+    case methods.exchangeDeclareOk:
+      this.state = 'declared';
+      break;
+
+    case methods.channelClose:
+      this.state = "closed";
+      var e = new Error(args.replyText);
+      e.code = args.replyCode;
+      this.emit('close', e);
+      break;
+
+    default:
+      throw new Error("Uncaught method '" + method.name + "' with args " +
+          JSON.stringify(args));
+  }
+};
+
 
