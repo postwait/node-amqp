@@ -1,15 +1,23 @@
 var sys =  require('sys');
 var amqp = require('./amqp');
 
-var conn = amqp.createConnection({ port: 5672, host: 'localhost' });
 
-conn.addListener('close', function (e) {
-  throw e;
+var connection = amqp.createConnection({ port: 5672, host: 'localhost' });
+
+
+connection.addListener('close', function (e) {
+  if (e) {
+    throw e;
+  } else {
+    sys.puts('connection closed.');
+  }
 });
 
-conn.addListener('ready', function () {
-  sys.puts("connected to " + conn.serverProperties.product);  
-  var q = conn.queue('my-events-receiver');
+
+connection.addListener('ready', function () {
+  sys.puts("connected to " + connection.serverProperties.product);  
+
+  var q = connection.queue('my-events-receiver');
 
   q.bind("", "*");
 

@@ -513,7 +513,8 @@ function Connection (options) {
 
   var self = this;
 
-  this.channels = [];
+  // channel 0 is the control channel.
+  this.channels = [this];
   this.queues = {};
 
   this.options = options || {};
@@ -540,9 +541,8 @@ function Connection (options) {
 
   parser.onContent = function (channel, data) {
     debug(channel + " > content " + data.length);
-    var i = channel-1;
-    if (self.channels[i] && self.channels[i]._onContent) {
-      self.channels[i]._onContent(channel, data);
+    if (self.channels[channel] && self.channels[channel]._onContent) {
+      self.channels[channel]._onContent(channel, data);
     } else {
       debug("unhandled content: " + data);
     }
@@ -550,9 +550,8 @@ function Connection (options) {
 
   parser.onContentHeader = function (channel, class, weight, size) {
     debug(channel + " > content header " + [class, weight, size]);
-    var i = channel-1;
-    if (self.channels[i] && self.channels[i]._onContentHeader) {
-      self.channels[i]._onContentHeader(channel, class, weight, size);
+    if (self.channels[channel] && self.channels[channel]._onContentHeader) {
+      self.channels[channel]._onContentHeader(channel, class, weight, size);
     } else {
       debug("unhandled content header");
     }
@@ -586,12 +585,12 @@ Connection.prototype._onMethod = function (channel, method, args) {
   debug(channel + " > " + method.name + " " + JSON.stringify(args));
 
   if (channel) {
-    if (!this.channels[channel-1]) {
+    if (!this.channels[channel]) {
       debug("received message on untracked channel.");
       return;
     }
-    if (!this.channels[channel-1]._onMethod) return;
-    this.channels[channel-1]._onMethod(channel, method, args);
+    if (!this.channels[channel]._onMethod) return;
+    this.channels[channel]._onMethod(channel, method, args);
     return;
   }
 
@@ -780,7 +779,7 @@ Connection.prototype._send = function (channel, method, args) {
 // - autoDelete (boolean)
 Connection.prototype.queue = function (name, options) {
   if (this.queues[name]) return this.queues[name];
-  var channel = this.channels.length + 1;
+  var channel = this.channels.length;
   var q = new Queue(this, channel, name, options);
   this.channels.push(q);
   this.queues[name] = q;
