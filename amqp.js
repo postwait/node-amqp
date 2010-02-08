@@ -4,7 +4,6 @@ var events = require('events'),
     protocol = require('./amqp-definitions-0-8');
 
 
-
 var Buffer = process.Buffer;
 
 process.Buffer.prototype.toString = function () {
@@ -510,45 +509,28 @@ function serializeTable (b, object) {
 
 
 function Connection (options) {
-  process.EventEmitter.call(this);
+  net.Socket.call(this);
 
   var self = this;
-  var opts = {};
-  this.opts = opts;
 
   this.channels = [];
+  this.queues = {};
 
-  process.mixin(opts, exports.defaultOptions, options);
-
-  this.connection = net.createConnection(opts.port, opts.host);
-  var conn = this.connection;
+  this.options = options || {};
 
   var parser = new AMQPParser('0-8', 'client');
 
   var state = 'handshake';
 
-  conn.addListener('close', function () {
-    self.emit('close');
-  });
-
-  conn.addListener('error', function (e) {
-    self.emit('error', e);
-  });
-
-  conn.addListener('end', function () {
-    debug('got eof');
-    self.emit('close');
-  });
-
-  conn.addListener('data', function (data) {
+  self.addListener('data', function (data) {
     parser.execute(data);
   });
 
-  conn.addListener("connect", function () {
+  self.addListener('connect', function () {
     debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
-    conn.send("AMQP" + String.fromCharCode(1,1,8,0));
+    self.send("AMQP" + String.fromCharCode(1,1,8,0));
     state = 'handshake';
   });
 
@@ -577,41 +559,27 @@ function Connection (options) {
   };
 
   parser.onHeartBeat = function () {
-    debug("heartbeat: ");
+    debug("heartbeat");
   };
+}
+sys.inherits(Connection, net.Socket);
 
-  /*
-  var handshakeListener = function (message) {
-    if (message.matchMethod(C.Connection.Start)) {
-    } else if (message.matchMethod(C.Connection.Tune)) {
-      conn.send(Method.serialize(C.Connection.TuneOk, C.Channel.All, 0, 131072, 0));
-      conn.send(Method.serialize(C.Connection.Open, C.Channel.All, opts.vhost, '', ''));
-    } else if (message.matchMethod(C.Connection.OpenOk)) {
-      conn.send(Method.serialize(C.Channel.Open, 1, ''));
-    } else if (message.matchMethod(C.Channel.OpenOk)) {
-      self.conn = conn;
-      self.emit('connect');
-      conn.removeListener(handshakeListener);
-    }
-  }
-  conn.addListener("message", handshakeListener);
-  */
 
-};
-sys.inherits(Connection, process.EventEmitter);
-exports.Connection = Connection;
+var defaultOptions = { host: null
+                     , port: 5672
+                     , login: 'guest'
+                     , password: 'guest'
+                     , vhost: '/'
+                     };
 
-exports.createConnection = function (opts) {
-  return new Connection(opts);
-};
 
-exports.defaultOptions = {
-  host: 'localhost',
-  port: 5672,
-  login: 'guest',
-  vhost: '/',
-  password: 'guest'
-};
+exports.createConnection = function (options) {
+  var o  = {};
+  process.mixin(o, defaultOptions, options);
+  var c = new Connection(o);
+  c.connect(o.port, o.host);
+  return c;
+}
 
 
 Connection.prototype._onMethod = function (channel, method, args) {
@@ -635,24 +603,25 @@ Connection.prototype._onMethod = function (channel, method, args) {
     case methods.connectionStart:
       // We check that they're serving us AMQP 0-8
       if (args.versionMajor != 8 && args.versionMinor != 0) {
-        this.connection.close();
+        this.close();
         this.emit('error', new Error("Bad server version"));
-      } else {
-        // 3. Then we reply with StartOk, containing our useless information.
-        this._send(0, methods.connectionStartOk,
-            { clientProperties:
-              { version: '0.0.1'
-              , platform: 'node-' + process.version
-              , product: 'node-amqp'
-              }
-            , mechanism: 'AMQPLAIN'
-            , response:
-              { LOGIN: this.opts.login
-              , PASSWORD: this.opts.password
-              }
-            , locale: 'en_US'
-            });
+        return;
       }
+      this.serverProperties = args.serverProperties;
+      // 3. Then we reply with StartOk, containing our useless information.
+      this._send(0, methods.connectionStartOk,
+          { clientProperties:
+            { version: '0.0.1'
+            , platform: 'node-' + process.version
+            , product: 'node-amqp'
+            }
+          , mechanism: 'AMQPLAIN'
+          , response:
+            { LOGIN: this.options.login
+            , PASSWORD: this.options.password
+            }
+          , locale: 'en_US'
+          });
       break;
 
     // 4. The server responds with a connectionTune request
@@ -665,7 +634,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
           });
       // 6. Then we have to send a connectionOpen request
       this._send(0, methods.connectionOpen,
-          { virtualHost: this.opts.vhost
+          { virtualHost: this.options.vhost
           , capabilities: ''
           , insist: true
           });
@@ -675,7 +644,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
     case methods.connectionOpenOk:
       // 7. Finally they respond with connectionOpenOk
       // Whew! That's why they call it the Advanced MQP.
-      this.emit('connect');
+      this.emit('ready');
       break;
 
 
@@ -684,6 +653,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
           JSON.stringify(args));
   }
 };
+
 
 Connection.prototype._send = function (channel, method, args) {
   debug(channel + " < " + method.name + " " + JSON.stringify(args));
@@ -727,7 +697,8 @@ Connection.prototype._send = function (channel, method, args) {
           throw new Error("Unmatched field " + JSON.stringify(field));
         }
 
-        bitField &= (1 << (7 - bitIndex))
+        //bitField &= (1 << (7 - bitIndex))
+        bitField &= (1 << (bitIndex))
 
         if (!method.fields[i+1] || method.fields[i+1].domain != 'bit') {
           b[b.used++] = bitField;
@@ -798,14 +769,21 @@ Connection.prototype._send = function (channel, method, args) {
 
   //debug("sending frame: " + c);
 
-  this.connection.send(c);
+  this.send(c);
 };
 
 
+// Options
+// - passive (boolean)
+// - durable (boolean)
+// - exclusive (boolean)
+// - autoDelete (boolean)
 Connection.prototype.queue = function (name, options) {
+  if (this.queues[name]) return this.queues[name];
   var channel = this.channels.length + 1;
   var q = new Queue(this, channel, name, options);
   this.channels.push(q);
+  this.queues[name] = q;
   return q;
 };
 
@@ -827,7 +805,7 @@ sys.inherits(Message, events.EventEmitter);
 
 // Acknowledge recept of message.
 // Set first arg to 'true' to acknowledge this and all previous messages
-// received on this channel.
+// received on this queue.
 Message.prototype.acknowledge = function (all) {
   this.queue.connection._send(this.queue.channel, methods.basicAck,
       { ticket: 0
@@ -844,36 +822,61 @@ function Queue (connection, channel, name, options) {
   this.connection = connection;
   this.channel = channel;
   this.name = name;
-  this.options = options;
+  this.options = options || {};
 
   this._bindQueue = [];
 
-  this.state = "open channel";
-  //this.connection._send(channel, methods.channelOpen, {outOfBand: ""});
+  this.subscriptionState = 'closed';
+
   this.connection._send(channel, methods.channelOpen, {outOfBand: ""});
 }
 sys.inherits(Queue, events.EventEmitter);
 
 
-Queue.prototype._onContentHeader = function (channel, classId, weight, size) {
-  var m = this.currentMessage;
-
-  m.weight = weight;
-  m.size = size;
-  m.read = 0;
-
-  this.emit('message', m);
+Queue.prototype.subscribe = function (messageListener) {
+  this.addListener('message', messageListener);
+  if (this.state == 'declared') {
+    this.connection._send(channel, methods.basicConsume,
+        { ticket: 0
+        , queue: this.name
+        , consumerTag: "."
+        , noLocal: false
+        , noAck: true
+        , exclusive: false
+        , nowait: true
+        , "arguments": {}
+        });
+    this.state = "consumption request";
+  }
 };
 
 
-Queue.prototype._onContent = function (channel, data) {
-  var m = this.currentMessage;
+Queue.prototype.bind = function (exchange, routingKey, options) {
+  var promise = new events.Promise();
+  this._bindQueue.push({ promise: promise
+                       , sent: false
+                       , args: Array.prototype.slice.call(arguments)
+                       });
+  this._bindQueueFlush();
+  return promise;
+};
 
-  m.read += data.length
 
-  m.emit('data', data);
+Queue.prototype._bindQueueFlush = function () {
+  if (this.state != 'open') return;
 
-  if (m.read == m.size) m.emit('end');
+  for (var i = 0; i < this._bindQueue.length; i++) {
+    var b = this._bindQueue[i];
+    if (b.sent) continue;
+    this.connection._send(this.channel, methods.queueBind,
+        { ticket: 0
+        , queue: this.name
+        , exchange: b.args[0]
+        , routingKey: b.args[1]
+        , nowait: true
+        , "arguments": {}
+        });
+  }
 };
 
 
@@ -883,10 +886,10 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.connection._send(channel, methods.queueDeclare,
           { ticket: 0
           , queue: this.name
-          , passive: false
-          , durable: false
-          , exclusive: false
-          , autoDelete: false
+          , passive: this.options.passive ? true : false
+          , durable: this.options.durable ? true : false
+          , exclusive: this.options.exclusive ? true : false
+          , autoDelete: this.options.autoDelete ? true : false
           , nowait: true
           , "arguments": {}
           });
@@ -894,17 +897,8 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.queueDeclareOk:
-      this.connection._send(channel, methods.basicConsume,
-          { ticket: 0
-          , queue: this.name
-          , consumerTag: "."
-          , noLocal: false
-          , noAck: true
-          , exclusive: false
-          , nowait: true
-          , "arguments": {}
-          });
-      this.state = "consuming";
+      this.state = "declared";
+      this.s
       break;
 
     case methods.basicConsumeOk:
@@ -935,38 +929,21 @@ Queue.prototype._onMethod = function (channel, method, args) {
 };
 
 
+Queue.prototype._onContentHeader = function (channel, classId, weight, size) {
+  var m = this.currentMessage;
 
+  m.weight = weight;
+  m.size = size;
+  m.read = 0;
 
-
-
-
-Queue.prototype.bind = function (exchange, routingKey, opts) {
-  var promise = new events.Promise();
-  this._bindQueue.push({ promise: promise
-                       , sent: false
-                       , args: Array.prototype.slice.call(arguments)
-                       });
-  this._bindQueueFlush();
-  return promise;
+  this.emit('message', m);
 };
 
 
-Queue.prototype._bindQueueFlush = function () {
-  if (this.state != 'open') return;
-
-  for (var i = 0; i < this._bindQueue.length; i++) {
-    var b = this._bindQueue[i];
-    if (b.sent) continue;
-    this.connection._send(this.channel, methods.queueBind,
-        { ticket: 0
-        , queue: this.name
-        , exchange: b.args[0]
-        , routingKey: b.args[1]
-        , nowait: true
-        , "arguments": {}
-        });
-  }
+Queue.prototype._onContent = function (channel, data) {
+  var m = this.currentMessage;
+  m.read += data.length
+  m.emit('data', data);
+  if (m.read == m.size) m.emit('end');
 };
-
-
 

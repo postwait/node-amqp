@@ -1,24 +1,19 @@
 var sys =  require('sys');
 var amqp = require('./amqp');
 
-var conn = amqp.createConnection({
-// host: 'dev.rabbitmq.com',
-  host: '8.19.35.89',
-  port: 5672
+var conn = amqp.createConnection({ port: 5672, host: 'localhost' });
+
+conn.addListener('close', function (e) {
+  throw e;
 });
 
-conn.addListener("close", function() {
-  sys.puts("connection closed.... ");
-});
-
-conn.addListener("connect", function() {
-  sys.puts('connect');
-
+conn.addListener('ready', function () {
+  sys.puts("connected to " + conn.serverProperties.product);  
   var q = conn.queue('my-events-receiver');
 
-  q.bind("amq.rabbitmq.log", "*");
+  q.bind("", "*");
 
-  q.addListener("message", function (m) {
+  q.subscribe(function (m) {
     sys.puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
 
     m.addListener('data', function (d) {
@@ -30,4 +25,3 @@ conn.addListener("connect", function() {
     });
   });
 });
-
