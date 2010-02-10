@@ -1037,7 +1037,7 @@ Queue.prototype._tasksFlush = function () {
 
 Queue.prototype._onMethod = function (channel, method, args) {
   var task = this._tasks[0];
-  if (task.reply == method) {
+  if (task && task.reply == method) {
     this._tasks.shift();
     task.promise.emitSuccess();
   }
