@@ -35,6 +35,7 @@ connection.addListener('ready', function () {
 
     m.addListener('end', function () {
       m.acknowledge();
+      sys.puts("--- END (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
     });
   });
 });

@@ -582,10 +582,10 @@ function Connection (options) {
     }
   };
 
-  parser.onContentHeader = function (channel, class, weight, properties, size) {
-    debug(channel + " > content header " + [class, weight, size]);
+  parser.onContentHeader = function (channel, classInfo, weight, properties, size) {
+    debug(channel + " > content header " + JSON.stringify([classInfo.name, weight, properties, size]));
     if (self.channels[channel] && self.channels[channel]._onContentHeader) {
-      self.channels[channel]._onContentHeader(channel, class, weight, properties, size);
+      self.channels[channel]._onContentHeader(channel, classInfo, weight, properties, size);
     } else {
       debug("unhandled content header");
     }
@@ -1114,22 +1114,21 @@ Queue.prototype._onMethod = function (channel, method, args) {
 };
 
 
-Queue.prototype._onContentHeader = function (channel, classId, weight, size) {
-  var m = this.currentMessage;
+Queue.prototype._onContentHeader = function (channel, classInfo, weight, properties, size) {
+  this.currentMessage.properties = properties;
+  this.currentMessage.read = 0;
+  this.currentMessage.size = size;
 
-  m.weight = weight;
-  m.size = size;
-  m.read = 0;
-
-  this.emit('message', m);
+  this.emit('message', this.currentMessage);
 };
 
 
 Queue.prototype._onContent = function (channel, data) {
-  var m = this.currentMessage;
-  m.read += data.length
-  m.emit('data', data);
-  if (m.read == m.size) m.emit('end');
+  this.currentMessage.read += data.length
+  this.currentMessage.emit('data', data);
+  if (this.currentMessage.read == this.currentMessage.size) {
+    this.currentMessage.emit('end');
+  }
 };
 
 
