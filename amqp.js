@@ -37,10 +37,14 @@ var methodTable = {};
 // methods keyed on their name
 var methods = {};
 
+// classes keyed on their index
+var classes = {};
+
 (function () { // anon scope for init
   //debug("initializing amqp methods...");
   for (var i = 0; i < protocol.classes.length; i++) {
     var classInfo = protocol.classes[i];
+    classes[classInfo.index] = classInfo;
     for (var j = 0; j < classInfo.methods.length; j++) {
       var methodInfo = classInfo.methods[j];
 
@@ -79,7 +83,7 @@ var maxFrameBuffer = 131072; // same as rabbitmq
 // - onMethod(channel, method, args);
 // - onHeartBeat()
 // - onContent(channel, buffer);
-// - onContentHeader(channel, class, weight, size);
+// - onContentHeader(channel, class, weight, properties, size);
 //
 // This class does not subclass EventEmitter, in order to reduce the speed
 // of emitting the callbacks. Since this is an internal class, that should
@@ -277,44 +281,27 @@ function parseTable (buffer) {
   return table;
 }
 
-
-AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
-  buffer.read = 0;
-  var classId = parseInt(buffer, 2),
-     methodId = parseInt(buffer, 2);
-
-
-  // Make sure that this is a method that we understand.
-  if (!methodTable[classId] || !methodTable[classId][methodId]) {
-    throw new Error("Received unknown [classId, methodId] pair [" +
-                    classId + ", " + methodId + "]");
-  }
-
-  var method = methodTable[classId][methodId];
-
-  if (!method) throw new Error("bad method?");
-
+function parseFields (buffer, fields) {
   var args = {};
 
   var bitIndex = 0;
 
   var value;
-  for (var i = 0; i < method.fields.length; i++) {
-    var field = method.fields[i];
-    // debug("parsing field " + field.name);
+
+  for (var i = 0; i < fields.length; i++) {
+    var field = fields[i];
+
+    //debug("parsing field " + field.name + " of type " + field.domain);
+
     switch (field.domain) {
       case 'bit':
         // 8 bits can be packed into one octet.
 
         // XXX check if bitIndex greater than 7?
 
-        if (buffer[buffer.read] & (1 << bitIndex)) {
-          value = true;
-        } else {
-          value = false;
-        }
+        value = (buffer[buffer.read] & (1 << bitIndex)) ? true : false;
 
-        if (method.fields[i+1].domain == 'bit') {
+        if (fields[i+1].domain == 'bit') {
           bitIndex++;
         } else {
           bitIndex = 0;
@@ -357,6 +344,28 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
     args[field.name] = value;
   }
 
+  return args;
+}
+
+
+AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
+  buffer.read = 0;
+  var classId = parseInt(buffer, 2),
+     methodId = parseInt(buffer, 2);
+
+
+  // Make sure that this is a method that we understand.
+  if (!methodTable[classId] || !methodTable[classId][methodId]) {
+    throw new Error("Received unknown [classId, methodId] pair [" +
+                    classId + ", " + methodId + "]");
+  }
+
+  var method = methodTable[classId][methodId];
+
+  if (!method) throw new Error("bad method?");
+
+  var args = parseFields(buffer, method.fields);
+
   if (this.onMethod) {
     this.onMethod(channel, method, args);
   }
@@ -366,14 +375,32 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
 AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
   buffer.read = 0;
 
-  var class = parseInt(buffer, 2);
+  var classIndex = parseInt(buffer, 2);
   var weight = parseInt(buffer, 2);
   var size = parseInt(buffer, 8);
 
-  // ignore flags for now.
+
+
+  var classInfo = classes[classIndex];
+
+  if (classInfo.fields.length > 15) {
+    throw new Error("TODO: support more than 15 properties");
+  }
+
+
+  var propertyFlags = parseInt(buffer, 2);
+
+  var fields = [];
+  for (var i = 0; i < classInfo.fields.length; i++) {
+    var field = classInfo.fields[i];
+    // groan.
+    if (propertyFlags & (1 << (15-i))) fields.push(field);
+  }
+
+  var properties = parseFields(buffer, fields);
 
   if (this.onContentHeader) {
-    this.onContentHeader(channel, class, weight, size);
+    this.onContentHeader(channel, classInfo, weight, properties, size);
   }
 };
 
@@ -555,10 +582,10 @@ function Connection (options) {
     }
   };
 
-  parser.onContentHeader = function (channel, class, weight, size) {
+  parser.onContentHeader = function (channel, class, weight, properties, size) {
     debug(channel + " > content header " + [class, weight, size]);
     if (self.channels[channel] && self.channels[channel]._onContentHeader) {
-      self.channels[channel]._onContentHeader(channel, class, weight, size);
+      self.channels[channel]._onContentHeader(channel, class, weight, properties, size);
     } else {
       debug("unhandled content header");
     }
@@ -691,7 +718,7 @@ Connection.prototype._sendMethod = function (channel, method, args) {
   for (var i = 0; i < method.fields.length; i++) {
     var field = method.fields[i];
     var domain = field.domain;
-    
+
     if (!(field.name in args)) {
       debug(JSON.stringify(args));
       throw new Error("Missing method field '" + field.name + "' of type " + domain);
