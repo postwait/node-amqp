@@ -11,7 +11,11 @@ process.Buffer.prototype.toString = function () {
 };
 
 process.Buffer.prototype.toJSON = function () {
-  return this.utf8Slice(0, this.length);
+  var s = "";
+  for (var i = 0; i < this.length; i++) {
+    s += this[i].toString(16) + " ";
+  }
+  return s;
 };
 
 
@@ -567,7 +571,7 @@ function Connection (options) {
 sys.inherits(Connection, net.Socket);
 
 
-var defaultOptions = { host: null
+var defaultOptions = { host: 'localhost'
                      , port: 5672
                      , login: 'guest'
                      , password: 'guest'
@@ -803,38 +807,49 @@ function sendHeader (connection, channel, size, properties) {
   serializeInt(b, 8, size); // byte size of body
 
   // properties
-  var props = {'Content-Type': 'application/octet-stream'};
-  process.mixin(props, properties);
-  serializeTable(b, props);
+
+  //var props = {'Content-Type': 'application/octet-stream'};
+  //process.mixin(props, properties);
+  
+  serializeInt(b, 8, 0);    // ?
+
+  //serializeTable(b, props);
 
   var bodyEnd = b.used;
+
+  // Go back to the header and write in the length now that we know it.
+  b.used = lengthStart;
+  serializeInt(b, 4, bodyEnd - bodyStart);
+  b.used = bodyEnd;
 
   // 1 OCTET END
 
   b[b.used++] = 206; // constants.frameEnd;
 
-  // Go back to the header and write in the length now that we know it.
-  b.used = lengthStart;
-  serializeInt(b, 4, bodyEnd - bodyStart);
-  b.used = bodyEnd + 1;
+  var s = b.slice(0, b.used);
 
-  connection.send(b);
-};
+  debug('header sent: ' + JSON.stringify(s));
+
+  connection.send(s);
+}
 
 
 Connection.prototype._sendBody = function (channel, body) {
   // Handles 3 cases
   // - body is utf8 string
   // - body is instance of Buffer
-  // - body is an object and its JSON representation is sent 
+  // - body is an object and its JSON representation is sent
+  // Does not handle the case for streaming bodies.
   if (typeof(body) == 'string') {
     var length = Buffer.utf8ByteLength(body);
+    debug('send message length ' + length);
 
     sendHeader(this, channel, length);
 
+    debug('header sent');
+
     var b = new Buffer(7+length+1);
     b.used = 0;
-
     b[b.used++] = 3; // constants.frameBody
     serializeInt(b, 2, channel);
     serializeInt(b, 4, length);
@@ -844,25 +859,25 @@ Connection.prototype._sendBody = function (channel, body) {
 
     b[b.used++] = 206; // constants.frameEnd;
     this.send(b);
+
+    debug('body sent: ' + JSON.stringify(b));
+
   } else if (body instanceof Buffer) {
     sendHeader(this, channel, body.length);
 
     var b = new Buffer(7);
     b.used = 0;
-
     b[b.used++] = 3; // constants.frameBody
     serializeInt(b, 2, channel);
     serializeInt(b, 4, body.length);
-
     this.send(b);
 
     this.send(body);
 
-    var b = new Buffer(1);
-    b[0] = 206;
-    this.send(b);
+    this.send(String.fromCharCode(206)); // frameEnd
+
   } else {
-    // Optimize for JSON. 
+    // Optimize for JSON.
     // Use asciiWrite() which is much faster than utf8Write().
     var jsonBody = JSON.stringify(body);
     var length = jsonBody.length;

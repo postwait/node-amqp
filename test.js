@@ -2,7 +2,7 @@ var sys =  require('sys');
 var amqp = require('./amqp');
 
 
-var connection = amqp.createConnection({ port: 5672, host: 'localhost' });
+var connection = amqp.createConnection();
 
 
 connection.addListener('close', function (e) {
@@ -15,15 +15,15 @@ connection.addListener('close', function (e) {
 
 
 connection.addListener('ready', function () {
-  sys.puts("connected to " + connection.serverProperties.product);  
+  sys.puts("connected to " + connection.serverProperties.product);
 
   var exchange = connection.exchange('ex');
 
   var q = connection.queue('my-events-receiver');
 
   q.bind(exchange, "*").addCallback(function () {
-    //sys.puts("publishing message");
-    //exchange.publish("hello", "hello world");
+    sys.puts("publishing message");
+    exchange.publish("hello", "hello world");
   });
 
   q.subscribe(function (m) {
