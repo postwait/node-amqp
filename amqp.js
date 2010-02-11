@@ -412,6 +412,8 @@ function serializeInt (b, size, int) {
     throw new Error("write out of bounds");
   }
 
+  // Only 4 cases - just going to be explicit instead of looping.
+
   switch (size) {
     // octet
     case 1:
@@ -420,29 +422,29 @@ function serializeInt (b, size, int) {
 
     // short
     case 2:
-      b[b.used++] = int & 0xFF00;
-      b[b.used++] = int & 0x00FF;
+      b[b.used++] = (int & 0xFF00) >> 8;
+      b[b.used++] = (int & 0x00FF) >> 0;
       break;
 
     // long
     case 4:
-      b[b.used++] = int & 0xFF000000;
-      b[b.used++] = int & 0x00FF0000;
-      b[b.used++] = int & 0x0000FF00;
-      b[b.used++] = int & 0x000000FF;
+      b[b.used++] = (int & 0xFF000000) >> 24;
+      b[b.used++] = (int & 0x00FF0000) >> 16;
+      b[b.used++] = (int & 0x0000FF00) >> 8;
+      b[b.used++] = (int & 0x000000FF) >> 0;
       break;
 
-    
+
     // long long
     case 8:
-      b[b.used++] = int & 0xFF00000000000000;
-      b[b.used++] = int & 0x00FF000000000000;
-      b[b.used++] = int & 0x0000FF0000000000;
-      b[b.used++] = int & 0x000000FF00000000;
-      b[b.used++] = int & 0x00000000FF000000;
-      b[b.used++] = int & 0x0000000000FF0000;
-      b[b.used++] = int & 0x000000000000FF00;
-      b[b.used++] = int & 0x00000000000000FF;
+      b[b.used++] = (int & 0xFF00000000000000) >> 56;
+      b[b.used++] = (int & 0x00FF000000000000) >> 48;
+      b[b.used++] = (int & 0x0000FF0000000000) >> 40;
+      b[b.used++] = (int & 0x000000FF00000000) >> 32;
+      b[b.used++] = (int & 0x00000000FF000000) >> 24;
+      b[b.used++] = (int & 0x0000000000FF0000) >> 16;
+      b[b.used++] = (int & 0x000000000000FF00) >> 8;
+      b[b.used++] = (int & 0x00000000000000FF) >> 0;
       break;
 
     default:
@@ -547,13 +549,16 @@ function serializeFields (buffer, fields, args, strict) {
     var field = fields[i];
     var domain = field.domain;
 
-    if (strict && !(field.name in args)) {
-      debug(JSON.stringify(args));
-      throw new Error("Missing field '" + field.name + "' of type " + domain);
+    if (!(field.name in args)) {
+      if (strict) {
+        throw new Error("Missing field '" + field.name + "' of type " + domain);
+      }
+      continue;
     }
+
     var param = args[field.name];
 
-    //debug("domain: " + domain + " param: " + param);
+    debug("domain: " + domain + " param: " + param);
 
     switch (domain) {
       case 'bit':
@@ -817,6 +822,8 @@ function sendHeader (connection, channel, size, properties) {
   var b = new Buffer(maxFrameBuffer);
   b.used = 0;
 
+  var classInfo = classes[60];
+
   // 7 OCTET FRAME HEADER
 
   b[b.used++] = 2; // constants.frameHeader
@@ -831,16 +838,20 @@ function sendHeader (connection, channel, size, properties) {
 
   // HEADER'S BODY
 
-  serializeInt(b, 2, 60);   // class 60 for Basic
-  serializeInt(b, 2, 0);    // weight, always 0 for rabbitmq
-  serializeInt(b, 8, size); // byte size of body
+  serializeInt(b, 2, classInfo.index);   // class 60 for Basic
+  serializeInt(b, 2, 0);                 // weight, always 0 for rabbitmq
+  serializeInt(b, 8, size);              // byte size of body
 
   // properties
 
-  //var props = {'contentType': 'application/octet-stream'};
-  //process.mixin(props, properties);
 
-  serializeInt(b, 8, 0);    // ?
+  // property-flags
+  serializeInt(b, 2, 0x8000); // HACK: contentType only
+
+  var props = {'contentType': 'application/octet-stream'};
+
+  serializeFields(b, classInfo.fields, props, false);
+  //process.mixin(props, properties);
 
   //serializeTable(b, props);
 
