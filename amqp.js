@@ -993,7 +993,24 @@ Connection.prototype.exchange = function (name, options) {
 
 
 
-
+// Properties:
+// - routingKey
+// - size
+// - deliveryTag
+//
+// - contentType (default 'application/octet-stream')
+// - contentEncoding
+// - headers
+// - deliveryMode
+// - priority (0-9)
+// - correlationId
+// - replyTo
+// - experation
+// - messageId
+// - timestamp
+// - userId
+// - appId
+// - clusterId
 function Message (queue, args) {
   events.EventEmitter.call(this);
 
@@ -1148,7 +1165,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
 
 Queue.prototype._onContentHeader = function (channel, classInfo, weight, properties, size) {
-  this.currentMessage.properties = properties;
+  process.mixin(this.currentMessage, properties);
   this.currentMessage.read = 0;
   this.currentMessage.size = size;
 

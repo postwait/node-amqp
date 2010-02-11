@@ -29,6 +29,7 @@ connection.addListener('ready', function () {
 
   q.subscribe(function (m) {
     sys.puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+    sys.puts("--- contentType: " + m.contentType);
 
     m.addListener('data', function (d) {
       sys.puts(d);
