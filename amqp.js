@@ -964,7 +964,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - passive (boolean)
 // - durable (boolean)
 // - exclusive (boolean)
-// - autoDelete (boolean)
+// - autoDelete (boolean, default true)
 Connection.prototype.queue = function (name, options) {
   if (this.queues[name]) return this.queues[name];
   var channel = this.channels.length;
@@ -980,7 +980,7 @@ Connection.prototype.queue = function (name, options) {
 // - type 'direct' or 'topic' (default)
 // - passive (boolean)
 // - durable (boolean)
-// - autoDelete (boolean)
+// - autoDelete (boolean, default true)
 // - internal (boolean)
 Connection.prototype.exchange = function (name, options) {
   if (this.exchanges[name]) return this.exchanges[name];
@@ -1043,7 +1043,9 @@ function Queue (connection, channel, name, options) {
   this.connection = connection;
   this.channel = channel;
   this.name = name;
-  this.options = options || {};
+
+  this.options = {autoDelete: true}
+  process.mixin(this.options, options);
 
   this._tasks = [];
 
