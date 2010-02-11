@@ -1075,6 +1075,27 @@ Queue.prototype.subscribe = function (messageListener, options) {
 };
 
 
+Queue.prototype.subscribeJSON = function (messageListener) {
+  var self = this;
+  this.addListener('jsonMessage', messageListener);
+  return this.subscribe(function (m) {
+    if (m.contentType != 'text/json') return;
+    var buffer = "";
+
+    m.addListener('data', function (d) {
+      buffer += d.toString();
+    });
+
+    m.addListener('end', function () {
+      var json = JSON.parse(buffer);
+      json._routingKey = m.routingKey;
+      self.emit('jsonMessage', json);      
+      m.acknowledge();
+    });
+  });
+};
+
+
 Queue.prototype.bind = function (exchange, routingKey, options) {
   var self = this;
   return this._taskPush(methods.queueBindOk, function () {
