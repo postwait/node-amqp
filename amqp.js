@@ -539,6 +539,88 @@ function serializeTable (b, object) {
 }
 
 
+function serializeFields (buffer, fields, args, strict) {
+  var bitField = 0;
+  var bitIndex = 0;
+
+  for (var i = 0; i < fields.length; i++) {
+    var field = fields[i];
+    var domain = field.domain;
+
+    if (strict && !(field.name in args)) {
+      debug(JSON.stringify(args));
+      throw new Error("Missing field '" + field.name + "' of type " + domain);
+    }
+    var param = args[field.name];
+
+    //debug("domain: " + domain + " param: " + param);
+
+    switch (domain) {
+      case 'bit':
+        if (typeof(param) != "boolean") {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+
+        //bitField &= (1 << (7 - bitIndex))
+        bitField &= (1 << (bitIndex))
+
+        if (!fields[i+1] || fields[i+1].domain != 'bit') {
+          buffer[buffer.used++] = bitField;
+          bitField = 0;
+          bitIndex = 0;
+        }
+        break;
+
+      case 'octet':
+        if (typeof(param) != "number" || param > 0xFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        buffer[buffer.used++] = param;
+        break;
+
+      case 'short':
+        if (typeof(param) != "number" || param > 0xFFFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeInt(buffer, 2, param);
+        break;
+
+      case 'long':
+        if (typeof(param) != "number" || param > 0xFFFFFFFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeInt(buffer, 4, param);
+        break;
+
+      case 'longlong':
+        serializeInt(buffer, 8, param);
+        break;
+
+      case 'shortstr':
+        if (typeof(param) != "string" || param.length > 0xFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeShortString(buffer, param);
+        break;
+
+      case 'longstr':
+        serializeLongString(buffer, param);
+        break;
+
+      case 'table':
+        if (typeof(param) != "object") {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeTable(buffer, param);
+        break;
+
+      default:
+        throw new Error("Unknown domain value type " + domain);
+    }
+  }
+}
+
+
 
 
 function Connection (options) {
@@ -712,87 +794,7 @@ Connection.prototype._sendMethod = function (channel, method, args) {
   serializeInt(b, 2, method.classIndex); // short, classId
   serializeInt(b, 2, method.methodIndex); // short, methodId
 
-  var bitField = 0;
-  var bitIndex = 0;
-
-  for (var i = 0; i < method.fields.length; i++) {
-    var field = method.fields[i];
-    var domain = field.domain;
-
-    if (!(field.name in args)) {
-      debug(JSON.stringify(args));
-      throw new Error("Missing method field '" + field.name + "' of type " + domain);
-    }
-    var param = args[field.name];
-
-    //debug("domain: " + domain + " param: " + param);
-    var s = b.used;
-
-
-    switch (domain) {
-      case 'bit':
-        if (typeof(param) != "boolean") {
-          throw new Error("Unmatched field " + JSON.stringify(field));
-        }
-
-        //bitField &= (1 << (7 - bitIndex))
-        bitField &= (1 << (bitIndex))
-
-        if (!method.fields[i+1] || method.fields[i+1].domain != 'bit') {
-          b[b.used++] = bitField;
-          bitField = 0;
-          bitIndex = 0;
-        }
-        break;
-
-      case 'octet':
-        if (typeof(param) != "number" || param > 0xFF) {
-          throw new Error("Unmatched field " + JSON.stringify(field));
-        }
-        b[b.used++] = param;
-        break;
-
-      case 'short':
-        if (typeof(param) != "number" || param > 0xFFFF) {
-          throw new Error("Unmatched field " + JSON.stringify(field));
-        }
-        serializeInt(b, 2, param);
-        break;
-
-      case 'long':
-        if (typeof(param) != "number" || param > 0xFFFFFFFF) {
-          throw new Error("Unmatched field " + JSON.stringify(field));
-        }
-        serializeInt(b, 4, param);
-        break;
-
-      case 'longlong':
-        serializeInt(b, 8, param);
-        break;
-
-      case 'shortstr':
-        if (typeof(param) != "string" || param.length > 0xFF) {
-          throw new Error("Unmatched field " + JSON.stringify(field));
-        }
-        serializeShortString(b, param);
-        break;
-
-      case 'longstr':
-        serializeLongString(b, param);
-        break;
-
-      case 'table':
-        if (typeof(param) != "object") {
-          throw new Error("Unmatched field " + JSON.stringify(field));
-        }
-        serializeTable(b, param);
-        break;
-
-      default:
-        throw new Error("Unknown domain value type " + domain);
-    }
-    //debug("enc: " + b.slice(s, b.used));
-  }
+  serializeFields(b, method.fields, args, true);
 
   var endIndex = b.used;
 
@@ -835,9 +837,9 @@ function sendHeader (connection, channel, size, properties) {
 
   // properties
 
-  //var props = {'Content-Type': 'application/octet-stream'};
+  //var props = {'contentType': 'application/octet-stream'};
   //process.mixin(props, properties);
-  
+
   serializeInt(b, 8, 0);    // ?
 
   //serializeTable(b, props);
