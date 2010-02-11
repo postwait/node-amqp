@@ -558,7 +558,7 @@ function serializeFields (buffer, fields, args, strict) {
 
     var param = args[field.name];
 
-    debug("domain: " + domain + " param: " + param);
+    //debug("domain: " + domain + " param: " + param);
 
     switch (domain) {
       case 'bit':
@@ -649,7 +649,7 @@ function Connection (options) {
   });
 
   self.addListener('connect', function () {
-    debug("connected...");
+    //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
     self.send("AMQP" + String.fromCharCode(1,1,8,0));
@@ -886,7 +886,7 @@ function sendHeader (connection, channel, size, properties) {
 
   var s = b.slice(0, b.used);
 
-  debug('header sent: ' + JSON.stringify(s));
+  //debug('header sent: ' + JSON.stringify(s));
 
   connection.send(s);
 }
@@ -900,11 +900,11 @@ Connection.prototype._sendBody = function (channel, body, properties) {
   // Does not handle the case for streaming bodies.
   if (typeof(body) == 'string') {
     var length = Buffer.utf8ByteLength(body);
-    debug('send message length ' + length);
+    //debug('send message length ' + length);
 
     sendHeader(this, channel, length, properties);
 
-    debug('header sent');
+    //debug('header sent');
 
     var b = new Buffer(7+length+1);
     b.used = 0;
@@ -918,7 +918,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     b[b.used++] = 206; // constants.frameEnd;
     this.send(b);
 
-    debug('body sent: ' + JSON.stringify(b));
+    //debug('body sent: ' + JSON.stringify(b));
 
   } else if (body instanceof Buffer) {
     sendHeader(this, channel, body.length, properties);
@@ -1054,17 +1054,18 @@ function Queue (connection, channel, name, options) {
 sys.inherits(Queue, events.EventEmitter);
 
 
-Queue.prototype.subscribe = function (messageListener) {
+Queue.prototype.subscribe = function (messageListener, options) {
   this.addListener('message', messageListener);
   var self = this;
+  options = options || {};
   return this._taskPush(methods.basicConsumeOk, function () {
     self.connection._sendMethod(self.channel, methods.basicConsume,
         { ticket: 0
         , queue: self.name
         , consumerTag: "."
-        , noLocal: false
-        , noAck: true
-        , exclusive: false
+        , noLocal: options.noLocal ? true : false
+        , noAck: options.noAck ? true : false
+        , exclusive: options.exclusive ? true : false
         , nowait: true
         , "arguments": {}
         });
@@ -1189,7 +1190,7 @@ function Exchange (connection, channel, name, options) {
   this.connection = connection;
   this.channel = channel;
   this.name = name;
-  this.options = options || {};
+  this.options = options || {autoDelete: true};
 
   this.connection._sendMethod(channel, methods.channelOpen, {outOfBand: ""});
 }
