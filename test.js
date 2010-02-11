@@ -23,7 +23,8 @@ connection.addListener('ready', function () {
 
   q.bind(exchange, "*").addCallback(function () {
     sys.puts("publishing message");
-    exchange.publish("hello", "hello world");
+    exchange.publish("message.json", {hello: 'world', foo: 'bar'});
+    exchange.publish("message.text", 'hello world', {contentType: 'text/plain'});
   });
 
   q.subscribe(function (m) {

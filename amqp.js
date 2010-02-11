@@ -818,11 +818,29 @@ Connection.prototype._sendMethod = function (channel, method, args) {
 };
 
 
+// connection: the connection
+// channel: the channel to send this on
+// size: size in bytes of the following message
+// properties: an object containing any of the following:
+// - contentType (default 'application/octet-stream')
+// - contentEncoding
+// - headers
+// - deliveryMode
+// - priority (0-9)
+// - correlationId
+// - replyTo
+// - experation
+// - messageId
+// - timestamp
+// - userId
+// - appId
+// - clusterId
 function sendHeader (connection, channel, size, properties) {
-  var b = new Buffer(maxFrameBuffer);
+  var b = new Buffer(maxFrameBuffer); // FIXME allocating too much.
+                                      // use freelist?
   b.used = 0;
 
-  var classInfo = classes[60];
+  var classInfo = classes[60]; // always basic class.
 
   // 7 OCTET FRAME HEADER
 
@@ -842,16 +860,16 @@ function sendHeader (connection, channel, size, properties) {
   serializeInt(b, 2, 0);                 // weight, always 0 for rabbitmq
   serializeInt(b, 8, size);              // byte size of body
 
-  // properties
-
-
-  // property-flags
-  serializeInt(b, 2, 0x8000); // HACK: contentType only
-
+  // properties - first propertyFlags
   var props = {'contentType': 'application/octet-stream'};
-
+  process.mixin(props, properties);
+  var propertyFlags = 0;
+  for (var i = 0; i < classInfo.fields.length; i++) {
+    if (props[classInfo.fields[i].name]) propertyFlags |= 1 << (15-i);
+  }
+  serializeInt(b, 2, propertyFlags);
+  // now the actual properties.
   serializeFields(b, classInfo.fields, props, false);
-  //process.mixin(props, properties);
 
   //serializeTable(b, props);
 
@@ -874,7 +892,7 @@ function sendHeader (connection, channel, size, properties) {
 }
 
 
-Connection.prototype._sendBody = function (channel, body) {
+Connection.prototype._sendBody = function (channel, body, properties) {
   // Handles 3 cases
   // - body is utf8 string
   // - body is instance of Buffer
@@ -884,7 +902,7 @@ Connection.prototype._sendBody = function (channel, body) {
     var length = Buffer.utf8ByteLength(body);
     debug('send message length ' + length);
 
-    sendHeader(this, channel, length);
+    sendHeader(this, channel, length, properties);
 
     debug('header sent');
 
@@ -903,7 +921,7 @@ Connection.prototype._sendBody = function (channel, body) {
     debug('body sent: ' + JSON.stringify(b));
 
   } else if (body instanceof Buffer) {
-    sendHeader(this, channel, body.length);
+    sendHeader(this, channel, body.length, properties);
 
     var b = new Buffer(7);
     b.used = 0;
@@ -922,7 +940,9 @@ Connection.prototype._sendBody = function (channel, body) {
     var jsonBody = JSON.stringify(body);
     var length = jsonBody.length;
 
-    sendHeader(this, channel, length);
+    process.mixin(properties, {contentType: 'text/json' });
+
+    sendHeader(this, channel, length, properties);
 
     var b = new Buffer(7+length+1);
     b.used = 0;
@@ -1195,20 +1215,41 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 };
 
 
-// exchange.publish('routing.key', "hello world");
+// exchange.publish('routing.key', 'body');
 //
 // the thrid argument can specify additional options
 // - mandatory (boolean, default false)
 // - immediate (boolean, default false)
+// - contentType (default 'application/octet-stream')
+// - contentEncoding
+// - headers
+// - deliveryMode
+// - priority (0-9)
+// - correlationId
+// - replyTo
+// - experation
+// - messageId
+// - timestamp
+// - userId
+// - appId
+// - clusterId
 Exchange.prototype.publish = function (routingKey, data, options) {
   if (this.state != 'declared') throw new Error('Exchange not yet declared');
+  options = options || {};
   this.connection._sendMethod(this.channel, methods.basicPublish,
       { ticket: 0
       , exchange:   this.name
       , routingKey: routingKey
-      , mandatory:  this.options.mandatory ? true : false
-      , immediate:  this.options.immediate ? true : false
+      , mandatory:  options.mandatory ? true : false
+      , immediate:  options.immediate ? true : false
       });
-  // TODO streaming bodies?
-  this.connection._sendBody(this.channel, data);
+  // This interface is probably not appropriate for streaming large files.
+  // (Of course it's arguable about whether AMQP is the appropriate
+  // transport for large files.) The content header wants to know the size
+  // of the data before sending it - so there's no point in trying to have a
+  // general streaming interface like Node has for HTTP - it simply isn't
+  // possible with AMQP. This is all to say, don't send big message. If you
+  // need to stream something large, chunk it yourself.
+  this.connection._sendBody(this.channel, data, options);
 };
+
