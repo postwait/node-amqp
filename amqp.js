@@ -981,7 +981,6 @@ Connection.prototype.queue = function (name, options) {
 // - passive (boolean)
 // - durable (boolean)
 // - autoDelete (boolean, default true)
-// - internal (boolean)
 Connection.prototype.exchange = function (name, options) {
   if (this.exchanges[name]) return this.exchanges[name];
   var channel = this.channels.length;
@@ -1096,7 +1095,7 @@ Queue.prototype.subscribeJSON = function (messageListener) {
 };
 
 
-Queue.prototype.bind = function (exchange, routingKey, options) {
+Queue.prototype.bind = function (exchange, routingKey) {
   var self = this;
   return this._taskPush(methods.queueBindOk, function () {
     var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
