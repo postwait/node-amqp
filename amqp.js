@@ -1,7 +1,8 @@
 var events = require('events'),
     sys = require('sys'),
     net = require('net'),  // requires net2 branch of node
-    protocol = require('./amqp-definitions-0-8');
+    protocol = require('./amqp-definitions-0-8'),
+    Promise = require('./promise').Promise;
 
 
 var Buffer = process.Buffer;
@@ -699,18 +700,23 @@ exports.createConnection = function (options) {
   var c = new Connection(o);
   c.connect(o.port, o.host);
   return c;
-}
+};
 
 
 Connection.prototype._onMethod = function (channel, method, args) {
   debug(channel + " > " + method.name + " " + JSON.stringify(args));
 
-  if (channel) {
+  // Channel 0 is the control channel. If not zero then deligate to 
+  // one of the channel objects.
+ 
+  if (channel > 0) {
     if (!this.channels[channel]) {
-      debug("received message on untracked channel.");
+      debug("Received message on untracked channel.");
       return;
     }
-    if (!this.channels[channel]._onMethod) return;
+    if (!this.channels[channel]._onMethod) {
+      throw new Error('Channel ' + channel + ' has no _onMethod method.');
+    }
     this.channels[channel]._onMethod(channel, method, args);
     return;
   }
@@ -1035,24 +1041,69 @@ Message.prototype.acknowledge = function (all) {
 };
 
 
-
-
-function Queue (connection, channel, name, options) {
+// This class is not exposed to the user. Queue and Exchange are subclasses
+// of Channel. This just provides a task queue.
+function Channel (connection, channel) {
   events.EventEmitter.call(this);
-  this.connection = connection;
+
   this.channel = channel;
-  this.name = name;
-
-  this.options = {autoDelete: true}
-  process.mixin(this.options, options);
-
+  this.connection = connection;
   this._tasks = [];
-
-  this.subscriptionState = 'closed';
 
   this.connection._sendMethod(channel, methods.channelOpen, {outOfBand: ""});
 }
-sys.inherits(Queue, events.EventEmitter);
+sys.inherits(Channel, events.EventEmitter);
+
+
+Channel.prototype._taskPush = function (reply, cb) {
+  var promise = new Promise();
+  this._tasks.push({ promise: promise
+                   , reply: reply
+                   , sent: false
+                   , cb: cb
+                   });
+  this._tasksFlush();
+  return promise;
+};
+
+
+Channel.prototype._tasksFlush = function () {
+  if (this.state != 'open') return;
+
+  for (var i = 0; i < this._tasks.length; i++) {
+    var task = this._tasks[i];
+    if (task.sent) continue;
+    task.cb();
+    task.sent = true;
+    if (!task.reply) { 
+      // if we don't expect a reply, just delete it now
+      this._tasks.splice(i, 1);
+      i = i-1;
+    }
+  }
+};
+
+Channel.prototype._handleTaskReply = function (channel, method, args) {
+  var task = this._tasks[0];
+  if (task && task.reply == method) {
+    this._tasks.shift();
+    task.promise.emitSuccess();
+  }
+};
+
+
+
+function Queue (connection, channel, name, options) {
+  Channel.call(this, connection, channel);
+
+  this.name = name;
+
+  this.options = { autoDelete: true }
+  process.mixin(this.options, options);
+
+  this.subscriptionState = 'closed';
+}
+sys.inherits(Queue, Channel);
 
 
 Queue.prototype.subscribe = function (messageListener, options) {
@@ -1111,36 +1162,23 @@ Queue.prototype.bind = function (exchange, routingKey) {
 };
 
 
-Queue.prototype._taskPush = function (reply, cb) {
-  var promise = new events.Promise();
-  this._tasks.push({ promise: promise
-                   , reply: reply
-                   , sent: false
-                   , cb: cb
-                   });
-  this._tasksFlush();
-  return promise;
-};
-
-
-Queue.prototype._tasksFlush = function () {
-  if (this.state != 'open') return;
-
-  for (var i = 0; i < this._tasks.length; i++) {
-    var b = this._tasks[i];
-    if (b.sent) continue;
-    b.cb();
-    b.sent = true;
-  }
+Queue.prototype.destroy = function (options) {
+  var self = this;
+  return this._taskPush(methods.deleteOk, function () {
+    self.connection._sendMethod(self.channel, methods['delete'],
+        { ticket: 0
+        , queue: self.name
+        , ifUnused: options.ifUnused ? true : false
+        , ifEmpty: options.ifEmpty ? true : false
+        , nowait: true
+        , "arguments": {}
+        });
+  });
 };
 
 
 Queue.prototype._onMethod = function (channel, method, args) {
-  var task = this._tasks[0];
-  if (task && task.reply == method) {
-    this._tasks.shift();
-    task.promise.emitSuccess();
-  }
+  this._handleTaskReply.apply(this, arguments)
 
   switch (method) {
     case methods.channelOpenOk:
@@ -1158,7 +1196,8 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.queueDeclareOk:
-      this.state = "open";
+      this.state = 'open';
+      this.emit('open');
       break;
 
     case methods.basicConsumeOk:
@@ -1208,18 +1247,16 @@ Queue.prototype._onContent = function (channel, data) {
 
 
 function Exchange (connection, channel, name, options) {
-  events.EventEmitter.call(this);
-  this.connection = connection;
-  this.channel = channel;
+  Channel.call(this, connection, channel);
   this.name = name;
   this.options = options || {autoDelete: true};
-
-  this.connection._sendMethod(channel, methods.channelOpen, {outOfBand: ""});
 }
-sys.inherits(Exchange, events.EventEmitter);
+sys.inherits(Exchange, Channel);
 
 
 Exchange.prototype._onMethod = function (channel, method, args) {
+  this._handleTaskReply.apply(this, arguments)
+
   switch (method) {
     case methods.channelOpenOk:
       this.connection._sendMethod(channel, methods.exchangeDeclare,
@@ -1237,8 +1274,8 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.exchangeDeclareOk:
-      this.state = 'declared';
-      this.emit('declared');
+      this.state = 'open';
+      this.emit('open');
       break;
 
     case methods.channelClose:
@@ -1274,22 +1311,25 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 // - appId
 // - clusterId
 Exchange.prototype.publish = function (routingKey, data, options) {
-  if (this.state != 'declared') throw new Error('Exchange not yet declared');
   options = options || {};
-  this.connection._sendMethod(this.channel, methods.basicPublish,
-      { ticket: 0
-      , exchange:   this.name
-      , routingKey: routingKey
-      , mandatory:  options.mandatory ? true : false
-      , immediate:  options.immediate ? true : false
-      });
-  // This interface is probably not appropriate for streaming large files.
-  // (Of course it's arguable about whether AMQP is the appropriate
-  // transport for large files.) The content header wants to know the size
-  // of the data before sending it - so there's no point in trying to have a
-  // general streaming interface like Node has for HTTP - it simply isn't
-  // possible with AMQP. This is all to say, don't send big message. If you
-  // need to stream something large, chunk it yourself.
-  this.connection._sendBody(this.channel, data, options);
+
+  var self = this;
+  return this._taskPush(null, function () {
+    self.connection._sendMethod(self.channel, methods.basicPublish,
+        { ticket: 0
+        , exchange:   self.name
+        , routingKey: routingKey
+        , mandatory:  options.mandatory ? true : false
+        , immediate:  options.immediate ? true : false
+        });
+    // This interface is probably not appropriate for streaming large files.
+    // (Of course it's arguable about whether AMQP is the appropriate
+    // transport for large files.) The content header wants to know the size
+    // of the data before sending it - so there's no point in trying to have a
+    // general streaming interface - streaming messages of unknown size simply
+    // isn't possible with AMQP. This is all to say, don't send big messages.
+    // If you need to stream something large, chunk it yourself.
+    self.connection._sendBody(self.channel, data, options);
+  });
 };
 

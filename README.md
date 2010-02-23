@@ -52,6 +52,8 @@ To close the connection use `connection.close()`.
 
 ## Exchange
 
+Events: `'declared'`
+
 
 ### `connection.exchange(name, options)`
 
@@ -71,6 +73,9 @@ an `amqp.Exchange` object. The second argument specifies options They are
 - `autoDelete`: boolean, default true.
     If set, the exchange is deleted when all queues have finished using
     it.
+
+An exchange will emit the `'declared'` event when it is declared.
+
 
 ### `exchange.publish(routingKey, message, options)`
 
@@ -134,3 +139,10 @@ Returns a reference to a queue. The options are
 This method binds a queue to an exchange.  Until a queue is
 bound it will not receive any messages.
 
+### `queue.delete(options)`
+
+Delete the queue. Without options, the queue will be deleted even if it has
+pending messages or attached consumers. If +options.ifUnused+ is true, then 
+the queue will only be deleted if there are no consumers. If
++options.ifEmpty+ is true, the queue will only be deleted if it has no
+messages.
