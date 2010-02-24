@@ -54,7 +54,6 @@ To close the connection use `connection.close()`.
 
 Events: `'declared'`
 
-
 ### `connection.exchange(name, options)`
 
 An exchange can be created using `connection.exchange()`. The method returns
@@ -102,6 +101,15 @@ is convereted to JSON.
 - `headers`: default `{}`.
 - `deliveryMode`: Non-persistent (1) or persistent (2)
 - `priority`: The message priority, 0 to 9.
+
+
+### `exchange.destroy(ifUnused = true)`
+
+Deletes an exchange. 
+If the optional boolean second argument is set, the server will only
+delete the exchange if it has no queue bindings. If the exchange has queue
+bindings the server does not delete it but raises a channel exception
+instead.
 
 
 ## Queue

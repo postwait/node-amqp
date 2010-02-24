@@ -12,13 +12,15 @@ process.Buffer.prototype.toString = function () {
 };
 
 process.Buffer.prototype.toJSON = function () {
+  return this.utf8Slice(0, this.length);
+  /*
   var s = "";
   for (var i = 0; i < this.length; i++) {
     s += this[i].toString(16) + " ";
   }
   return s;
+  */
 };
-
 
 
 var debugLevel = 0;
@@ -776,6 +778,9 @@ Connection.prototype._onMethod = function (channel, method, args) {
     case methods.connectionClose:
       var e = new Error(args.replyText);
       e.code = args.replyCode;
+      if (!this.listeners('close').length) {
+        sys.puts('Unhandled connection error: ' + args.replyText);
+      }
       this.forceClose(e);
       break;
 
@@ -946,6 +951,8 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     var jsonBody = JSON.stringify(body);
     var length = jsonBody.length;
 
+    debug('sending json: ' + jsonBody);
+
     process.mixin(properties, {contentType: 'text/json' });
 
     sendHeader(this, channel, length, properties);
@@ -983,7 +990,7 @@ Connection.prototype.queue = function (name, options) {
 
 // connection.exchange('my-exchange', { type: 'topic' });
 // Options
-// - type 'direct' or 'topic' (default)
+// - type 'fanout', 'direct', or 'topic' (default)
 // - passive (boolean)
 // - durable (boolean)
 // - autoDelete (boolean, default true)
@@ -1088,7 +1095,10 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
   if (task && task.reply == method) {
     this._tasks.shift();
     task.promise.emitSuccess();
+    this._tasksFlush();
+    return true;
   }
+  return false;
 };
 
 
@@ -1099,7 +1109,7 @@ function Queue (connection, channel, name, options) {
   this.name = name;
 
   this.options = { autoDelete: true }
-  process.mixin(this.options, options);
+  if (options) process.mixin(this.options, options);
 
   this.subscriptionState = 'closed';
 }
@@ -1164,8 +1174,8 @@ Queue.prototype.bind = function (exchange, routingKey) {
 
 Queue.prototype.destroy = function (options) {
   var self = this;
-  return this._taskPush(methods.deleteOk, function () {
-    self.connection._sendMethod(self.channel, methods['delete'],
+  return this._taskPush(methods.queueDeleteOk, function () {
+    self.connection._sendMethod(self.channel, methods.queueDelete,
         { ticket: 0
         , queue: self.name
         , ifUnused: options.ifUnused ? true : false
@@ -1178,7 +1188,7 @@ Queue.prototype.destroy = function (options) {
 
 
 Queue.prototype._onMethod = function (channel, method, args) {
-  this._handleTaskReply.apply(this, arguments)
+  if (this._handleTaskReply.apply(this, arguments)) return;
 
   switch (method) {
     case methods.channelOpenOk:
@@ -1210,6 +1220,9 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.state = "closed";
       var e = new Error(args.replyText);
       e.code = args.replyCode;
+      if (!this.listeners('close').length) {
+        sys.puts('Unhandled channel error: ' + args.replyText);
+      }
       this.emit('close', e);
       break;
 
@@ -1254,8 +1267,9 @@ function Exchange (connection, channel, name, options) {
 sys.inherits(Exchange, Channel);
 
 
+
 Exchange.prototype._onMethod = function (channel, method, args) {
-  this._handleTaskReply.apply(this, arguments)
+  if (this._handleTaskReply.apply(this, arguments)) return true;
 
   switch (method) {
     case methods.channelOpenOk:
@@ -1282,6 +1296,9 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.state = "closed";
       var e = new Error(args.replyText);
       e.code = args.replyCode;
+      if (!this.listeners('close').length) {
+        sys.puts('Unhandled channel error: ' + args.replyText);
+      }
       this.emit('close', e);
       break;
 
@@ -1289,6 +1306,8 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       throw new Error("Uncaught method '" + method.name + "' with args " +
           JSON.stringify(args));
   }
+
+  this._tasksFlush();
 };
 
 
@@ -1330,6 +1349,19 @@ Exchange.prototype.publish = function (routingKey, data, options) {
     // isn't possible with AMQP. This is all to say, don't send big messages.
     // If you need to stream something large, chunk it yourself.
     self.connection._sendBody(self.channel, data, options);
+  });
+};
+
+
+Exchange.prototype.destroy = function (ifUnused) {
+  var self = this;
+  return this._taskPush(methods.exchangeDeleteOk, function () {
+    self.connection._sendMethod(self.channel, methods.exchangeDelete,
+        { ticket: 0
+        , exchange: self.name
+        , ifUnused: ifUnused ? true : false
+        , nowait: false
+        });
   });
 };
 
