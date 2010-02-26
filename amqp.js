@@ -704,6 +704,9 @@ exports.createConnection = function (options) {
   return c;
 };
 
+Connection.prototype.reconnect = function () {
+  this.connect(this.options.port, this.options.host);
+};
 
 Connection.prototype._onMethod = function (channel, method, args) {
   debug(channel + " > " + method.name + " " + JSON.stringify(args));
@@ -995,6 +998,7 @@ Connection.prototype.queue = function (name, options) {
 // - durable (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.exchange = function (name, options) {
+  if (!name) name = 'amq.topic';
   if (this.exchanges[name]) return this.exchanges[name];
   var channel = this.channels.length;
   var exchange = new Exchange(this, channel, name, options);

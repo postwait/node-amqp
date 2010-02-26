@@ -54,10 +54,15 @@ To close the connection use `connection.close()`.
 
 Events: `'declared'`
 
-### `connection.exchange(name, options)`
+### `connection.exchange()`
+### `connection.exchange(name, options={})`
 
 An exchange can be created using `connection.exchange()`. The method returns
-an `amqp.Exchange` object. The second argument specifies options They are
+an `amqp.Exchange` object. 
+
+Without any arguments, this method returns the default exchange `amq.topic`.
+Otherwise a string, `name`, is given as the first argument and an `options`
+object for the second. The options are
 
 - `type`: the type of exchange `'direct'`, `'fanout'`, or `'topic'` (default).
 - `passive`: boolean, default false.
@@ -73,7 +78,7 @@ an `amqp.Exchange` object. The second argument specifies options They are
     If set, the exchange is deleted when all queues have finished using
     it.
 
-An exchange will emit the `'declared'` event when it is declared.
+An exchange will emit the `'open'` event when it is finally declared.
 
 
 ### `exchange.publish(routingKey, message, options)`
