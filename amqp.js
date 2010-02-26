@@ -1174,6 +1174,7 @@ Queue.prototype.bind = function (exchange, routingKey) {
 
 Queue.prototype.destroy = function (options) {
   var self = this;
+  options = options || {};
   return this._taskPush(methods.queueDeleteOk, function () {
     self.connection._sendMethod(self.channel, methods.queueDelete,
         { ticket: 0
@@ -1207,7 +1208,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.queueDeclareOk:
       this.state = 'open';
-      this.emit('open');
+      this.emit('open', args.messageCount, args.consumerCount);
       break;
 
     case methods.basicConsumeOk:

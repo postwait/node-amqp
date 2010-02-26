@@ -137,6 +137,11 @@ Returns a reference to a queue. The options are
     its channel is closed. If there was no consumer ever on the queue, it
     won't be deleted.
 
+When a queue has been declared it will emit an `'open'` event. The `'open'`
+event receives two arguments `(messageCount, consumerCount)`, which specify 
+the state of the recently-declared queue.
+
+
 
 ### `queue.subscribe(listener, options)`
 
