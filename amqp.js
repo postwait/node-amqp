@@ -644,7 +644,7 @@ function Connection (options) {
 
   self.addListener('connect', function () {
     // channel 0 is the control channel.
-    self.channels = [this];
+    self.channels = [self];
     self.queues = {};
     self.exchanges = {};
 
