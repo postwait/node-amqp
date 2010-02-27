@@ -636,22 +636,46 @@ function Connection (options) {
 
   var self = this;
 
-  // channel 0 is the control channel.
-  this.channels = [this];
-  this.queues = {};
-  this.exchanges = {};
 
   this.options = options || {};
 
-  var parser = new AMQPParser('0-8', 'client');
-
   var state = 'handshake';
-
-  self.addListener('data', function (data) {
-    parser.execute(data);
-  });
+  var parser;
 
   self.addListener('connect', function () {
+    // channel 0 is the control channel.
+    self.channels = [this];
+    self.queues = {};
+    self.exchanges = {};
+
+    parser = new AMQPParser('0-8', 'client');
+
+    parser.onMethod = function (channel, method, args) {
+      self._onMethod(channel, method, args);
+    };
+
+    parser.onContent = function (channel, data) {
+      debug(channel + " > content " + data.length);
+      if (self.channels[channel] && self.channels[channel]._onContent) {
+        self.channels[channel]._onContent(channel, data);
+      } else {
+        debug("unhandled content: " + data);
+      }
+    };
+
+    parser.onContentHeader = function (channel, classInfo, weight, properties, size) {
+      debug(channel + " > content header " + JSON.stringify([classInfo.name, weight, properties, size]));
+      if (self.channels[channel] && self.channels[channel]._onContentHeader) {
+        self.channels[channel]._onContentHeader(channel, classInfo, weight, properties, size);
+      } else {
+        debug("unhandled content header");
+      }
+    };
+
+    parser.onHeartBeat = function () {
+      debug("heartbeat");
+    };
+
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
@@ -659,31 +683,15 @@ function Connection (options) {
     state = 'handshake';
   });
 
-  parser.onMethod = function (channel, method, args) {
-    self._onMethod(channel, method, args);
-  };
+  self.addListener('data', function (data) {
+    parser.execute(data);
+  });
 
-  parser.onContent = function (channel, data) {
-    debug(channel + " > content " + data.length);
-    if (self.channels[channel] && self.channels[channel]._onContent) {
-      self.channels[channel]._onContent(channel, data);
-    } else {
-      debug("unhandled content: " + data);
-    }
-  };
-
-  parser.onContentHeader = function (channel, classInfo, weight, properties, size) {
-    debug(channel + " > content header " + JSON.stringify([classInfo.name, weight, properties, size]));
-    if (self.channels[channel] && self.channels[channel]._onContentHeader) {
-      self.channels[channel]._onContentHeader(channel, classInfo, weight, properties, size);
-    } else {
-      debug("unhandled content header");
-    }
-  };
-
-  parser.onHeartBeat = function () {
-    debug("heartbeat");
-  };
+  self.addListener('end', function () {
+    // in order to allow reconnects, have to clear the 
+    // state.
+    parser = null;
+  });
 }
 sys.inherits(Connection, net.Socket);
 
