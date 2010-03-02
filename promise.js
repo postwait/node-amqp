@@ -1,4 +1,5 @@
 var events = require('events');
+var inherits = require('sys').inherits;
 
 exports.Promise = function () {
   events.EventEmitter.call(this);
@@ -6,7 +7,7 @@ exports.Promise = function () {
   this.hasFired = false;
   this._values = undefined;
 };
-process.inherits(exports.Promise, events.EventEmitter);
+inherits(exports.Promise, events.EventEmitter);
 
 
 exports.Promise.prototype.timeout = function(timeout) {
