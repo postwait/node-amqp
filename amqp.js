@@ -679,7 +679,7 @@ function Connection (options) {
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
-    self.send("AMQP" + String.fromCharCode(1,1,8,0));
+    self.write("AMQP" + String.fromCharCode(1,1,8,0));
     state = 'handshake';
   });
 
@@ -688,7 +688,7 @@ function Connection (options) {
   });
 
   self.addListener('end', function () {
-    // in order to allow reconnects, have to clear the 
+    // in order to allow reconnects, have to clear the
     // state.
     parser = null;
   });
@@ -719,9 +719,9 @@ Connection.prototype.reconnect = function () {
 Connection.prototype._onMethod = function (channel, method, args) {
   debug(channel + " > " + method.name + " " + JSON.stringify(args));
 
-  // Channel 0 is the control channel. If not zero then deligate to 
+  // Channel 0 is the control channel. If not zero then deligate to
   // one of the channel objects.
- 
+
   if (channel > 0) {
     if (!this.channels[channel]) {
       debug("Received message on untracked channel.");
@@ -836,7 +836,7 @@ Connection.prototype._sendMethod = function (channel, method, args) {
 
   //debug("sending frame: " + c);
 
-  this.send(c);
+  this.write(c);
 };
 
 
@@ -910,7 +910,7 @@ function sendHeader (connection, channel, size, properties) {
 
   //debug('header sent: ' + JSON.stringify(s));
 
-  connection.send(s);
+  connection.write(s);
 }
 
 
@@ -938,7 +938,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
-    this.send(b);
+    this.write(b);
 
     //debug('body sent: ' + JSON.stringify(b));
 
@@ -950,11 +950,11 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     b[b.used++] = 3; // constants.frameBody
     serializeInt(b, 2, channel);
     serializeInt(b, 4, body.length);
-    this.send(b);
+    this.write(b);
 
-    this.send(body);
+    this.write(body);
 
-    this.send(String.fromCharCode(206)); // frameEnd
+    this.write(String.fromCharCode(206)); // frameEnd
 
   } else {
     // Optimize for JSON.
@@ -979,7 +979,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
-    this.send(b);
+    this.write(b);
   }
 };
 
@@ -1094,7 +1094,7 @@ Channel.prototype._tasksFlush = function () {
     if (task.sent) continue;
     task.cb();
     task.sent = true;
-    if (!task.reply) { 
+    if (!task.reply) {
       // if we don't expect a reply, just delete it now
       this._tasks.splice(i, 1);
       i = i-1;
@@ -1161,7 +1161,7 @@ Queue.prototype.subscribeJSON = function (messageListener) {
     m.addListener('end', function () {
       var json = JSON.parse(buffer);
       json._routingKey = m.routingKey;
-      self.emit('jsonMessage', json);      
+      self.emit('jsonMessage', json);
       m.acknowledge();
     });
   });
