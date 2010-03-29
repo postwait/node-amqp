@@ -1,7 +1,7 @@
 # node-amqp
 
-IMPORTANT: This only works with the net2 branch of node. net2 has better
-support for parsing raw binary.
+IMPORTANT: This module only works with node ry/master@d1b78c (March 27,
+2010) or later.
 
 This is a client for RabbitMQ (and maybe other servers?). It partially
 implements the 0.8 version of the AMQP protocol.
@@ -28,8 +28,9 @@ An example of connecting to a server and listening on a queue.
 ## Connection
 
 `amqp.createConnection()` returns an instance of `amqp.Connection`, which is
-a subclass of `net.Connection`. All the event and methods which work on
-`net.Connection` can also be used on an `amqp.Connection` instace.
+a subclass of `net.Stream`. All the event and methods which work on
+`net.Stream` can also be used on an `amqp.Connection` instace. (E.G. the
+events `'connected'` and ``'closed'`.)
 
 `amqp.createConnection()` takes an options object as its only parameter.
 The options object has the these defaults:
@@ -52,7 +53,9 @@ To close the connection use `connection.close()`.
 
 ## Exchange
 
-Events: `'declared'`
+Events: `'open'`, this is emitted when the exchange is declared and ready to
+be used.
+
 
 ### `connection.exchange()`
 ### `connection.exchange(name, options={})`
@@ -79,6 +82,7 @@ object for the second. The options are
     it.
 
 An exchange will emit the `'open'` event when it is finally declared.
+
 
 
 ### `exchange.publish(routingKey, message, options)`
@@ -117,7 +121,19 @@ bindings the server does not delete it but raises a channel exception
 instead.
 
 
+
 ## Queue
+
+Events: `'open'`, this is emitted when the queue is declared and ready to
+be used. The `'open'` event has two parameters, the message count and the
+consumer count. E.G.
+
+    var q = connection.queue('my-queue');
+    q.addListener('open', function (messageCount, consumerCount) {
+      puts('There are ' + messageCount + ' messages waiting in the queue.');
+    });
+
+
 
 ### `connection.queue(name, options)`
 
@@ -142,15 +158,31 @@ Returns a reference to a queue. The options are
     its channel is closed. If there was no consumer ever on the queue, it
     won't be deleted.
 
-When a queue has been declared it will emit an `'open'` event. The `'open'`
-event receives two arguments `(messageCount, consumerCount)`, which specify 
-the state of the recently-declared queue.
+When a queue has been declared it will emit an `'open'` event. 
 
 
 
 ### `queue.subscribe(listener, options)`
 
+Subscribes to a queue. The `listener` argument should be a function which
+receives a message. This is a low-level interface - the message that the
+listener receives will be a stream of binary data. You probably want to use
+`subscribeJSON` instead.
+
+For now this low-level interface is left undocumented. Look at the source
+code if you need to this.
+
+
 ### `queue.subscribeJSON(listener, options)`
+
+An easy subscription command. It works like this
+
+    q.subscribeJSON(function (message) {
+      puts('Got a message with routing key ' + message._routingKey);
+    });
+
+It will automatically acknowledge receipt of each message.
+
 
 ### `queue.bind(exchange, routing)`
 
