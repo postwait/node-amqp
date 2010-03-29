@@ -10,7 +10,7 @@ connection.addListener('ready', function () {
 
   var q = connection.queue('node-json-queue');
 
-  q.bind(exchange, "*")
+  q.bind(exchange, "*");
 
   q.subscribeJSON(function (json) {
     recvCount++;
