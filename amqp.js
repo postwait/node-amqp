@@ -1,34 +1,71 @@
 var events = require('events'),
     sys = require('sys'),
-    net = require('net'),  // requires net2 branch of node
+    net = require('net'),  // requires ry/master@cc053e or later
     protocol = require('./amqp-definitions-0-8'),
+    Buffer = require('buffer').Buffer,
     Promise = require('./promise').Promise;
 
+function mixin () {
+  // copy reference to target object
+  var target = arguments[0] || {}, i = 1, length = arguments.length, deep = false, source;
 
-var Buffer = process.Buffer;
-
-process.Buffer.prototype.toString = function () {
-  return this.utf8Slice(0, this.length);
-};
-
-process.Buffer.prototype.toJSON = function () {
-  return this.utf8Slice(0, this.length);
-  /*
-  var s = "";
-  for (var i = 0; i < this.length; i++) {
-    s += this[i].toString(16) + " ";
+  // Handle a deep copy situation
+  if ( typeof target === "boolean" ) {
+    deep = target;
+    target = arguments[1] || {};
+    // skip the boolean and the target
+    i = 2;
   }
-  return s;
-  */
-};
+
+  // Handle case when target is a string or something (possible in deep copy)
+  if ( typeof target !== "object" && !(typeof target === 'function') )
+    target = {};
+
+  // mixin process itself if only one argument is passed
+  if ( length == i ) {
+    target = GLOBAL;
+    --i;
+  }
+
+  for ( ; i < length; i++ ) {
+    // Only deal with non-null/undefined values
+    if ( (source = arguments[i]) != null ) {
+      // Extend the base object
+      Object.getOwnPropertyNames(source).forEach(function(k){
+        var d = Object.getOwnPropertyDescriptor(source, k) || {value: source[k]};
+        if (d.get) {
+          target.__defineGetter__(k, d.get);
+          if (d.set) {
+            target.__defineSetter__(k, d.set);
+          }
+        }
+        else {
+          // Prevent never-ending loop
+          if (target === d.value) {
+            return;
+          }
+
+          if (deep && d.value && typeof d.value === "object") {
+            target[k] = mixin(deep,
+              // Never move original objects, clone them
+              source[k] || (d.value.length != null ? [] : {})
+            , d.value);
+          }
+          else {
+            target[k] = d.value;
+          }
+        }
+      });
+    }
+  }
+  // Return the modified object
+  return target;
+}
 
 
-var debugLevel = 0;
-if ('NODE_DEBUG_AMQP' in process.ENV) debugLevel = 1;
+var debugLevel = process.env['NODE_DEBUG_AMQP'] ? 1 : 0;
 function debug (x) {
-  if (debugLevel > 0) {
-    process.stdio.writeError(x + '\n');
-  }
+  if (debugLevel > 0) sys.error(x + '\n');
 }
 
 
@@ -101,12 +138,15 @@ function AMQPParser (version, type) {
   this.frameHeader.used = 0;
 }
 
+__data = null;
 
 // Everytime data is recieved on the socket, pass it to this function for
 // parsing.
 AMQPParser.prototype.execute = function (data) {
   // This function only deals with dismantling and buffering the frames.
   // It delegats to other functions for parsing the frame-body.
+  debug('execute: ' + data.toString());
+  __data = data;
   for (var i = 0; i < data.length; i++) {
     switch (this.state) {
       case 'frameHeader':
@@ -127,12 +167,10 @@ AMQPParser.prototype.execute = function (data) {
 
           this.frameHeader.used = 0; // for reuse
 
-          /*
           debug("got frame: " + JSON.stringify([ this.frameType
                                                , this.frameChannel
                                                , this.frameSize
                                                ]));
-          */
 
           if (this.frameSize > maxFrameBuffer) {
             throw new Error("Oversized frame " + this.frameSize);
@@ -184,7 +222,13 @@ AMQPParser.prototype.execute = function (data) {
 
       case 'frameEnd':
         // Frames are terminated by a single octet.
-        if (data[i] != 206 /* constants.frameEnd */) throw new Error("Oversized frame");
+        if (data[i] != 206 /* constants.frameEnd */) {
+          debug('data[' + i + '] = ' + data[i].toString(16));
+          debug('data = ' + data.toString());
+          debug('frameHeader: ' + this.frameHeader.toString());
+          debug('frameBuffer: ' + this.frameBuffer.toString());
+          throw new Error("Oversized frame");
+        }
         this.state = 'frameHeader';
         break;
     }
@@ -304,7 +348,7 @@ function parseFields (buffer, fields) {
 
         value = (buffer[buffer.read] & (1 << bitIndex)) ? true : false;
 
-        if (fields[i+1].domain == 'bit') {
+        if (fields[i+1] && fields[i+1].domain == 'bit') {
           bitIndex++;
         } else {
           bitIndex = 0;
@@ -460,7 +504,7 @@ function serializeShortString (b, string) {
   if (typeof(string) != "string") {
     throw new Error("param must be a string");
   }
-  var byteLength = Buffer.utf8ByteLength(string);
+  var byteLength = Buffer.byteLength(string, 'utf8');
   if (byteLength > 0xFF) {
     throw new Error("String too long for 'shortstr' parameter");
   }
@@ -477,7 +521,7 @@ function serializeLongString (b, string) {
   // we accept string, object, or buffer for this parameter.
   // in the case of string we serialize it to utf8.
   if (typeof(string) == 'string') {
-    var byteLength = Buffer.utf8ByteLength(string);
+    var byteLength = Buffer.byteLength(string, 'utf8');
     serializeInt(b, 4, byteLength);
     b.utf8Write(string, b.used);
     b.used += byteLength;
@@ -569,14 +613,15 @@ function serializeFields (buffer, fields, args, strict) {
           throw new Error("Unmatched field " + JSON.stringify(field));
         }
 
-        //bitField &= (1 << (7 - bitIndex))
-        bitField &= (1 << (bitIndex))
+        if (param) bitField |= (1 << bitIndex);
+        bitIndex++;
 
         if (!fields[i+1] || fields[i+1].domain != 'bit') {
+          debug('SET bit field ' + field.name + ' 0x' + bitField.toString(16));
           buffer[buffer.used++] = bitField;
           bitField = 0;
           bitIndex = 0;
-        }
+        } 
         break;
 
       case 'octet':
@@ -632,7 +677,7 @@ function serializeFields (buffer, fields, args, strict) {
 
 
 function Connection (options) {
-  net.Socket.call(this);
+  net.Stream.call(this);
 
   var self = this;
 
@@ -693,7 +738,7 @@ function Connection (options) {
     parser = null;
   });
 }
-sys.inherits(Connection, net.Socket);
+sys.inherits(Connection, net.Stream);
 
 
 var defaultOptions = { host: 'localhost'
@@ -706,7 +751,7 @@ var defaultOptions = { host: 'localhost'
 
 exports.createConnection = function (options) {
   var o  = {};
-  process.mixin(o, defaultOptions, options);
+  mixin(o, defaultOptions, options);
   var c = new Connection(o);
   c.connect(o.port, o.host);
   return c;
@@ -884,7 +929,7 @@ function sendHeader (connection, channel, size, properties) {
 
   // properties - first propertyFlags
   var props = {'contentType': 'application/octet-stream'};
-  process.mixin(props, properties);
+  mixin(props, properties);
   var propertyFlags = 0;
   for (var i = 0; i < classInfo.fields.length; i++) {
     if (props[classInfo.fields[i].name]) propertyFlags |= 1 << (15-i);
@@ -921,7 +966,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
   // - body is an object and its JSON representation is sent
   // Does not handle the case for streaming bodies.
   if (typeof(body) == 'string') {
-    var length = Buffer.utf8ByteLength(body);
+    var length = Buffer.byteLength(body);
     //debug('send message length ' + length);
 
     sendHeader(this, channel, length, properties);
@@ -938,7 +983,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
-    this.write(b);
+    return this.write(b);
 
     //debug('body sent: ' + JSON.stringify(b));
 
@@ -954,7 +999,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 
     this.write(body);
 
-    this.write(String.fromCharCode(206)); // frameEnd
+    return this.write(String.fromCharCode(206)); // frameEnd
 
   } else {
     // Optimize for JSON.
@@ -964,7 +1009,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 
     debug('sending json: ' + jsonBody);
 
-    process.mixin(properties, {contentType: 'text/json' });
+    mixin(properties, {contentType: 'text/json' });
 
     sendHeader(this, channel, length, properties);
 
@@ -979,7 +1024,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
-    this.write(b);
+    return this.write(b);
   }
 };
 
@@ -1120,10 +1165,8 @@ function Queue (connection, channel, name, options) {
 
   this.name = name;
 
-  this.options = { autoDelete: true }
-  if (options) process.mixin(this.options, options);
-
-  this.subscriptionState = 'closed';
+  this.options = { autoDelete: true };
+  if (options) mixin(this.options, options);
 }
 sys.inherits(Queue, Channel);
 
@@ -1140,7 +1183,7 @@ Queue.prototype.subscribe = function (messageListener, options) {
         , noLocal: options.noLocal ? true : false
         , noAck: options.noAck ? true : false
         , exclusive: options.exclusive ? true : false
-        , nowait: true
+        , nowait: false
         , "arguments": {}
         });
   });
@@ -1152,14 +1195,14 @@ Queue.prototype.subscribeJSON = function (messageListener) {
   this.addListener('jsonMessage', messageListener);
   return this.subscribe(function (m) {
     if (m.contentType != 'text/json') return;
-    var buffer = "";
+    var b = "";
 
     m.addListener('data', function (d) {
-      buffer += d.toString();
+      b += d.toString();
     });
 
     m.addListener('end', function () {
-      var json = JSON.parse(buffer);
+      var json = JSON.parse(b);
       json._routingKey = m.routingKey;
       self.emit('jsonMessage', json);
       m.acknowledge();
@@ -1177,7 +1220,7 @@ Queue.prototype.bind = function (exchange, routingKey) {
         , queue: self.name
         , exchange: exchangeName
         , routingKey: routingKey
-        , nowait: true
+        , nowait: false
         , "arguments": {}
         });
   });
@@ -1193,7 +1236,7 @@ Queue.prototype.destroy = function (options) {
         , queue: self.name
         , ifUnused: options.ifUnused ? true : false
         , ifEmpty: options.ifEmpty ? true : false
-        , nowait: true
+        , nowait: false
         , "arguments": {}
         });
   });
@@ -1212,7 +1255,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
           , durable: this.options.durable ? true : false
           , exclusive: this.options.exclusive ? true : false
           , autoDelete: this.options.autoDelete ? true : false
-          , nowait: true
+          , nowait: false
           , "arguments": {}
           });
       this.state = "declare queue";
@@ -1253,7 +1296,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
 
 Queue.prototype._onContentHeader = function (channel, classInfo, weight, properties, size) {
-  process.mixin(this.currentMessage, properties);
+  mixin(this.currentMessage, properties);
   this.currentMessage.read = 0;
   this.currentMessage.size = size;
 
@@ -1294,7 +1337,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
           , durable:    this.options.durable    ? true : false
           , autoDelete: this.options.autoDelete ? true : false
           , internal:   this.options.internal   ? true : false
-          , nowait:     true
+          , nowait:     false
           , "arguments": {}
           });
       this.state = 'declaring';
