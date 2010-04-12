@@ -21,7 +21,7 @@ connection.addListener('ready', function () {
     e.publish('routingKey', {hello: 'world'});
     puts('message published');
     puts('closing connection...');
-    connection.close();
+    connection.end();
   });
 });
 

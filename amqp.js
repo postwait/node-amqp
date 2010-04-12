@@ -787,7 +787,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
     case methods.connectionStart:
       // We check that they're serving us AMQP 0-8
       if (args.versionMajor != 8 && args.versionMinor != 0) {
-        this.close();
+        this.end();
         this.emit('error', new Error("Bad server version"));
         return;
       }
@@ -837,7 +837,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
       if (!this.listeners('close').length) {
         sys.puts('Unhandled connection error: ' + args.replyText);
       }
-      this.forceClose(e);
+      this.destroy(e);
       break;
 
     default:

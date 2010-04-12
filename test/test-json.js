@@ -37,7 +37,7 @@ connection.addListener('ready', function () {
 
     setTimeout(function () {
       // wait one second to receive the message, then quit
-      connection.close();
+      connection.end();
     }, 1000);
   });
 });
