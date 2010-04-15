@@ -1052,6 +1052,10 @@ Connection.prototype.queue = function (name, options) {
 // - autoDelete (boolean, default true)
 Connection.prototype.exchange = function (name, options) {
   if (!name) name = 'amq.topic';
+
+  if (!options) options = {};
+  if (options.type === undefined) options.type = 'topic';
+
   if (this.exchanges[name]) return this.exchanges[name];
   var channel = this.channels.length;
   var exchange = new Exchange(this, channel, name, options);
@@ -1190,12 +1194,35 @@ Queue.prototype.subscribe = function (messageListener, options) {
 };
 
 
-Queue.prototype.subscribeJSON = function (messageListener) {
+Queue.prototype.subscribeJSON = function (/* options, messageListener */) {
   var self = this;
+
+  var messageListener = arguments[arguments.length-1];
+
+  var options = { ack: false };
+  if (typeof arguments[0] == 'object') {
+    if (arguments[0].ack) options.ack = true;
+  }
+
   this.addListener('jsonMessage', messageListener);
+
+  if (options.ack) {
+    this._taskPush(methods.basicQosOk, function () {
+      self.connection._sendMethod(self.channel, methods.basicQos,
+          { ticket: 0
+          , prefetchSize: 0
+          , prefetchCount: 1
+          , global: false
+          });
+    });
+  }
+
+  // basic consume
   return this.subscribe(function (m) {
     if (m.contentType != 'text/json') return;
     var b = "";
+
+    self._lastMessage = m;
 
     m.addListener('data', function (d) {
       b += d.toString();
@@ -1205,9 +1232,16 @@ Queue.prototype.subscribeJSON = function (messageListener) {
       var json = JSON.parse(b);
       json._routingKey = m.routingKey;
       self.emit('jsonMessage', json);
-      m.acknowledge();
+      if (!options.ack) m.acknowledge();
     });
-  });
+  }, { noAck: !options.ack });
+};
+
+/* Acknowledges the last message */
+Queue.prototype.shift = function () {
+  if (this._lastMessage) {
+    this._lastMessage.acknowledge();
+  }
 };
 
 
@@ -1318,7 +1352,7 @@ Queue.prototype._onContent = function (channel, data) {
 function Exchange (connection, channel, name, options) {
   Channel.call(this, connection, channel);
   this.name = name;
-  this.options = options || {autoDelete: true};
+  this.options = options || { autoDelete: true};
 }
 sys.inherits(Exchange, Channel);
 

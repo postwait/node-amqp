@@ -173,7 +173,7 @@ For now this low-level interface is left undocumented. Look at the source
 code if you need to this.
 
 
-### `queue.subscribeJSON(listener, options)`
+### `queue.subscribeJSON([options,] listener)`
 
 An easy subscription command. It works like this
 
@@ -182,6 +182,17 @@ An easy subscription command. It works like this
     });
 
 It will automatically acknowledge receipt of each message.
+
+The only option that this method supports right now is the "ack" method,
+which defaults to false.  Setting the options argument to `{ ack: true }` 
+will make it so that the AMQP server only delivers a single message at a
+time. When you want the next message, call `q.shift()`. When `ack` is false
+then you will receive messages as fast as they come in.
+
+### `queue.shift()`
+
+For use with `subscribeJSON({ack: true}, fn)`. Acknowledges the last
+message.
 
 
 ### `queue.bind(exchange, routing)`
