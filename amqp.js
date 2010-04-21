@@ -138,7 +138,6 @@ function AMQPParser (version, type) {
   this.frameHeader.used = 0;
 }
 
-__data = null;
 
 // Everytime data is recieved on the socket, pass it to this function for
 // parsing.
@@ -146,7 +145,6 @@ AMQPParser.prototype.execute = function (data) {
   // This function only deals with dismantling and buffering the frames.
   // It delegats to other functions for parsing the frame-body.
   debug('execute: ' + data.toString());
-  __data = data;
   for (var i = 0; i < data.length; i++) {
     switch (this.state) {
       case 'frameHeader':
