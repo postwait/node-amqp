@@ -12,11 +12,11 @@ if (process.argv[2]) {
 
 global.connection = amqp.createConnection();
 
+global.connection.addListener('error', function (e) {
+  throw e;
+})
+
 global.connection.addListener('close', function (e) {
-  if (e) {
-    throw e;
-  } else {
-    sys.puts('connection closed.');
-  }
+  sys.puts('connection closed.');
 });
 
