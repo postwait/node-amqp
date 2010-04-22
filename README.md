@@ -79,7 +79,7 @@ method once it is declared. For example:
 
 
 
-### `connection.queue(name, options, openCallback)`
+### connection.queue(name, options, openCallback)
 
 Returns a reference to a queue. The options are
 
@@ -102,11 +102,9 @@ Returns a reference to a queue. The options are
     its channel is closed. If there was no consumer ever on the queue, it
     won't be deleted.
 
-When a queue has been declared it will emit an `'open'` event. 
 
 
-
-### `queue.subscribe([options,] listener)`
+### queue.subscribe([options,] listener)
 
 An easy subscription command. It works like this
 
@@ -117,12 +115,12 @@ An easy subscription command. It works like this
 It will automatically acknowledge receipt of each message.
 
 The only option that this method supports right now is the "ack" method,
-which defaults to false.  Setting the options argument to `{ ack: true }` 
+which defaults to false.  Setting the options argument to `{ ack: true }`
 will make it so that the AMQP server only delivers a single message at a
 time. When you want the next message, call `q.shift()`. When `ack` is false
 then you will receive messages as fast as they come in.
 
-### `queue.subscribeRaw([options,] listener)`
+### queue.subscribeRaw([options,] listener)
 
 Subscribes to a queue. The `listener` argument should be a function which
 receives a message. This is a low-level interface - the message that the
@@ -130,13 +128,13 @@ listener receives will be a stream of binary data. You probably want to use
 `subscribe` instead. For now this low-level interface is left undocumented.
 Look at the source code if you need to this.
 
-### `queue.shift()`
+### queue.shift()
 
 For use with `subscribe({ack: true}, fn)`. Acknowledges the last
 message.
 
 
-### `queue.bind([exchange,] routing)`
+### queue.bind([exchange,] routing)
 
 This method binds a queue to an exchange.  Until a queue is
 bound it will not receive any messages.
@@ -144,7 +142,7 @@ bound it will not receive any messages.
 If the `exchange` argument is left out `'amq.topic'` will be used.
 
 
-### `queue.delete(options)`
+### queue.delete(options)
 
 Delete the queue. Without options, the queue will be deleted even if it has
 pending messages or attached consumers. If +options.ifUnused+ is true, then 
@@ -164,11 +162,11 @@ The open event is emitted when the exchange is declared and ready to
 be used.
 
 
-### `connection.exchange()`
-### `connection.exchange(name, options={})`
+### connection.exchange()
+### connection.exchange(name, options={})
 
 An exchange can be created using `connection.exchange()`. The method returns
-an `amqp.Exchange` object. 
+an `amqp.Exchange` object.
 
 Without any arguments, this method returns the default exchange `amq.topic`.
 Otherwise a string, `name`, is given as the first argument and an `options`
@@ -192,7 +190,7 @@ An exchange will emit the `'open'` event when it is finally declared.
 
 
 
-### `exchange.publish(routingKey, message, options)`
+### exchange.publish(routingKey, message, options)
 
 Publishes a message to the exchange. The `routingKey` argument is a string
 which helps routing in `topic` and `direct` exchanges. The `message` can be
@@ -219,9 +217,9 @@ is convereted to JSON.
 - `priority`: The message priority, 0 to 9.
 
 
-### `exchange.destroy(ifUnused = true)`
+### exchange.destroy(ifUnused = true)
 
-Deletes an exchange. 
+Deletes an exchange.
 If the optional boolean second argument is set, the server will only
 delete the exchange if it has no queue bindings. If the exchange has queue
 bindings the server does not delete it but raises a channel exception
