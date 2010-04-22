@@ -1,7 +1,6 @@
 # node-amqp
 
-IMPORTANT: This module only works with node ry/master@d1b78c (March 27,
-2010) or later.
+IMPORTANT: This module only works with node v0.1.90 and later.
 
 This is a client for RabbitMQ (and maybe other servers?). It partially
 implements the 0.8 version of the AMQP protocol.
@@ -13,12 +12,21 @@ An example of connecting to a server and listening on a queue.
 
     var sys = require('sys');
     var amqp = require('./amqp');
+
     var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
+
+    // Wait for connection to become established.
     connection.addListener('ready', function () {
-      var exchange = connection.exchange('my-exchange');
+      // Use the default 'amq.topic' exchange
+      var exchange = connection.exchange();
+
+      // Create a queue and bind to all messages.
       var queue = connection.queue('my-queue');
-      queue.bind(exchange, "*")
+      queue.bind(exchange, '#')
+
+      // Receive messages
       queue.subscribe(function (message) {
+        // Print messages to stdout
         sys.p(message);
       });
     });

@@ -1,6 +1,6 @@
 var events = require('events'),
     sys = require('sys'),
-    net = require('net'),  // requires ry/master@cc053e or later
+    net = require('net'),
     protocol = require('./amqp-definitions-0-8'),
     Buffer = require('buffer').Buffer,
     Promise = require('./promise').Promise;
