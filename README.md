@@ -17,15 +17,13 @@ An example of connecting to a server and listening on a queue.
 
     // Wait for connection to become established.
     connection.addListener('ready', function () {
-      // Use the default 'amq.topic' exchange
-      var exchange = connection.exchange();
-
       // Create a queue and bind to all messages.
-      var queue = connection.queue('my-queue');
-      queue.bind(exchange, '#')
+      // Use the default 'amq.topic' exchange
+      var q = connection.queue('my-queue');
+      q.bind(exchange, '#');
 
       // Receive messages
-      queue.subscribe(function (message) {
+      q.subscribe(function (message) {
         // Print messages to stdout
         sys.p(message);
       });
@@ -56,12 +54,25 @@ must be completed before any communication can begin. `net.Connection` does
 the handshake automatically and emits the `ready` event when the handshaking
 is complete.
 
-To close the connection use `connection.close()`.
+
+### connection.publish(routingKey, body)
+
+Publishes a message to the default 'amq.topic' exchange.
+
+
+### connection.end()
+
+`amqp.Connection` is derived from `net.Stream` and has all the same methods.
+So use `connection.end()` to terminate a connection gracefully.
+
 
 
 ## Exchange
 
-Events: `'open'`, this is emitted when the exchange is declared and ready to
+
+### exchange.addListener('open', callback)
+
+The open event is emitted when the exchange is declared and ready to
 be used.
 
 
@@ -198,10 +209,13 @@ For use with `subscribe({ack: true}, fn)`. Acknowledges the last
 message.
 
 
-### `queue.bind(exchange, routing)`
+### `queue.bind([exchange,] routing)`
 
 This method binds a queue to an exchange.  Until a queue is
 bound it will not receive any messages.
+
+If the `exchange` argument is left out `'amq.topic'` will be used.
+
 
 ### `queue.delete(options)`
 

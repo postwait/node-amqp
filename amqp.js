@@ -685,6 +685,8 @@ function Connection (options) {
   var state = 'handshake';
   var parser;
 
+  this._defaultExchange = null;
+
   self.addListener('connect', function () {
     // channel 0 is the control channel.
     self.channels = [self];
@@ -1072,6 +1074,12 @@ Connection.prototype.exchange = function (name, options) {
   return exchange;
 };
 
+// Publishes a message to the amq.topic exchange.
+Connection.prototype.publish = function (routingKey, body) {
+  if (!this._defaultExchange) this._defaultExchange = this.exchange();
+  return this._defaultExchange.publish(routingKey, body);
+};
+
 
 
 // Properties:
@@ -1287,8 +1295,24 @@ Queue.prototype.shift = function () {
 };
 
 
-Queue.prototype.bind = function (exchange, routingKey) {
+Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   var self = this;
+
+  // The first argument, exchange is optional.
+  // If not supplied the connection will use the default 'amq.topic'
+  // exchange.
+ 
+  var exchange, routingKey;
+
+  if (arguments.length == 2) {
+    exchange = arguments[0];
+    routingKey = arguments[1];
+  } else {
+    exchange = 'amq.topic';   
+    routingKey = arguments[0];
+  }
+
+
   return this._taskPush(methods.queueBindOk, function () {
     var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
     self.connection._sendMethod(self.channel, methods.queueBind,
