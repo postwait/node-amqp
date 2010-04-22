@@ -18,7 +18,7 @@ An example of connecting to a server and listening on a queue.
       var exchange = connection.exchange('my-exchange');
       var queue = connection.queue('my-queue');
       queue.bind(exchange, "*")
-      queue.subscribeJSON(function (message) {
+      queue.subscribe(function (message) {
         sys.p(message);
       });
     });
@@ -162,22 +162,11 @@ When a queue has been declared it will emit an `'open'` event.
 
 
 
-### `queue.subscribe(listener, options)`
-
-Subscribes to a queue. The `listener` argument should be a function which
-receives a message. This is a low-level interface - the message that the
-listener receives will be a stream of binary data. You probably want to use
-`subscribeJSON` instead.
-
-For now this low-level interface is left undocumented. Look at the source
-code if you need to this.
-
-
-### `queue.subscribeJSON([options,] listener)`
+### `queue.subscribe([options,] listener)`
 
 An easy subscription command. It works like this
 
-    q.subscribeJSON(function (message) {
+    q.subscribe(function (message) {
       puts('Got a message with routing key ' + message._routingKey);
     });
 
@@ -189,9 +178,17 @@ will make it so that the AMQP server only delivers a single message at a
 time. When you want the next message, call `q.shift()`. When `ack` is false
 then you will receive messages as fast as they come in.
 
+### `queue.subscribeRaw([options,] listener)`
+
+Subscribes to a queue. The `listener` argument should be a function which
+receives a message. This is a low-level interface - the message that the
+listener receives will be a stream of binary data. You probably want to use
+`subscribe` instead. For now this low-level interface is left undocumented.
+Look at the source code if you need to this.
+
 ### `queue.shift()`
 
-For use with `subscribeJSON({ack: true}, fn)`. Acknowledges the last
+For use with `subscribe({ack: true}, fn)`. Acknowledges the last
 message.
 
 

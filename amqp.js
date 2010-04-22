@@ -1173,10 +1173,17 @@ function Queue (connection, channel, name, options) {
 sys.inherits(Queue, Channel);
 
 
-Queue.prototype.subscribe = function (messageListener, options) {
-  this.addListener('message', messageListener);
+Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   var self = this;
-  options = options || {};
+
+  var messageListener = arguments[arguments.length-1];
+  this.addListener('rawMessage', messageListener);
+
+  var options = { };
+  if (typeof arguments[0] == 'object') {
+    mixin(options, arguments[0]);
+  }
+
   return this._taskPush(methods.basicConsumeOk, function () {
     self.connection._sendMethod(self.channel, methods.basicConsume,
         { ticket: 0
@@ -1192,7 +1199,7 @@ Queue.prototype.subscribe = function (messageListener, options) {
 };
 
 
-Queue.prototype.subscribeJSON = function (/* options, messageListener */) {
+Queue.prototype.subscribe = function (/* options, messageListener */) {
   var self = this;
 
   var messageListener = arguments[arguments.length-1];
@@ -1202,7 +1209,7 @@ Queue.prototype.subscribeJSON = function (/* options, messageListener */) {
     if (arguments[0].ack) options.ack = true;
   }
 
-  this.addListener('jsonMessage', messageListener);
+  this.addListener('message', messageListener);
 
   if (options.ack) {
     this._taskPush(methods.basicQosOk, function () {
@@ -1216,24 +1223,49 @@ Queue.prototype.subscribeJSON = function (/* options, messageListener */) {
   }
 
   // basic consume
-  return this.subscribe(function (m) {
-    if (m.contentType != 'text/json') return;
-    var b = "";
+  var rawOptions = { noAck: !options.ack };
+  return this.subscribeRaw(rawOptions, function (m) {
+    var isJSON = (m.contentType == 'text/json');
+
+    var b;
+
+    if (isJSON) {
+      b = ""
+    } else {
+      b = new Buffer(m.size);
+      b.used = 0;
+    }
 
     self._lastMessage = m;
 
     m.addListener('data', function (d) {
-      b += d.toString();
+      if (isJSON) {
+        b += d.toString();
+      } else {
+        d.copy(b, b.used);
+        b.used += d.length;
+      }
     });
 
     m.addListener('end', function () {
-      var json = JSON.parse(b);
+      var json;
+      if (isJSON) {
+        json = JSON.parse(b);
+      } else {
+        json = { data: b, contentType: m.contentType };
+      }
+
       json._routingKey = m.routingKey;
-      self.emit('jsonMessage', json);
+      json._deliveryTag = m.deliveryTag;
+
+
+      self.emit('message', json);
       if (!options.ack) m.acknowledge();
     });
-  }, { noAck: !options.ack });
+  });
 };
+Queue.prototype.subscribeJSON = Queue.prototype.subscribe;
+
 
 /* Acknowledges the last message */
 Queue.prototype.shift = function () {
@@ -1332,7 +1364,7 @@ Queue.prototype._onContentHeader = function (channel, classInfo, weight, propert
   this.currentMessage.read = 0;
   this.currentMessage.size = size;
 
-  this.emit('message', this.currentMessage);
+  this.emit('rawMessage', this.currentMessage);
 };
 
 

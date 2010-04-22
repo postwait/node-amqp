@@ -12,7 +12,7 @@ connection.addListener('ready', function () {
 
   q.bind(exchange, "*");
 
-  q.subscribeJSON(function (json) {
+  q.subscribe(function (json) {
     recvCount++;
 
     switch (json._routingKey) {

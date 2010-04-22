@@ -12,7 +12,7 @@ connection.addListener('ready', function () {
 
   q.bind(e, 'ackmessage.*');
 
-  q.subscribeJSON({ ack: true }, function (json) {
+  q.subscribe({ ack: true }, function (json) {
     recvCount++;
     puts('Got message ' + JSON.stringify(json));
 

@@ -12,7 +12,7 @@ connection.addListener('ready', function () {
 
   q.bind(exchange, "*")
 
-  q.subscribe(function (m) {
+  q.subscribeRaw(function (m) {
     puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
     puts("--- contentType: " + m.contentType);
 
