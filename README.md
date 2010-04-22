@@ -132,18 +132,16 @@ instead.
 
 ## Queue
 
-Events: `'open'`, this is emitted when the queue is declared and ready to
-be used. The `'open'` event has two parameters, the message count and the
-consumer count. E.G.
+Events: A queue will call the callback given to the `connection.queue()`
+method once it is declared. For example:
 
-    var q = connection.queue('my-queue');
-    q.addListener('open', function (messageCount, consumerCount) {
+    var q = connection.queue('my-queue', function (messageCount, consumerCount) {
       puts('There are ' + messageCount + ' messages waiting in the queue.');
     });
 
 
 
-### `connection.queue(name, options)`
+### `connection.queue(name, options, openCallback)`
 
 Returns a reference to a queue. The options are
 

@@ -1032,10 +1032,20 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - durable (boolean)
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
-Connection.prototype.queue = function (name, options) {
+Connection.prototype.queue = function (name /* , options, openCallback */) {
   if (this.queues[name]) return this.queues[name];
   var channel = this.channels.length;
-  var q = new Queue(this, channel, name, options);
+
+  var options, callback;
+  if (typeof arguments[1] == 'object') {
+    options = arguments[1];
+    callback = arguments[2];
+  } else {
+    callback = arguments[1];
+  }
+
+
+  var q = new Queue(this, channel, name, options, callback);
   this.channels.push(q);
   this.queues[name] = q;
   return q;
@@ -1162,13 +1172,15 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
 
 
 
-function Queue (connection, channel, name, options) {
+function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
 
   this.name = name;
 
   this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
+
+  this._openCallback = callback;
 }
 sys.inherits(Queue, Channel);
 
@@ -1327,6 +1339,11 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.queueDeclareOk:
       this.state = 'open';
+      if (this._openCallback) {
+        this._openCallback(args.messageCount, args.consumerCount);
+        this._openCallback = null;
+      }
+      // TODO this is legacy interface, remove me
       this.emit('open', args.messageCount, args.consumerCount);
       break;
 

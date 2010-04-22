@@ -8,14 +8,14 @@ connection.addListener('ready', function () {
 
   var e = connection.exchange();
 
-  var q = connection.queue('node-test-autodelete', {exclusive: true});
-  q.addListener('open', function (messageCount, consumerCount) {
+  var q = connection.queue('node-test-autodelete', {exclusive: true},
+      function (messageCount, consumerCount) {
     puts('queue opened.');
     assert.equal(0, messageCount);
     assert.equal(0, consumerCount);
   });
 
-  q.bind(e, "*").addCallback(function () {
+  q.bind(e, "#").addCallback(function () {
     puts('bound');
     // publish message, but don't consume it.
     e.publish('routingKey', {hello: 'world'});
