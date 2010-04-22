@@ -20,7 +20,8 @@ An example of connecting to a server and listening on a queue.
       // Create a queue and bind to all messages.
       // Use the default 'amq.topic' exchange
       var q = connection.queue('my-queue');
-      q.bind(exchange, '#');
+      // Catch all messages
+      q.bind('#');
 
       // Receive messages
       q.subscribe(function (message) {
