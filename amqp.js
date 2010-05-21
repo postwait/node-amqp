@@ -733,6 +733,7 @@ function Connection (options) {
   });
 
   self.addListener('end', function () {
+    self.end();
     // in order to allow reconnects, have to clear the
     // state.
     parser = null;
