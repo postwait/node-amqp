@@ -679,8 +679,7 @@ function Connection (options) {
 
   var self = this;
 
-
-  this.options = options || {};
+  this.setOptions(options);
 
   var state = 'handshake';
   var parser;
@@ -752,11 +751,16 @@ var defaultOptions = { host: 'localhost'
 
 
 exports.createConnection = function (options) {
-  var o  = {};
-  mixin(o, defaultOptions, options);
-  var c = new Connection(o);
-  c.connect(o.port, o.host);
+  var c = new Connection();
+  c.setOptions(options);
+  c.reconnect();
   return c;
+};
+
+Connection.prototype.setOptions = function (options) {
+  var o  = {};
+  mixin(o, defaultOptions, options || {});
+  this.options = o;
 };
 
 Connection.prototype.reconnect = function () {
