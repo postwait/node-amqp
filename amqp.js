@@ -1383,6 +1383,9 @@ Queue.prototype._onMethod = function (channel, method, args) {
     case methods.queueBindOk:
       break;
 
+    case methods.basicQosOk:
+      break;
+
     case methods.channelClose:
       this.state = "closed";
       var e = new Error(args.replyText);
