@@ -740,6 +740,7 @@ function Connection (options) {
   });
 }
 sys.inherits(Connection, net.Stream);
+exports.Connection = Connection;
 
 
 var defaultOptions = { host: 'localhost'

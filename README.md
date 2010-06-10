@@ -34,6 +34,9 @@ An example of connecting to a server and listening on a queue.
 
 ## Connection
 
+`new amqp.Connection()` Instantiates a new connection. Use
+`connection.connect()` to connect to a server. 
+
 `amqp.createConnection()` returns an instance of `amqp.Connection`, which is
 a subclass of `net.Stream`. All the event and methods which work on
 `net.Stream` can also be used on an `amqp.Connection` instace. (E.G. the
