@@ -287,7 +287,7 @@ function parseSignedInteger (buffer) {
 
 
 function parseTable (buffer) {
-  var length = parseInt(buffer, 4);
+  var length = buffer.read + parseInt(buffer, 4);
   var table = {};
   while (buffer.read < length) {
     var field = parseShortString(buffer);
