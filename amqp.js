@@ -1472,6 +1472,11 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.emit('close', e);
       break;
 
+    case methods.basicReturn:
+      sys.puts("Warning: Uncaught basicReturn: "+JSON.stringify(args));
+      this.emit('basicReturn', args);
+      break;
+
     default:
       throw new Error("Uncaught method '" + method.name + "' with args " +
           JSON.stringify(args));
