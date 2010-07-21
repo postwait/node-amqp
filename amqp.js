@@ -1015,7 +1015,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 
     debug('sending json: ' + jsonBody);
 
-    mixin(properties, {contentType: 'text/json' });
+    properties = mixin({contentType: 'text/json' }, properties);
 
     sendHeader(this, channel, length, properties);
 
@@ -1251,7 +1251,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   // basic consume
   var rawOptions = { noAck: !options.ack };
   return this.subscribeRaw(rawOptions, function (m) {
-    var isJSON = (m.contentType == 'text/json');
+    var isJSON = (m.contentType == 'text/json') || (m.contentType == 'application/json');
 
     var b;
 

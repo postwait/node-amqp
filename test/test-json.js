@@ -33,7 +33,7 @@ connection.addListener('ready', function () {
   .addCallback(function () {
     puts("publishing 2 json messages");
     exchange.publish('message.json1', {two:2, one:1});
-    exchange.publish('message.json2', {foo:'bar', hello: 'world'});
+    exchange.publish('message.json2', {foo:'bar', hello: 'world'}, {contentType: 'application/json'});
 
     setTimeout(function () {
       // wait one second to receive the message, then quit
