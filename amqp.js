@@ -1392,6 +1392,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
       if (!this.listeners('close').length) {
         sys.puts('Unhandled channel error: ' + args.replyText);
       }
+      this.emit('error', e);
       this.emit('close', e);
       break;
 
