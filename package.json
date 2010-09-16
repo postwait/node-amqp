@@ -1,5 +1,5 @@
 { "name" : "amqp"
-, "version" : "0.0.1"
+, "version" : "0.0.2"
 , "description" : "amqp bindings for RabbitMQ"
 , "author": "Ryan Dahl"
 , "main": "./amqp"
