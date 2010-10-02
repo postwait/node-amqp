@@ -69,7 +69,6 @@ function debug (x) {
 }
 
 
-
 // a look up table for methods recieved
 // indexed on class id, method id
 var methodTable = {};
@@ -1040,8 +1039,8 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - durable (boolean)
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
-Connection.prototype.queue = function (name /* , options, openCallback */) {
-  if (this.queues[name]) return this.queues[name];
+Connection.prototype.queue = function (name /* options, openCallback */) {
+  if (name != '' && this.queues[name]) return this.queues[name];
   var channel = this.channels.length;
 
   var options, callback;
@@ -1058,7 +1057,6 @@ Connection.prototype.queue = function (name /* , options, openCallback */) {
   this.queues[name] = q;
   return q;
 };
-
 
 // connection.exchange('my-exchange', { type: 'topic' });
 // Options
@@ -1368,6 +1366,8 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.queueDeclareOk:
       this.state = 'open';
+      this.name = args.queue;
+      this.connection.queues[this.name] = this;
       if (this._openCallback) {
         this._openCallback(args.messageCount, args.consumerCount);
         this._openCallback = null;
