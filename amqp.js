@@ -1065,10 +1065,10 @@ Connection.prototype.queue = function (name /* options, openCallback */) {
 // - durable (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.exchange = function (name, options) {
-  if (!name) name = 'amq.topic';
+  if (!name) name = '';
 
   if (!options) options = {};
-  if (options.type === undefined) options.type = 'topic';
+  if (options.type === undefined) options.type = 'direct';
 
   if (this.exchanges[name]) return this.exchanges[name];
   var channel = this.channels.length;
@@ -1302,7 +1302,7 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   var self = this;
 
   // The first argument, exchange is optional.
-  // If not supplied the connection will use the default 'amq.topic'
+  // If not supplied the connection will use the 'amq.topic'
   // exchange.
  
   var exchange, routingKey;
@@ -1443,8 +1443,8 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
   switch (method) {
     case methods.channelOpenOk:
-      // Default exchanges don't need to be declared
-      if (/^amq\./.test(this.name)) {
+      // Pre-baked exchanges don't need to be declared
+      if (/^$|(amq\.)/.test(this.name)) {
         this.state = 'open';
         this.emit('open');
       } else {
