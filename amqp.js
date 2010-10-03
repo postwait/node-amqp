@@ -106,7 +106,6 @@ var classes = {};
 })(); // end anon scope
 
 
-
 // parser
 
 
@@ -1079,9 +1078,9 @@ Connection.prototype.exchange = function (name, options) {
 };
 
 // Publishes a message to the default exchange.
-Connection.prototype.publish = function (routingKey, body) {
+Connection.prototype.publish = function (routingKey, body, options) {
   if (!this._defaultExchange) this._defaultExchange = this.exchange();
-  return this._defaultExchange.publish(routingKey, body);
+    return this._defaultExchange.publish(routingKey, body, options);
 };
 
 
@@ -1249,7 +1248,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   // basic consume
   var rawOptions = { noAck: !options.ack };
   return this.subscribeRaw(rawOptions, function (m) {
-    var isJSON = (m.contentType == 'text/json') || (m.contentType == 'application/json');
+    var isJSON = (m.properties.contentType == 'text/json') || (m.properties.contentType == 'application/json');
 
     var b;
 
@@ -1276,12 +1275,12 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       if (isJSON) {
         json = JSON.parse(b);
       } else {
-        json = { data: b, contentType: m.contentType };
+        json = { data: b, contentType: m.properties.contentType };
       }
 
       json._routingKey = m.routingKey;
       json._deliveryTag = m.deliveryTag;
-
+      json._properties = m.properties;
 
       self.emit('message', json);
     });
@@ -1410,7 +1409,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
 
 Queue.prototype._onContentHeader = function (channel, classInfo, weight, properties, size) {
-  mixin(this.currentMessage, properties);
+  this.currentMessage.properties  = properties;
   this.currentMessage.read = 0;
   this.currentMessage.size = size;
 
@@ -1494,7 +1493,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
 // exchange.publish('routing.key', 'body');
 //
-// the thrid argument can specify additional options
+// the third argument can specify additional options
 // - mandatory (boolean, default false)
 // - immediate (boolean, default false)
 // - contentType (default 'application/octet-stream')
