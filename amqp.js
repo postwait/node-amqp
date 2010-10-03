@@ -1068,7 +1068,7 @@ Connection.prototype.exchange = function (name, options) {
   if (!name) name = '';
 
   if (!options) options = {};
-  if (options.type === undefined) options.type = 'direct';
+  if (name != '' && options.type === undefined) options.type = 'topic';
 
   if (this.exchanges[name]) return this.exchanges[name];
   var channel = this.channels.length;
@@ -1078,7 +1078,7 @@ Connection.prototype.exchange = function (name, options) {
   return exchange;
 };
 
-// Publishes a message to the amq.topic exchange.
+// Publishes a message to the default exchange.
 Connection.prototype.publish = function (routingKey, body) {
   if (!this._defaultExchange) this._defaultExchange = this.exchange();
   return this._defaultExchange.publish(routingKey, body);
@@ -1369,11 +1369,11 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.name = args.queue;
       this.connection.queues[this.name] = this;
       if (this._openCallback) {
-        this._openCallback(args.messageCount, args.consumerCount);
+          this._openCallback(args.queue, args.messageCount, args.consumerCount);
         this._openCallback = null;
       }
       // TODO this is legacy interface, remove me
-      this.emit('open', args.messageCount, args.consumerCount);
+      this.emit('open', args.queue, args.messageCount, args.consumerCount);
       break;
 
     case methods.basicConsumeOk:
