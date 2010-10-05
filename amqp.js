@@ -1112,6 +1112,7 @@ function Message (queue, args) {
   this.redelivered = args.redelivered;
   this.exchange    = args.exchange;
   this.routingKey  = args.routingKey;
+  this.consumerTag = args.consumerTag;
 }
 sys.inherits(Message, events.EventEmitter);
 
@@ -1187,6 +1188,11 @@ function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
 
   this.name = name;
+  this._subscribers = {};
+  this.addListener('rawMessage', function(message) {
+    var cb = this._subscribers[message.consumerTag];
+    cb(message);
+  });
 
   this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
@@ -1195,12 +1201,13 @@ function Queue (connection, channel, name, options, callback) {
 }
 sys.inherits(Queue, Channel);
 
-
 Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   var self = this;
 
+  var ctag = 'node-amqp-ctag-' + Math.random();;
+
   var messageListener = arguments[arguments.length-1];
-  this.addListener('rawMessage', messageListener);
+  this._subscribers[ctag] = messageListener;
 
   var options = { };
   if (typeof arguments[0] == 'object') {
@@ -1211,7 +1218,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
     self.connection._sendMethod(self.channel, methods.basicConsume,
         { ticket: 0
         , queue: self.name
-        , consumerTag: "."
+        , consumerTag: ctag
         , noLocal: options.noLocal ? true : false
         , noAck: options.noAck ? true : false
         , exclusive: options.exclusive ? true : false
@@ -1231,8 +1238,6 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   if (typeof arguments[0] == 'object') {
     if (arguments[0].ack) options.ack = true;
   }
-
-  this.addListener('message', messageListener);
 
   if (options.ack) {
     this._taskPush(methods.basicQosOk, function () {
@@ -1282,7 +1287,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       json._deliveryTag = m.deliveryTag;
       json._properties = m.properties;
 
-      self.emit('message', json);
+      messageListener(json);
     });
   });
 };
@@ -1376,6 +1381,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.basicConsumeOk:
+      debug('basicConsumeOk', sys.inspect(args, null));
       break;
 
     case methods.queueBindOk:
@@ -1409,13 +1415,12 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
 
 Queue.prototype._onContentHeader = function (channel, classInfo, weight, properties, size) {
-  this.currentMessage.properties  = properties;
+  this.currentMessage.properties = properties;
   this.currentMessage.read = 0;
   this.currentMessage.size = size;
 
   this.emit('rawMessage', this.currentMessage);
 };
-
 
 Queue.prototype._onContent = function (channel, data) {
   this.currentMessage.read += data.length
