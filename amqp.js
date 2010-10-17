@@ -776,10 +776,10 @@ Connection.prototype._onMethod = function (channel, method, args) {
       debug("Received message on untracked channel.");
       return;
     }
-    if (!this.channels[channel]._onMethod) {
-      throw new Error('Channel ' + channel + ' has no _onMethod method.');
+    if (!this.channels[channel]._onChannelMethod) {
+      throw new Error('Channel ' + channel + ' has no _onChannelMethod method.');
     }
-    this.channels[channel]._onMethod(channel, method, args);
+    this.channels[channel]._onChannelMethod(channel, method, args);
     return;
   }
 
@@ -1154,7 +1154,6 @@ Channel.prototype._taskPush = function (reply, cb) {
   return promise;
 };
 
-
 Channel.prototype._tasksFlush = function () {
   if (this.state != 'open') return;
 
@@ -1182,7 +1181,25 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
   return false;
 };
 
+Channel.prototype._onChannelMethod = function(channel, method, args) {
+    switch (method) {
+    case methods.channelCloseOk:
+        this.state = 'closed'
+        this.emit('close');
+        break;
+    default:
+        this._onMethod(channel, method, args);
+    }
+}
 
+Channel.prototype.close = function() { 
+  this.state = 'closing';
+    this.connection._sendMethod(this.channel, methods.channelClose,
+                                {'replyText': 'Goodbye from node',
+                                 'replyCode': 200,
+                                 'classId': 0,
+                                 'methodId': 0});
+}
 
 function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
@@ -1400,7 +1417,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.emit('error', e);
       this.emit('close', e);
       break;
-
+    
     case methods.basicDeliver:
       this.currentMessage = new Message(this, args);
       break;
@@ -1482,6 +1499,11 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.emit('close', e);
       break;
 
+    case methods.channelCloseOk:
+      this.state = "closed";
+      this.emit('close');
+      break;
+
     case methods.basicReturn:
       sys.puts("Warning: Uncaught basicReturn: "+JSON.stringify(args));
       this.emit('basicReturn', args);
@@ -1549,4 +1571,3 @@ Exchange.prototype.destroy = function (ifUnused) {
         });
   });
 };
-
