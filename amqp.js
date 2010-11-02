@@ -262,7 +262,7 @@ function parseInt (buffer, size) {
 
 function parseShortString (buffer) {
   var length = buffer[buffer.read++];
-  var s = buffer.utf8Slice(buffer.read, buffer.read+length);
+  var s = buffer.toString('utf-8', buffer.read, buffer.read+length);
   buffer.read += length;
   return s;
 }
@@ -510,7 +510,7 @@ function serializeShortString (b, string) {
     throw new Error("Not enough space in buffer for 'shortstr'");
   }
   b[b.used++] = byteLength;
-  b.utf8Write(string, b.used); // error here
+  b.write(string, b.used, 'utf8');
   b.used += byteLength;
 }
 
@@ -521,7 +521,7 @@ function serializeLongString (b, string) {
   if (typeof(string) == 'string') {
     var byteLength = Buffer.byteLength(string, 'utf8');
     serializeInt(b, 4, byteLength);
-    b.utf8Write(string, b.used);
+    b.write(string, b.used, 'utf-8');
     b.used += byteLength;
   } else if (typeof(string) == 'object') {
     serializeTable(b, string);
@@ -985,7 +985,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     serializeInt(b, 2, channel);
     serializeInt(b, 4, length);
 
-    b.utf8Write(body, b.used);
+    b.write(body, b.used, 'utf8');
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
@@ -1026,7 +1026,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     serializeInt(b, 2, channel);
     serializeInt(b, 4, length);
 
-    b.asciiWrite(jsonBody, b.used);
+    b.write(jsonBody, b.used, 'ascii');
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
