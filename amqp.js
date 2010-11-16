@@ -985,7 +985,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     serializeInt(b, 2, channel);
     serializeInt(b, 4, length);
 
-    b.utf8Write(body, b.used);
+    b.write(body, b.used, 'utf8');
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
@@ -1026,7 +1026,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     serializeInt(b, 2, channel);
     serializeInt(b, 4, length);
 
-    b.asciiWrite(jsonBody, b.used);
+    b.write(jsonBody, b.used, 'ascii');
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
