@@ -1336,6 +1336,13 @@ Queue.prototype.destroy = function (options) {
   var self = this;
   options = options || {};
   return this._taskPush(methods.queueDeleteOk, function () {
+
+    // HACK BY JONAS WARNING
+    // we need to remove this queue from the amqp connection or else
+    // node amqp will not know to retrieve a new handle for this queue next time
+    delete self.connection.queues[self.name];
+
+
     self.connection._sendMethod(self.channel, methods.queueDelete,
         { ticket: 0
         , queue: self.name
@@ -1398,6 +1405,15 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.basicDeliver:
       this.currentMessage = new Message(this, args);
+      break;
+
+
+    // HACK BY JONAS WARNING
+    // I can't reproduce it, but sometimes rabbitmq sends a QueueDeleteOk message back after deleting a queue.
+    // This previously caused the server to crash.
+    // We're logging this so we can investigate the cause of QueueDeleteOk
+    case methods.queueDeleteOk:
+      console.error("--------- RECEIVED QUEUEDELETEOK in amqp.js in line 1404. Sensation !!!!!! ---------");
       break;
 
     default:
