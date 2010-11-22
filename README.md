@@ -146,7 +146,7 @@ bound it will not receive any messages.
 If the `exchange` argument is left out `'amq.topic'` will be used.
 
 
-### queue.delete(options)
+### queue.destroy(options)
 
 Delete the queue. Without options, the queue will be deleted even if it has
 pending messages or attached consumers. If +options.ifUnused+ is true, then 
