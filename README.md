@@ -5,7 +5,6 @@ IMPORTANT: This module only works with node v0.1.90 and later.
 This is a client for RabbitMQ (and maybe other servers?). It partially
 implements the 0.8 version of the AMQP protocol.
 
-
 ## Synopsis
 
 An example of connecting to a server and listening on a queue.
@@ -29,7 +28,6 @@ An example of connecting to a server and listening on a queue.
         sys.p(message);
       });
     });
-
 
 
 ## Connection
@@ -59,10 +57,10 @@ the handshake automatically and emits the `ready` event when the handshaking
 is complete.
 
 
-### connection.publish(routingKey, body)
+### connection.publish(queueName, body)
 
-Publishes a message to the default 'amq.topic' exchange.
-
+Publishes a message to the default exchange; this effectively
+publishes the message to the queue named.
 
 ### connection.end()
 
@@ -77,11 +75,12 @@ So use `connection.end()` to terminate a connection gracefully.
 Events: A queue will call the callback given to the `connection.queue()`
 method once it is declared. For example:
 
-    var q = connection.queue('my-queue', function (messageCount, consumerCount) {
+    var q = connection.queue('my-queue', function (name, messageCount, consumerCount) {
       puts('There are ' + messageCount + ' messages waiting in the queue.');
     });
 
-
+Declaring a queue with an empty name will make the server generate a
+random name.
 
 ### connection.queue(name, options, openCallback)
 
@@ -99,7 +98,7 @@ Returns a reference to a queue. The options are
     send persistent messages to a transient queue.
 - `exclusive`: boolean, default false.
     Exclusive queues may only be consumed from by the current connection.
-    Setting the 'exclusive' flag always implies 'auto-delete'.
+    Setting the 'exclusive' flag always implies 'autoDelete'.
 - `autoDelete`: boolean, default true.
     If set, the queue is deleted when all consumers have finished
     using it. Last consumer can be cancelled either explicitly or because
@@ -130,7 +129,7 @@ Subscribes to a queue. The `listener` argument should be a function which
 receives a message. This is a low-level interface - the message that the
 listener receives will be a stream of binary data. You probably want to use
 `subscribe` instead. For now this low-level interface is left undocumented.
-Look at the source code if you need to this.
+Look at the source code if you need to do this.
 
 ### queue.shift()
 
@@ -172,7 +171,7 @@ be used.
 An exchange can be created using `connection.exchange()`. The method returns
 an `amqp.Exchange` object.
 
-Without any arguments, this method returns the default exchange `amq.topic`.
+Without any arguments, this method returns the default exchange.
 Otherwise a string, `name`, is given as the first argument and an `options`
 object for the second. The options are
 
@@ -191,7 +190,6 @@ object for the second. The options are
     it.
 
 An exchange will emit the `'open'` event when it is finally declared.
-
 
 
 ### exchange.publish(routingKey, message, options)
@@ -216,10 +214,10 @@ is convereted to JSON.
     no guarantee that it will ever be consumed.
 - `contentType`: default 'application/octet-stream'
 - `contentEncoding`: default null.
-- `headers`: default `{}`.
+- `headers`: default `{}`. Arbitrary application-specific message headers.
 - `deliveryMode`: Non-persistent (1) or persistent (2)
 - `priority`: The message priority, 0 to 9.
-
+- `replyTo`: Usually used to name a reply queue for a request message.
 
 ### exchange.destroy(ifUnused = true)
 
@@ -228,5 +226,3 @@ If the optional boolean second argument is set, the server will only
 delete the exchange if it has no queue bindings. If the exchange has queue
 bindings the server does not delete it but raises a channel exception
 instead.
-
-
