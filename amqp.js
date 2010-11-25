@@ -685,10 +685,11 @@ function Connection (options) {
   var parser;
 
   this._defaultExchange = null;
+  this.channelCounter = 0;
 
   self.addListener('connect', function () {
     // channel 0 is the control channel.
-    self.channels = [self];
+    self.channels = {0:self};
     self.queues = {};
     self.exchanges = {};
 
@@ -1042,7 +1043,8 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - autoDelete (boolean, default true)
 Connection.prototype.queue = function (name /* , options, openCallback */) {
   if (this.queues[name]) return this.queues[name];
-  var channel = this.channels.length;
+  this.channelCounter++;
+  var channel = this.channelCounter;
 
   var options, callback;
   if (typeof arguments[1] == 'object') {
@@ -1054,7 +1056,7 @@ Connection.prototype.queue = function (name /* , options, openCallback */) {
 
 
   var q = new Queue(this, channel, name, options, callback);
-  this.channels.push(q);
+  this.channels[channel] = q;
   this.queues[name] = q;
   return q;
 };
@@ -1073,9 +1075,10 @@ Connection.prototype.exchange = function (name, options) {
   if (options.type === undefined) options.type = 'topic';
 
   if (this.exchanges[name]) return this.exchanges[name];
-  var channel = this.channels.length;
+  this.channelCounter++;
+  channel = this.channelCounter;
   var exchange = new Exchange(this, channel, name, options);
-  this.channels.push(exchange);
+  this.channels[channel] = exchange;
   this.exchanges[name] = exchange;
   return exchange;
 };
