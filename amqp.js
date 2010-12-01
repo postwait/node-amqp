@@ -1188,9 +1188,8 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
 Channel.prototype._onChannelMethod = function(channel, method, args) {
     switch (method) {
     case methods.channelCloseOk:
+        delete this.connection.channels[this.channel]
         this.state = 'closed'
-        this.emit('close');
-        break;
     default:
         this._onMethod(channel, method, args);
     }
@@ -1422,6 +1421,11 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.emit('close', e);
       break;
     
+    case methods.channelCloseOk:
+      delete this.connection.queues[this.name]
+      this.emit('close')
+      break;
+    
     case methods.basicDeliver:
       this.currentMessage = new Message(this, args);
       break;
@@ -1504,8 +1508,8 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.channelCloseOk:
-      this.state = "closed";
-      this.emit('close');
+      delete this.connection.exchanges[this.name]
+      this.emit('close')
       break;
 
     case methods.basicReturn:
