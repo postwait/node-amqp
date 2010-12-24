@@ -1,7 +1,7 @@
 var events = require('events'),
     sys = require('sys'),
     net = require('net'),
-    protocol = require('./amqp-definitions-0-8'),
+    protocol,
     Buffer = require('buffer').Buffer,
     Promise = require('./promise').Promise;
 
@@ -80,6 +80,36 @@ var methods = {};
 // classes keyed on their index
 var classes = {};
 
+
+
+// parser
+
+
+var maxFrameBuffer = 131072; // same as rabbitmq
+
+
+// An interruptible AMQP parser.
+//
+// type is either 'server' or 'client'
+// version is '0-9-1'.
+//
+// Instances of this class have several callbacks
+// - onMethod(channel, method, args);
+// - onHeartBeat()
+// - onContent(channel, buffer);
+// - onContentHeader(channel, class, weight, properties, size);
+//
+// This class does not subclass EventEmitter, in order to reduce the speed
+// of emitting the callbacks. Since this is an internal class, that should
+// be fine.
+function AMQPParser (version, type) {
+  this.isClient = (type == 'client');
+  this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
+
+  if (version != '0-9-1') throw new Error("Unsupported protocol version");
+
+  protocol = require('./amqp-definitions-'+version);
+
 (function () { // anon scope for init
   //debug("initializing amqp methods...");
   for (var i = 0; i < protocol.classes.length; i++) {
@@ -105,34 +135,6 @@ var classes = {};
     }
   }
 })(); // end anon scope
-
-
-
-// parser
-
-
-var maxFrameBuffer = 131072; // same as rabbitmq
-
-
-// An interruptible AMQP parser.
-//
-// type is either 'server' or 'client'
-// version is '0-8' or '0-9-1'. Currently only supporting '0-8'.
-//
-// Instances of this class have several callbacks
-// - onMethod(channel, method, args);
-// - onHeartBeat()
-// - onContent(channel, buffer);
-// - onContentHeader(channel, class, weight, properties, size);
-//
-// This class does not subclass EventEmitter, in order to reduce the speed
-// of emitting the callbacks. Since this is an internal class, that should
-// be fine.
-function AMQPParser (version, type) {
-  this.isClient = (type == 'client');
-  this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
-
-  if (version != '0-8') throw new Error("Unsupported protocol version");
 
   this.frameHeader = new Buffer(7);
   this.frameHeader.used = 0;
@@ -619,7 +621,7 @@ function serializeFields (buffer, fields, args, strict) {
           buffer[buffer.used++] = bitField;
           bitField = 0;
           bitIndex = 0;
-        } 
+        }
         break;
 
       case 'octet':
@@ -692,7 +694,7 @@ function Connection (options) {
     self.queues = {};
     self.exchanges = {};
 
-    parser = new AMQPParser('0-8', 'client');
+    parser = new AMQPParser('0-9-1', 'client');
 
     parser.onMethod = function (channel, method, args) {
       self._onMethod(channel, method, args);
@@ -723,7 +725,7 @@ function Connection (options) {
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
-    self.write("AMQP" + String.fromCharCode(1,1,8,0));
+    self.write("AMQP" + String.fromCharCode(0,0,9,1));
     state = 'handshake';
   });
 
@@ -791,8 +793,8 @@ Connection.prototype._onMethod = function (channel, method, args) {
     // 2. The server responds, after the version string, with the
     // 'connectionStart' method (contains various useless information)
     case methods.connectionStart:
-      // We check that they're serving us AMQP 0-8
-      if (args.versionMajor != 8 && args.versionMinor != 0) {
+      // We check that they're serving us AMQP 0-9
+      if (args.versionMajor != 0 && args.versionMinor != 9) {
         this.end();
         this.emit('error', new Error("Bad server version"));
         return;
@@ -825,8 +827,10 @@ Connection.prototype._onMethod = function (channel, method, args) {
       // 6. Then we have to send a connectionOpen request
       this._sendMethod(0, methods.connectionOpen,
           { virtualHost: this.options.vhost
-          , capabilities: ''
-          , insist: true
+          // , capabilities: ''
+          // , insist: true
+          , reserved1: ''
+          , reserved2: true
           });
       break;
 
@@ -1140,7 +1144,7 @@ function Channel (connection, channel) {
   this.connection = connection;
   this._tasks = [];
 
-  this.connection._sendMethod(channel, methods.channelOpen, {outOfBand: ""});
+  this.connection._sendMethod(channel, methods.channelOpen, {reserved1: ""});
 }
 sys.inherits(Channel, events.EventEmitter);
 
@@ -1212,13 +1216,13 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
 
   return this._taskPush(methods.basicConsumeOk, function () {
     self.connection._sendMethod(self.channel, methods.basicConsume,
-        { ticket: 0
+        { reserved1: 0
         , queue: self.name
         , consumerTag: "."
         , noLocal: options.noLocal ? true : false
         , noAck: options.noAck ? true : false
         , exclusive: options.exclusive ? true : false
-        , nowait: false
+        , noWait: false
         , "arguments": {}
         });
   });
@@ -1306,14 +1310,14 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   // The first argument, exchange is optional.
   // If not supplied the connection will use the default 'amq.topic'
   // exchange.
- 
+
   var exchange, routingKey;
 
   if (arguments.length == 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
   } else {
-    exchange = 'amq.topic';   
+    exchange = 'amq.topic';
     routingKey = arguments[0];
   }
 
@@ -1321,12 +1325,43 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   return this._taskPush(methods.queueBindOk, function () {
     var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
     self.connection._sendMethod(self.channel, methods.queueBind,
-        { ticket: 0
+        { reserved1: 0
         , queue: self.name
         , exchange: exchangeName
         , routingKey: routingKey
-        , nowait: false
+        , noWait: false
         , "arguments": {}
+        });
+  });
+};
+
+Queue.prototype.bind_headers = function (/* [exchange,] matchingPairs */) {
+  var self = this;
+
+  // The first argument, exchange is optional.
+  // If not supplied the connection will use the default 'amq.headers'
+  // exchange.
+
+  var exchange, matchingPairs;
+
+  if (arguments.length == 2) {
+    exchange = arguments[0];
+    matchingPairs = arguments[1];
+  } else {
+    exchange = 'amq.headers';
+    matchingPairs = arguments[0];
+  }
+
+
+  return this._taskPush(methods.queueBindOk, function () {
+    var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+    self.connection._sendMethod(self.channel, methods.queueBind,
+        { reserved1: 0
+        , queue: self.name
+        , exchange: exchangeName
+        , routingKey: ''
+        , noWait: false
+        , "arguments": matchingPairs
         });
   });
 };
@@ -1354,13 +1389,13 @@ Queue.prototype._onMethod = function (channel, method, args) {
   switch (method) {
     case methods.channelOpenOk:
       this.connection._sendMethod(channel, methods.queueDeclare,
-          { ticket: 0
+          { reserved1: 0
           , queue: this.name
           , passive: this.options.passive ? true : false
           , durable: this.options.durable ? true : false
           , exclusive: this.options.exclusive ? true : false
           , autoDelete: this.options.autoDelete ? true : false
-          , nowait: false
+          , noWait: false
           , "arguments": {}
           });
       this.state = "declare queue";
@@ -1516,7 +1551,7 @@ Exchange.prototype.publish = function (routingKey, data, options) {
   var self = this;
   return this._taskPush(null, function () {
     self.connection._sendMethod(self.channel, methods.basicPublish,
-        { ticket: 0
+        { reserved1: 0
         , exchange:   self.name
         , routingKey: routingKey
         , mandatory:  options.mandatory ? true : false
