@@ -1,17 +1,20 @@
-# node-amqp
+# node-amqp-091
 
 IMPORTANT: This module only works with node v0.1.90 and later.
 
 This is a client for RabbitMQ (and maybe other servers?). It partially
 implements the 0.9.1 version of the AMQP protocol.
 
+## Installation
+
+    npm install amqp-091
 
 ## Synopsis
 
 An example of connecting to a server and listening on a queue.
 
     var sys = require('sys');
-    var amqp = require('./amqp');
+    var amqp = require('./amqp-091');
 
     var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 
