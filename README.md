@@ -14,7 +14,7 @@ implements the 0.9.1 version of the AMQP protocol.
 An example of connecting to a server and listening on a queue.
 
     var sys = require('sys');
-    var amqp = require('./amqp-091');
+    var amqp = require('amqp-091');
 
     var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 
