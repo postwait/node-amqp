@@ -1008,29 +1008,25 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     return this.write(String.fromCharCode(206)); // frameEnd
 
   } else {
-    // Optimize for JSON.
-    // Use asciiWrite() which is much faster than utf8Write().
-    var jsonBody = JSON.stringify(body);
-    var length = jsonBody.length;
+        var jsonBody = JSON.stringify(body);
+        var length = Buffer.byteLength(jsonBody);
+        debug('sending json: ' + jsonBody);
+        properties = mixin({contentType: 'text/json' }, properties);
+        sendHeader(this, channel, length, properties);
 
-    debug('sending json: ' + jsonBody);
+        //debug('header sent');
 
-    properties = mixin({contentType: 'text/json' }, properties);
+        var b = new Buffer(7+length+1);
+        b.used = 0;
+        b[b.used++] = 3; // constants.frameBody
+        serializeInt(b, 2, channel);
+        serializeInt(b, 4, length);
 
-    sendHeader(this, channel, length, properties);
+        b.write(jsonBody, b.used, 'utf8');
+        b.used += length;
 
-    var b = new Buffer(7+length+1);
-    b.used = 0;
-
-    b[b.used++] = 3; // constants.frameBody
-    serializeInt(b, 2, channel);
-    serializeInt(b, 4, length);
-
-    b.write(jsonBody, b.used, 'ascii');
-    b.used += length;
-
-    b[b.used++] = 206; // constants.frameEnd;
-    return this.write(b);
+        b[b.used++] = 206; // constants.frameEnd;
+        return this.write(b);
   }
 };
 
