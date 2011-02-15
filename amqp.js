@@ -1059,6 +1059,11 @@ Connection.prototype.queue = function (name /* , options, openCallback */) {
   return q;
 };
 
+// remove a queue when it's closed (called from Queue)
+Connection.prototype.queueClosed = function (name) {
+  if (this.queues[name]) delete this.queues[name];
+};
+
 
 // connection.exchange('my-exchange', { type: 'topic' });
 // Options
@@ -1214,6 +1219,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
     self.connection._sendMethod(self.channel, methods.basicConsume,
         { ticket: 0
         , queue: self.name
+        , consumerTag: ''+new Date().getTime()
         , consumerTag: "."
         , noLocal: options.noLocal ? true : false
         , noAck: options.noAck ? true : false
@@ -1336,6 +1342,7 @@ Queue.prototype.destroy = function (options) {
   var self = this;
   options = options || {};
   return this._taskPush(methods.queueDeleteOk, function () {
+    self.connection.queueClosed(self.name);
     self.connection._sendMethod(self.channel, methods.queueDelete,
         { ticket: 0
         , queue: self.name
