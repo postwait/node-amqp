@@ -1064,6 +1064,11 @@ Connection.prototype.queueClosed = function (name) {
   if (this.queues[name]) delete this.queues[name];
 };
 
+// remove an exchange when it's closed (called from Exchange)
+Connection.prototype.exchangeClosed = function (name) {
+  if (this.exchanges[name]) delete this.exchanges[name];
+};
+
 
 // connection.exchange('my-exchange', { type: 'topic' });
 // Options
@@ -1120,6 +1125,7 @@ function Message (queue, args) {
   this.redelivered = args.redelivered;
   this.exchange    = args.exchange;
   this.routingKey  = args.routingKey;
+  this.consumerTag = args.consumerTag;
 }
 sys.inherits(Message, events.EventEmitter);
 
@@ -1195,7 +1201,17 @@ function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
 
   this.name = name;
-
+  this.consumerTagListeners = {};
+  
+  var self = this;
+  
+  // route messages to subscribers based on consumerTag
+  this.on('rawMessage', function(message) {
+    if (message.consumerTag && self.consumerTagListeners[message.consumerTag]) {
+      self.consumerTagListeners[message.consumerTag](message);
+    }
+  });
+  
   this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
 
@@ -1208,8 +1224,10 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   var self = this;
 
   var messageListener = arguments[arguments.length-1];
-  this.addListener('rawMessage', messageListener);
-
+  var consumerTag = 'node-amqp-'+process.pid+'-'+Math.random();
+  
+  this.consumerTagListeners[consumerTag] = messageListener;
+  
   var options = { };
   if (typeof arguments[0] == 'object') {
     mixin(options, arguments[0]);
@@ -1219,8 +1237,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
     self.connection._sendMethod(self.channel, methods.basicConsume,
         { ticket: 0
         , queue: self.name
-        , consumerTag: ''+new Date().getTime()
-        , consumerTag: "."
+        , consumerTag: consumerTag
         , noLocal: options.noLocal ? true : false
         , noAck: options.noAck ? true : false
         , exclusive: options.exclusive ? true : false
@@ -1240,8 +1257,6 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   if (typeof arguments[0] == 'object') {
     if (arguments[0].ack) options.ack = true;
   }
-
-  this.addListener('message', messageListener);
 
   if (options.ack) {
     this._taskPush(methods.basicQosOk, function () {
@@ -1290,8 +1305,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       json._routingKey = m.routingKey;
       json._deliveryTag = m.deliveryTag;
 
-
-      self.emit('message', json);
+      messageListener(json);
     });
   });
 };
@@ -1350,7 +1364,7 @@ Queue.prototype.destroy = function (options) {
         , ifEmpty: options.ifEmpty ? true : false
         , nowait: false
         , "arguments": {}
-        });
+    });
   });
 };
 
@@ -1544,6 +1558,7 @@ Exchange.prototype.publish = function (routingKey, data, options) {
 Exchange.prototype.destroy = function (ifUnused) {
   var self = this;
   return this._taskPush(methods.exchangeDeleteOk, function () {
+    self.connection.exchangeClosed(self.name);
     self.connection._sendMethod(self.channel, methods.exchangeDelete,
         { ticket: 0
         , exchange: self.name
