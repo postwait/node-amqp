@@ -1041,8 +1041,6 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.queue = function (name /* , options, openCallback */) {
-  if (this.queues[name]) return this.queues[name];
-  var channel = this.channels.length;
 
   var options, callback;
   if (typeof arguments[1] == 'object') {
@@ -1052,6 +1050,13 @@ Connection.prototype.queue = function (name /* , options, openCallback */) {
     callback = arguments[1];
   }
 
+  if (this.queues[name]) { // already declared? callback anyway
+    if (callback) 
+      callback();
+    return this.queues[name];
+  }
+
+  var channel = this.channels.length;
 
   var q = new Queue(this, channel, name, options, callback);
   this.channels.push(q);
@@ -1076,15 +1081,20 @@ Connection.prototype.exchangeClosed = function (name) {
 // - passive (boolean)
 // - durable (boolean)
 // - autoDelete (boolean, default true)
-Connection.prototype.exchange = function (name, options) {
+Connection.prototype.exchange = function (name, options, openCallback) {
   if (!name) name = 'amq.topic';
 
   if (!options) options = {};
   if (options.type === undefined) options.type = 'topic';
 
-  if (this.exchanges[name]) return this.exchanges[name];
+  if (this.exchanges[name]) { // already declared? callback anyway
+    if (openCallback) 
+      openCallback();
+    return this.exchanges[name];
+  }
+
   var channel = this.channels.length;
-  var exchange = new Exchange(this, channel, name, options);
+  var exchange = new Exchange(this, channel, name, options, openCallback);
   this.channels.push(exchange);
   this.exchanges[name] = exchange;
   return exchange;
@@ -1233,18 +1243,16 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
     mixin(options, arguments[0]);
   }
 
-  return this._taskPush(methods.basicConsumeOk, function () {
-    self.connection._sendMethod(self.channel, methods.basicConsume,
-        { ticket: 0
-        , queue: self.name
-        , consumerTag: consumerTag
-        , noLocal: options.noLocal ? true : false
-        , noAck: options.noAck ? true : false
-        , exclusive: options.exclusive ? true : false
-        , nowait: false
-        , "arguments": {}
-        });
-  });
+  self.connection._sendMethod(self.channel, methods.basicConsume,
+      { ticket: 0
+      , queue: self.name
+      , consumerTag: consumerTag
+      , noLocal: options.noLocal ? true : false
+      , noAck: options.noAck ? true : false
+      , exclusive: options.exclusive ? true : false
+      , nowait: false
+      , "arguments": {}
+      });
 };
 
 
@@ -1259,14 +1267,12 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   }
 
   if (options.ack) {
-    this._taskPush(methods.basicQosOk, function () {
-      self.connection._sendMethod(self.channel, methods.basicQos,
-          { ticket: 0
-          , prefetchSize: 0
-          , prefetchCount: 1
-          , global: false
-          });
-    });
+    self.connection._sendMethod(self.channel, methods.basicQos,
+        { ticket: 0
+        , prefetchSize: 0
+        , prefetchCount: 1
+        , global: false
+        });
   }
 
   // basic consume
@@ -1338,17 +1344,16 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   }
 
 
-  return this._taskPush(methods.queueBindOk, function () {
-    var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
-    self.connection._sendMethod(self.channel, methods.queueBind,
-        { ticket: 0
-        , queue: self.name
-        , exchange: exchangeName
-        , routingKey: routingKey
-        , nowait: false
-        , "arguments": {}
-        });
-  });
+  var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+  self.connection._sendMethod(self.channel, methods.queueBind,
+      { ticket: 0
+      , queue: self.name
+      , exchange: exchangeName
+      , routingKey: routingKey
+      , nowait: false
+      , "arguments": {}
+      });
+
 };
 
 
@@ -1398,12 +1403,15 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.basicConsumeOk:
+      this.emit('basicConsumeOk');
       break;
 
     case methods.queueBindOk:
+      this.emit('queueBindOk');
       break;
 
     case methods.basicQosOk:
+      this.emit('basicQosOk');
       break;
 
     case methods.channelClose:
@@ -1450,10 +1458,11 @@ Queue.prototype._onContent = function (channel, data) {
 
 
 
-function Exchange (connection, channel, name, options) {
+function Exchange (connection, channel, name, options, openCallback) {
   Channel.call(this, connection, channel);
   this.name = name;
   this.options = options || { autoDelete: true};
+  this._openCallback = openCallback;
 }
 sys.inherits(Exchange, Channel);
 
@@ -1487,6 +1496,10 @@ Exchange.prototype._onMethod = function (channel, method, args) {
     case methods.exchangeDeclareOk:
       this.state = 'open';
       this.emit('open');
+      if (this._openCallback) {
+        this._openCallback();
+        this._openCallback = null;
+      }
       break;
 
     case methods.channelClose:
