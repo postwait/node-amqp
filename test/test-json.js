@@ -8,37 +8,40 @@ connection.addListener('ready', function () {
 
   var exchange = connection.exchange('node-json-fanout', {type: 'fanout'});
 
-  var q = connection.queue('node-json-queue');
+  var q = connection.queue('node-json-queue', function() {
+    q.bind(exchange, "*");
+    q.on('queueBindOk', function() {
+      q.on('basicConsumeOk', function () {
+        puts("publishing 2 json messages");
+        exchange.publish('message.json1', {two:2, one:1});
+        exchange.publish('message.json2', {foo:'bar', hello: 'world'}, {contentType: 'application/json'});
 
-  q.bind(exchange, "*");
+        setTimeout(function () {
+          // wait one second to receive the message, then quit
+          connection.end();
+        }, 1000);
+      });
+      
+      q.subscribe(function (json) {
+        recvCount++;
 
-  q.subscribe(function (json) {
-    recvCount++;
+        switch (json._routingKey) {
+          case 'message.json1':
+            assert.equal(1, json.one);
+            assert.equal(2, json.two);
+            break;
 
-    switch (json._routingKey) {
-      case 'message.json1':
-        assert.equal(1, json.one);
-        assert.equal(2, json.two);
-        break;
+          case 'message.json2':
+            assert.equal('world', json.hello);
+            assert.equal('bar', json.foo);
+            break;
 
-      case 'message.json2':
-        assert.equal('world', json.hello);
-        assert.equal('bar', json.foo);
-        break;
-
-      default:
-        throw new Error('unexpected routing key: ' + json._routingKey);
-    }
-  })
-  .addCallback(function () {
-    puts("publishing 2 json messages");
-    exchange.publish('message.json1', {two:2, one:1});
-    exchange.publish('message.json2', {foo:'bar', hello: 'world'}, {contentType: 'application/json'});
-
-    setTimeout(function () {
-      // wait one second to receive the message, then quit
-      connection.end();
-    }, 1000);
+          default:
+            throw new Error('unexpected routing key: ' + json._routingKey);
+        }
+      })
+      
+    })
   });
 });
 

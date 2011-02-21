@@ -9,42 +9,47 @@ connection.addListener('ready', function () {
   var exchange2 = connection.exchange('node-conn-share2', {type: 'direct'});
   
   assert.equal(2, Object.keys(connection.exchanges).length);
-  
+
   exchange2.destroy(); // checked at end
 
-  var q1 = connection.queue('node-q1');
-  var q2 = connection.queue('node-q2');
-  
-  q1.bind(exchange1, "node-consumer-1");
-  q2.bind(exchange1, "node-consumer-2");
+  var q1 = connection.queue('node-q1', function() {
+    var q2 = connection.queue('node-q2', function() {
+      
+      q1.bind(exchange1, "node-consumer-1");
+      q1.on('queueBindOk', function() {
+        q2.bind(exchange1, "node-consumer-2");
+        q2.on('queueBindOk', function() {
+          assert.equal(2, Object.keys(connection.queues).length);
 
-  assert.equal(2, Object.keys(connection.queues).length);
-  
-  q1.subscribe(function (m) {
-    assert.equal('node-consumer-1', m._routingKey);
-    recvCount++;
-  })
-  .addCallback(function () {
-    exchange1.publish("node-consumer-1", 'foo');
-    exchange1.publish("node-consumer-1", 'foo');
-    exchange1.publish("node-consumer-2", 'foo');
+          q1.on('basicConsumeOk', function () {
+            exchange1.publish("node-consumer-1", 'foo');
+            exchange1.publish("node-consumer-1", 'foo');
+            exchange1.publish("node-consumer-2", 'foo');
+          });
+
+          q2.on('basicConsumeOk', function () {
+            exchange1.publish("node-consumer-1", 'foo');
+            exchange1.publish("node-consumer-2", 'foo');
+            q2.destroy();
+
+            setTimeout(function () {
+              // wait one second to receive the message, then quit
+              connection.end();
+            }, 1000);
+          });
+          
+          q1.subscribe(function (m) {
+            assert.equal('node-consumer-1', m._routingKey);
+            recvCount++;
+          });
+          q2.subscribe(function (m) {
+            assert.equal('node-consumer-2', m._routingKey);
+            recvCount++;
+          })
+        });
+      });
+    });
   });
-  
-  q2.subscribe(function (m) {
-    assert.equal('node-consumer-2', m._routingKey);
-    recvCount++;
-  })
-  .addCallback(function () {
-    exchange1.publish("node-consumer-1", 'foo');
-    exchange1.publish("node-consumer-2", 'foo');
-    q2.destroy();
-    
-    setTimeout(function () {
-      // wait one second to receive the message, then quit
-      connection.end();
-    }, 1000);
-  });
-  
 });
 
 process.addListener('exit', function () {

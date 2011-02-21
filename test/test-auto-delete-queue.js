@@ -8,21 +8,23 @@ connection.addListener('ready', function () {
 
   var e = connection.exchange();
 
-  var q = connection.queue('node-test-autodelete', {exclusive: true},
-      function (messageCount, consumerCount) {
+  var q = connection.queue('node-test-autodelete', {exclusive: true}, function (messageCount, consumerCount) {
     puts('queue opened.');
     assert.equal(0, messageCount);
     assert.equal(0, consumerCount);
+    
+    q.bind(e, "#");
+    
+    q.on('queueBindOk', function () {
+      puts('bound');
+      // publish message, but don't consume it.
+      e.publish('routingKey', {hello: 'world'});
+      puts('message published');
+      puts('closing connection...');
+      connection.end();
+    });
   });
 
-  q.bind(e, "#").addCallback(function () {
-    puts('bound');
-    // publish message, but don't consume it.
-    e.publish('routingKey', {hello: 'world'});
-    puts('message published');
-    puts('closing connection...');
-    connection.end();
-  });
 });
 
 connection.addListener('close', function () {
