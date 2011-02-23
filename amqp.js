@@ -1179,13 +1179,18 @@ Channel.prototype._tasksFlush = function () {
 };
 
 Channel.prototype._handleTaskReply = function (channel, method, args) {
-  var task = this._tasks[0];
-  if (task && task.reply == method) {
-    this._tasks.shift();
-    task.promise.emitSuccess();
-    this._tasksFlush();
-    return true;
+  var task, i;
+
+  for (i = 0; i < this._tasks.length; i++) {
+    if (this._tasks[i].reply == method) {
+      task = this._tasks[i];
+      this._tasks.splice(i, 1);
+      task.promise.emitSuccess();
+      this._tasksFlush();
+      return true;
+    }
   }
+
   return false;
 };
 
@@ -1383,15 +1388,6 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.emit('open', args.messageCount, args.consumerCount);
       break;
 
-    case methods.basicConsumeOk:
-      break;
-
-    case methods.queueBindOk:
-      break;
-
-    case methods.basicQosOk:
-      break;
-
     case methods.channelClose:
       this.state = "closed";
       var e = new Error(args.replyText);
@@ -1409,7 +1405,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     default:
       throw new Error("Uncaught method '" + method.name + "' with args " +
-          JSON.stringify(args));
+          JSON.stringify(args) + "; tasks = " + JSON.stringify(this._tasks));
   }
 
   this._tasksFlush();
