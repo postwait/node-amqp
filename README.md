@@ -24,7 +24,7 @@ An example of connecting to a server and listening on a queue.
       q.bind('#');
 
       // Receive messages
-      q.subscribe(function (message) {
+      q.subscribe(function (message, properties) {
         // Print messages to stdout
         sys.p(message);
       });
@@ -112,8 +112,8 @@ Returns a reference to a queue. The options are
 
 An easy subscription command. It works like this
 
-    q.subscribe(function (message) {
-      puts('Got a message with routing key ' + message._routingKey);
+    q.subscribe(function (message, properties) {
+      puts('Got a message with routing key ' + properties.routingKey);
     });
 
 It will automatically acknowledge receipt of each message.

@@ -1262,7 +1262,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   // basic consume
   var rawOptions = { noAck: !options.ack };
   return this.subscribeRaw(rawOptions, function (m) {
-    var isJSON = (m.contentType == 'text/json') || (m.contentType == 'application/json');
+    var isJSON = (m.properties.contentType == 'text/json') || (m.properties.contentType == 'application/json');
 
     var b;
 
@@ -1288,15 +1288,19 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       var json;
       if (isJSON) {
         json = JSON.parse(b);
+        m.properties.routingKey = m.routingKey;
+        m.properties.deliveryTag = m.deliveryTag;
       } else {
-        json = { data: b, contentType: m.contentType };
+        json = {
+            data: b,
+            contentType: m.properties.contentType,
+            routingKey: m.routingKey,
+            deliveryTag: m.deliveryTag
+        };
       }
 
-      json._routingKey = m.routingKey;
-      json._deliveryTag = m.deliveryTag;
 
-
-      self.emit('message', json);
+      self.emit('message', json, m.properties);
     });
   });
 };
@@ -1413,7 +1417,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
 
 Queue.prototype._onContentHeader = function (channel, classInfo, weight, properties, size) {
-  mixin(this.currentMessage, properties);
+  this.currentMessage.properties = properties;
   this.currentMessage.read = 0;
   this.currentMessage.size = size;
 

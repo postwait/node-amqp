@@ -13,12 +13,12 @@ connection.addListener('ready', function () {
   q.bind(exchange, "*")
 
   q.subscribeRaw(function (m) {
-    puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
-    puts("--- contentType: " + m.contentType);
+    puts("--- Message (" + m.properties.deliveryTag + ", '" + m.properties.routingKey + "') ---");
+    puts("--- contentType: " + m.properties.contentType);
 
     recvCount++;
 
-    assert.equal('text/plain', m.contentType);
+    assert.equal('text/plain', m.properties.contentType);
 
     var size = 0;
     m.addListener('data', function (d) { size += d.length; });

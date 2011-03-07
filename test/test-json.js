@@ -12,10 +12,10 @@ connection.addListener('ready', function () {
 
   q.bind(exchange, "*");
 
-  q.subscribe(function (json) {
+  q.subscribe(function (json, props) {
     recvCount++;
 
-    switch (json._routingKey) {
+    switch (props.routingKey) {
       case 'message.json1':
         assert.equal(1, json.one);
         assert.equal(2, json.two);
@@ -27,7 +27,7 @@ connection.addListener('ready', function () {
         break;
 
       default:
-        throw new Error('unexpected routing key: ' + json._routingKey);
+        throw new Error('unexpected routing key: ' + props.routingKey);
     }
   })
   .addCallback(function () {
