@@ -593,7 +593,6 @@ function serializeFields (buffer, fields, args, strict) {
   for (var i = 0; i < fields.length; i++) {
     var field = fields[i];
     var domain = field.domain;
-
     if (!(field.name in args)) {
       if (strict) {
         throw new Error("Missing field '" + field.name + "' of type " + domain);
@@ -1332,6 +1331,37 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   return this._taskPush(methods.queueBindOk, function () {
     var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
     self.connection._sendMethod(self.channel, methods.queueBind,
+        { ticket: 0
+        , queue: self.name
+        , exchange: exchangeName
+        , routingKey: routingKey
+        , nowait: false
+        , "arguments": {}
+        });
+  });
+};
+
+Queue.prototype.unbind = function (/* [exchange,] routingKey */) {
+  var self = this;
+
+  // The first argument, exchange is optional.
+  // If not supplied the connection will use the default 'amq.topic'
+  // exchange.
+ 
+  var exchange, routingKey;
+
+  if (arguments.length == 2) {
+    exchange = arguments[0];
+    routingKey = arguments[1];
+  } else {
+    exchange = 'amq.topic';   
+    routingKey = arguments[0];
+  }
+
+
+  return this._taskPush(methods.queueUnbindOk, function () {
+    var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+    self.connection._sendMethod(self.channel, methods.queueUnbind,
         { ticket: 0
         , queue: self.name
         , exchange: exchangeName
