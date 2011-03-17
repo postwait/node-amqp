@@ -453,7 +453,7 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
 // Network byte order serialization
 // (NOTE: javascript always uses network byte order for its ints.)
 function serializeInt (b, size, int) {
-  if (b.used + size >= b.length) {
+  if (b.used + size > b.length) {
     throw new Error("write out of bounds");
   }
 
@@ -1005,7 +1005,10 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 
     this.write(body);
 
-    return this.write(String.fromCharCode(206)); // frameEnd
+    var be = new Buffer(1);
+    be.write(String.fromCharCode(206), 0, 'binary');
+
+    return this.write(be); // frameEnd
 
   } else {
     // Optimize for JSON.
