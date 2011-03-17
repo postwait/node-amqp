@@ -21,7 +21,7 @@ connection.addListener('ready', function () {
 
 	q.unbind(exchange, "");
 	later(function(){
-	    exchange.publish('', body)
+	    exchange.publish('', body);
 	    later(function(){connection.end()});
 	});
     });
