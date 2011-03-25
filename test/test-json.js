@@ -26,14 +26,20 @@ connection.addListener('ready', function () {
         assert.equal('bar', json.foo);
         break;
 
+      case 'message.json3':
+        assert.equal('caf\u00E9', json.coffee);
+        assert.equal('th\u00E9', json.tea);
+        break;
+
       default:
         throw new Error('unexpected routing key: ' + json._routingKey);
     }
   })
   .addCallback(function () {
-    puts("publishing 2 json messages");
+    puts("publishing 3 json messages");
     exchange.publish('message.json1', {two:2, one:1});
     exchange.publish('message.json2', {foo:'bar', hello: 'world'}, {contentType: 'application/json'});
+    exchange.publish('message.json3', {coffee:'caf\u00E9', tea: 'th\u00E9'}, {contentType: 'application/json'});
 
     setTimeout(function () {
       // wait one second to receive the message, then quit
@@ -44,5 +50,5 @@ connection.addListener('ready', function () {
 
 
 process.addListener('exit', function () {
-  assert.equal(2, recvCount);
+  assert.equal(3, recvCount);
 });

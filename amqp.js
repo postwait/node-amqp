@@ -619,7 +619,7 @@ function serializeFields (buffer, fields, args, strict) {
           buffer[buffer.used++] = bitField;
           bitField = 0;
           bitIndex = 0;
-        } 
+        }
         break;
 
       case 'octet':
@@ -1008,10 +1008,8 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     return this.write(String.fromCharCode(206)); // frameEnd
 
   } else {
-    // Optimize for JSON.
-    // Use asciiWrite() which is much faster than utf8Write().
     var jsonBody = JSON.stringify(body);
-    var length = jsonBody.length;
+    var length = Buffer.byteLength(jsonBody);
 
     debug('sending json: ' + jsonBody);
 
@@ -1026,7 +1024,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     serializeInt(b, 2, channel);
     serializeInt(b, 4, length);
 
-    b.write(jsonBody, b.used, 'ascii');
+    b.write(jsonBody, b.used, 'utf8');
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
@@ -1317,14 +1315,14 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   // The first argument, exchange is optional.
   // If not supplied the connection will use the default 'amq.topic'
   // exchange.
- 
+
   var exchange, routingKey;
 
   if (arguments.length == 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
   } else {
-    exchange = 'amq.topic';   
+    exchange = 'amq.topic';
     routingKey = arguments[0];
   }
 
