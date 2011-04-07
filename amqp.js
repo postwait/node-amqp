@@ -1052,7 +1052,7 @@ Connection.prototype.queue = function (name /* , options, openCallback */) {
 
   if (this.queues[name]) { // already declared? callback anyway
     if (callback) 
-      callback();
+      callback(this.queues[name]);
     return this.queues[name];
   }
 
@@ -1089,7 +1089,7 @@ Connection.prototype.exchange = function (name, options, openCallback) {
 
   if (this.exchanges[name]) { // already declared? callback anyway
     if (openCallback) 
-      openCallback();
+      openCallback(this.exchanges[name]);
     return this.exchanges[name];
   }
 
@@ -1395,7 +1395,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
     case methods.queueDeclareOk:
       this.state = 'open';
       if (this._openCallback) {
-        this._openCallback(args.messageCount, args.consumerCount);
+        this._openCallback(this);
         this._openCallback = null;
       }
       // TODO this is legacy interface, remove me
@@ -1497,7 +1497,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.state = 'open';
       this.emit('open');
       if (this._openCallback) {
-        this._openCallback();
+        this._openCallback(this);
         this._openCallback = null;
       }
       break;
