@@ -321,6 +321,14 @@ function parseTable (buffer) {
         table[field] = parseTable(buffer);
         break;
 
+      case 'l'.charCodeAt(0):
+        table[field] = parseInt(buffer, 8);
+        break;
+      
+      case 't'.charCodeAt(0):
+        table[field] = (parseInt(buffer, 1) > 0);
+        break;
+
       default:
         throw new Error("Unknown field value type " + buffer[buffer.read-1]);
     }
@@ -591,14 +599,14 @@ function serializeTable (b, object) {
 function serializeFields (buffer, fields, args, strict) {
   var bitField = 0;
   var bitIndex = 0;
-
   for (var i = 0; i < fields.length; i++) {
     var field = fields[i];
     var domain = field.domain;
 
     if (!(field.name in args)) {
       if (strict) {
-        throw new Error("Missing field '" + field.name + "' of type " + domain);
+        debugger;
+        throw new Error("Missing field '" + field.name + "' of type " + domain + " while executing " + arguments.callee.caller.arguments.method);
       }
       continue;
     }
@@ -1288,8 +1296,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       json._routingKey = m.routingKey;
       json._deliveryTag = m.deliveryTag;
 
-
-      self.emit('message', json);
+      self.emit('message', json, this.headers);
     });
   });
 };
@@ -1467,7 +1474,7 @@ Queue.prototype._onContent = function (channel, data) {
 function Exchange (connection, channel, name, options) {
   Channel.call(this, connection, channel);
   this.name = name;
-  this.options = options || { autoDelete: true};
+  this.options = options || { autoDelete: true };
 }
 sys.inherits(Exchange, Channel);
 
@@ -1485,13 +1492,16 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       } else {
         this.connection._sendMethod(channel, methods.exchangeDeclare,
             { ticket: 0
+            , reserved1:  0
+            , reserved2:  false
+            , reserved3:  false
             , exchange:   this.name
             , type:       this.options.type || 'topic'
             , passive:    this.options.passive    ? true : false
             , durable:    this.options.durable    ? true : false
             , autoDelete: this.options.autoDelete ? true : false
             , internal:   this.options.internal   ? true : false
-            , nowait:     false
+            , noWait:     false
             , "arguments": {}
             });
         this.state = 'declaring';
@@ -1576,7 +1586,7 @@ Exchange.prototype.destroy = function (ifUnused) {
         { ticket: 0
         , exchange: self.name
         , ifUnused: ifUnused ? true : false
-        , nowait: false
+        , noWait: false
         });
   });
 };
