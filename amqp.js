@@ -605,8 +605,7 @@ function serializeFields (buffer, fields, args, strict) {
 
     if (!(field.name in args)) {
       if (strict) {
-        debugger;
-        throw new Error("Missing field '" + field.name + "' of type " + domain + " while executing " + arguments.callee.caller.arguments.method);
+        throw new Error("Missing field '" + field.name + "' of type '" + domain + "' while executing AMQP method '" + arguments.callee.caller.arguments[1].name + "'");
       }
       continue;
     }
