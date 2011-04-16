@@ -1382,6 +1382,7 @@ Queue.prototype.destroy = function (options) {
 
 
 Queue.prototype._onMethod = function (channel, method, args) {
+  this.emit(method.name, args);
   if (this._handleTaskReply.apply(this, arguments)) return;
 
   switch (method) {
@@ -1410,15 +1411,12 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.basicConsumeOk:
-      this.emit('basicConsumeOk');
       break;
 
     case methods.queueBindOk:
-      this.emit('queueBindOk');
       break;
 
     case methods.basicQosOk:
-      this.emit('basicQosOk');
       break;
 
     case methods.channelClose:
@@ -1476,6 +1474,7 @@ sys.inherits(Exchange, Channel);
 
 
 Exchange.prototype._onMethod = function (channel, method, args) {
+  this.emit(method.name, args);
   if (this._handleTaskReply.apply(this, arguments)) return true;
 
   switch (method) {
@@ -1521,7 +1520,6 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
     case methods.basicReturn:
       sys.puts("Warning: Uncaught basicReturn: "+JSON.stringify(args));
-      this.emit('basicReturn', args);
       break;
 
     default:
