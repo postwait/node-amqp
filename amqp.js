@@ -1041,8 +1041,6 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.queue = function (name /* , options, openCallback */) {
-  if (this.queues[name]) return this.queues[name];
-  var channel = this.channels.length;
 
   var options, callback;
   if (typeof arguments[1] == 'object') {
@@ -1052,6 +1050,13 @@ Connection.prototype.queue = function (name /* , options, openCallback */) {
     callback = arguments[1];
   }
 
+  if (this.queues[name]) { // already declared? callback anyway
+    if (callback) 
+      callback(this.queues[name]);
+    return this.queues[name];
+  }
+
+  var channel = this.channels.length;
 
   var q = new Queue(this, channel, name, options, callback);
   this.channels.push(q);
@@ -1064,6 +1069,11 @@ Connection.prototype.queueClosed = function (name) {
   if (this.queues[name]) delete this.queues[name];
 };
 
+// remove an exchange when it's closed (called from Exchange)
+Connection.prototype.exchangeClosed = function (name) {
+  if (this.exchanges[name]) delete this.exchanges[name];
+};
+
 
 // connection.exchange('my-exchange', { type: 'topic' });
 // Options
@@ -1071,15 +1081,20 @@ Connection.prototype.queueClosed = function (name) {
 // - passive (boolean)
 // - durable (boolean)
 // - autoDelete (boolean, default true)
-Connection.prototype.exchange = function (name, options) {
+Connection.prototype.exchange = function (name, options, openCallback) {
   if (!name) name = 'amq.topic';
 
   if (!options) options = {};
   if (options.type === undefined) options.type = 'topic';
 
-  if (this.exchanges[name]) return this.exchanges[name];
+  if (this.exchanges[name]) { // already declared? callback anyway
+    if (openCallback) 
+      openCallback(this.exchanges[name]);
+    return this.exchanges[name];
+  }
+
   var channel = this.channels.length;
-  var exchange = new Exchange(this, channel, name, options);
+  var exchange = new Exchange(this, channel, name, options, openCallback);
   this.channels.push(exchange);
   this.exchanges[name] = exchange;
   return exchange;
@@ -1120,6 +1135,7 @@ function Message (queue, args) {
   this.redelivered = args.redelivered;
   this.exchange    = args.exchange;
   this.routingKey  = args.routingKey;
+  this.consumerTag = args.consumerTag;
 }
 sys.inherits(Message, events.EventEmitter);
 
@@ -1200,7 +1216,17 @@ function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
 
   this.name = name;
-
+  this.consumerTagListeners = {};
+  
+  var self = this;
+  
+  // route messages to subscribers based on consumerTag
+  this.on('rawMessage', function(message) {
+    if (message.consumerTag && self.consumerTagListeners[message.consumerTag]) {
+      self.consumerTagListeners[message.consumerTag](message);
+    }
+  });
+  
   this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
 
@@ -1213,8 +1239,10 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   var self = this;
 
   var messageListener = arguments[arguments.length-1];
-  this.addListener('rawMessage', messageListener);
-
+  var consumerTag = 'node-amqp-'+process.pid+'-'+Math.random();
+  
+  this.consumerTagListeners[consumerTag] = messageListener;
+  
   var options = { };
   if (typeof arguments[0] == 'object') {
     mixin(options, arguments[0]);
@@ -1224,8 +1252,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
     self.connection._sendMethod(self.channel, methods.basicConsume,
         { ticket: 0
         , queue: self.name
-        , consumerTag: ''+new Date().getTime()
-        , consumerTag: "."
+        , consumerTag: consumerTag
         , noLocal: options.noLocal ? true : false
         , noAck: options.noAck ? true : false
         , exclusive: options.exclusive ? true : false
@@ -1246,17 +1273,13 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
     if (arguments[0].ack) options.ack = true;
   }
 
-  this.addListener('message', messageListener);
-
   if (options.ack) {
-    this._taskPush(methods.basicQosOk, function () {
-      self.connection._sendMethod(self.channel, methods.basicQos,
-          { ticket: 0
-          , prefetchSize: 0
-          , prefetchCount: 1
-          , global: false
-          });
-    });
+    self.connection._sendMethod(self.channel, methods.basicQos,
+        { ticket: 0
+        , prefetchSize: 0
+        , prefetchCount: 1
+        , global: false
+        });
   }
 
   // basic consume
@@ -1295,8 +1318,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       json._routingKey = m.routingKey;
       json._deliveryTag = m.deliveryTag;
 
-
-      self.emit('message', json);
+      messageListener(json);
     });
   });
 };
@@ -1329,17 +1351,16 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   }
 
 
-  return this._taskPush(methods.queueBindOk, function () {
-    var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
-    self.connection._sendMethod(self.channel, methods.queueBind,
-        { ticket: 0
-        , queue: self.name
-        , exchange: exchangeName
-        , routingKey: routingKey
-        , nowait: false
-        , "arguments": {}
-        });
-  });
+  var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+  self.connection._sendMethod(self.channel, methods.queueBind,
+      { ticket: 0
+      , queue: self.name
+      , exchange: exchangeName
+      , routingKey: routingKey
+      , nowait: false
+      , "arguments": {}
+      });
+
 };
 
 
@@ -1355,7 +1376,7 @@ Queue.prototype.destroy = function (options) {
         , ifEmpty: options.ifEmpty ? true : false
         , nowait: false
         , "arguments": {}
-        });
+    });
   });
 };
 
@@ -1381,11 +1402,23 @@ Queue.prototype._onMethod = function (channel, method, args) {
     case methods.queueDeclareOk:
       this.state = 'open';
       if (this._openCallback) {
-        this._openCallback(args.messageCount, args.consumerCount);
+        this._openCallback(this);
         this._openCallback = null;
       }
       // TODO this is legacy interface, remove me
       this.emit('open', args.messageCount, args.consumerCount);
+      break;
+
+    case methods.basicConsumeOk:
+      this.emit('basicConsumeOk');
+      break;
+
+    case methods.queueBindOk:
+      this.emit('queueBindOk');
+      break;
+
+    case methods.basicQosOk:
+      this.emit('basicQosOk');
       break;
 
     case methods.channelClose:
@@ -1432,10 +1465,11 @@ Queue.prototype._onContent = function (channel, data) {
 
 
 
-function Exchange (connection, channel, name, options) {
+function Exchange (connection, channel, name, options, openCallback) {
   Channel.call(this, connection, channel);
   this.name = name;
   this.options = options || { autoDelete: true};
+  this._openCallback = openCallback;
 }
 sys.inherits(Exchange, Channel);
 
@@ -1469,6 +1503,10 @@ Exchange.prototype._onMethod = function (channel, method, args) {
     case methods.exchangeDeclareOk:
       this.state = 'open';
       this.emit('open');
+      if (this._openCallback) {
+        this._openCallback(this);
+        this._openCallback = null;
+      }
       break;
 
     case methods.channelClose:
@@ -1540,6 +1578,7 @@ Exchange.prototype.publish = function (routingKey, data, options) {
 Exchange.prototype.destroy = function (ifUnused) {
   var self = this;
   return this._taskPush(methods.exchangeDeleteOk, function () {
+    self.connection.exchangeClosed(self.name);
     self.connection._sendMethod(self.channel, methods.exchangeDelete,
         { ticket: 0
         , exchange: self.name

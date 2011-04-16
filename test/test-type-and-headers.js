@@ -8,31 +8,30 @@ connection.addListener('ready', function () {
 
   var exchange = connection.exchange('node-simple-fanout', {type: 'fanout'});
 
-  var q = connection.queue('node-simple-queue');
+  var q = connection.queue('node-simple-queue', function() {
+    q.bind(exchange, "*");
+    q.on('queueBindOk', function() {
+      q.on('basicConsumeOk', function () {
+        puts("publishing message");
+        exchange.publish("message.text", body, { headers: { foo: 'fooHeader' }, type: 'typeProperty'});
+      });
+      
+      q.subscribeRaw(function (m) {
+        puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+        puts("--- type: " + m.type);
+        puts("--- headers: " + JSON.stringify(m.headers));
 
-  q.bind(exchange, "*")
+        recvCount++;
 
-  q.subscribeRaw(function (m) {
-    puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
-    puts("--- type: " + m.type);
-    puts("--- headers: " + JSON.stringify(m.headers));
+        assert.equal('typeProperty', m.type);
+        assert.equal('fooHeader', m.headers['foo']);
+      });
 
-    recvCount++;
-
-    assert.equal('typeProperty', m.type);
-    assert.equal('fooHeader', m.headers['foo']);
-  })
-  .addCallback(function () {
-    puts("publishing message");
-    exchange.publish("message.text", body, { 
-		headers: { foo: 'fooHeader' },
-		type: 'typeProperty', 
-	});
-
-    setTimeout(function () {
-      // wait one second to receive the message, then quit
-      connection.end();
-    }, 1000);
+      setTimeout(function () {
+        // wait one second to receive the message, then quit
+        connection.end();
+      }, 1000);
+    });
   });
 });
 

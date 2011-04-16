@@ -16,7 +16,7 @@ An example of connecting to a server and listening on a queue.
     var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 
     // Wait for connection to become established.
-    connection.addListener('ready', function () {
+    connection.on('ready', function () {
       // Create a queue and bind to all messages.
       // Use the default 'amq.topic' exchange
       var q = connection.queue('my-queue');
@@ -106,8 +106,6 @@ Returns a reference to a queue. The options are
     its channel is closed. If there was no consumer ever on the queue, it
     won't be deleted.
 
-
-
 ### queue.subscribe([options,] listener)
 
 An easy subscription command. It works like this
@@ -124,6 +122,9 @@ will make it so that the AMQP server only delivers a single message at a
 time. When you want the next message, call `q.shift()`. When `ack` is false
 then you will receive messages as fast as they come in.
 
+This method will emit 'basicQosOk' when ready.
+
+
 ### queue.subscribeRaw([options,] listener)
 
 Subscribes to a queue. The `listener` argument should be a function which
@@ -131,6 +132,8 @@ receives a message. This is a low-level interface - the message that the
 listener receives will be a stream of binary data. You probably want to use
 `subscribe` instead. For now this low-level interface is left undocumented.
 Look at the source code if you need to this.
+
+This method will emit 'basicConsumeOk' when ready.
 
 ### queue.shift()
 
@@ -145,6 +148,7 @@ bound it will not receive any messages.
 
 If the `exchange` argument is left out `'amq.topic'` will be used.
 
+This method will emit 'queueBindOk' when ready.
 
 ### queue.destroy(options)
 
@@ -160,14 +164,14 @@ messages.
 ## Exchange
 
 
-### exchange.addListener('open', callback)
+### exchange.on('open', callback)
 
 The open event is emitted when the exchange is declared and ready to
 be used.
 
 
 ### connection.exchange()
-### connection.exchange(name, options={})
+### connection.exchange(name, options={}, openCallback)
 
 An exchange can be created using `connection.exchange()`. The method returns
 an `amqp.Exchange` object.
