@@ -1005,10 +1005,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 
     this.write(body);
 
-    var be = new Buffer(1);
-    be.write(String.fromCharCode(206), 0, 'binary');
-
-    return this.write(be); // frameEnd
+    return this.write(new Buffer([206])); // frameEnd
 
   } else {
     var jsonBody = JSON.stringify(body);
