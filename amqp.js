@@ -1535,6 +1535,9 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.currentMessage = new Message(this, args);
       break;
 
+    case methods.queueDeleteOk:
+      break;
+
     default:
       throw new Error("Uncaught method '" + method.name + "' with args " +
           JSON.stringify(args) + "; tasks = " + JSON.stringify(this._tasks));
