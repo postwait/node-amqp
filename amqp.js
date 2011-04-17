@@ -69,7 +69,6 @@ function debug (x) {
 }
 
 
-
 // a look up table for methods recieved
 // indexed on class id, method id
 var methodTable = {};
@@ -105,7 +104,6 @@ var classes = {};
     }
   }
 })(); // end anon scope
-
 
 
 // parser
@@ -685,10 +683,11 @@ function Connection (options) {
   var parser;
 
   this._defaultExchange = null;
+  this.channelCounter = 0;
 
   self.addListener('connect', function () {
     // channel 0 is the control channel.
-    self.channels = [self];
+    self.channels = {0:self};
     self.queues = {};
     self.exchanges = {};
 
@@ -778,10 +777,10 @@ Connection.prototype._onMethod = function (channel, method, args) {
       debug("Received message on untracked channel.");
       return;
     }
-    if (!this.channels[channel]._onMethod) {
-      throw new Error('Channel ' + channel + ' has no _onMethod method.');
+    if (!this.channels[channel]._onChannelMethod) {
+      throw new Error('Channel ' + channel + ' has no _onChannelMethod method.');
     }
-    this.channels[channel]._onMethod(channel, method, args);
+    this.channels[channel]._onChannelMethod(channel, method, args);
     return;
   }
 
@@ -1002,11 +1001,9 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     serializeInt(b, 2, channel);
     serializeInt(b, 4, body.length);
     this.write(b);
-
     this.write(body);
 
     return this.write(new Buffer([206])); // frameEnd
-
   } else {
     var jsonBody = JSON.stringify(body);
     var length = Buffer.byteLength(jsonBody);
@@ -1038,7 +1035,10 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - durable (boolean)
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
-Connection.prototype.queue = function (name /* , options, openCallback */) {
+Connection.prototype.queue = function (name /* options, openCallback */) {
+  if (name != '' && this.queues[name]) return this.queues[name];
+  this.channelCounter++;
+  var channel = this.channelCounter;
 
   var options, callback;
   if (typeof arguments[1] == 'object') {
@@ -1054,10 +1054,8 @@ Connection.prototype.queue = function (name /* , options, openCallback */) {
     return this.queues[name];
   }
 
-  var channel = this.channels.length;
-
   var q = new Queue(this, channel, name, options, callback);
-  this.channels.push(q);
+  this.channels[channel] = q;
   this.queues[name] = q;
   return q;
 };
@@ -1080,10 +1078,10 @@ Connection.prototype.exchangeClosed = function (name) {
 // - durable (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.exchange = function (name, options, openCallback) {
-  if (!name) name = 'amq.topic';
+  if (name === undefined) name = 'amq.topic';
 
   if (!options) options = {};
-  if (options.type === undefined) options.type = 'topic';
+  if (name != '' && options.type === undefined) options.type = 'topic';
 
   if (this.exchanges[name]) { // already declared? callback anyway
     if (openCallback) 
@@ -1091,17 +1089,18 @@ Connection.prototype.exchange = function (name, options, openCallback) {
     return this.exchanges[name];
   }
 
-  var channel = this.channels.length;
+  this.channelCounter++;
+  var channel = this.channelCounter;
   var exchange = new Exchange(this, channel, name, options, openCallback);
-  this.channels.push(exchange);
+  this.channels[channel] = exchange;
   this.exchanges[name] = exchange;
   return exchange;
 };
 
-// Publishes a message to the amq.topic exchange.
-Connection.prototype.publish = function (routingKey, body) {
+// Publishes a message to the default exchange.
+Connection.prototype.publish = function (routingKey, body, options) {
   if (!this._defaultExchange) this._defaultExchange = this.exchange();
-  return this._defaultExchange.publish(routingKey, body);
+    return this._defaultExchange.publish(routingKey, body, options);
 };
 
 
@@ -1175,7 +1174,6 @@ Channel.prototype._taskPush = function (reply, cb) {
   return promise;
 };
 
-
 Channel.prototype._tasksFlush = function () {
   if (this.state != 'open') return;
 
@@ -1208,7 +1206,24 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
   return false;
 };
 
+Channel.prototype._onChannelMethod = function(channel, method, args) {
+    switch (method) {
+    case methods.channelCloseOk:
+        delete this.connection.channels[this.channel]
+        this.state = 'closed'
+    default:
+        this._onMethod(channel, method, args);
+    }
+}
 
+Channel.prototype.close = function() { 
+  this.state = 'closing';
+    this.connection._sendMethod(this.channel, methods.channelClose,
+                                {'replyText': 'Goodbye from node',
+                                 'replyCode': 200,
+                                 'classId': 0,
+                                 'methodId': 0});
+}
 
 function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
@@ -1232,15 +1247,13 @@ function Queue (connection, channel, name, options, callback) {
 }
 sys.inherits(Queue, Channel);
 
-
 Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   var self = this;
 
   var messageListener = arguments[arguments.length-1];
   var consumerTag = 'node-amqp-'+process.pid+'-'+Math.random();
-  
   this.consumerTagListeners[consumerTag] = messageListener;
-  
+
   var options = { };
   if (typeof arguments[0] == 'object') {
     mixin(options, arguments[0]);
@@ -1335,7 +1348,7 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   var self = this;
 
   // The first argument, exchange is optional.
-  // If not supplied the connection will use the default 'amq.topic'
+  // If not supplied the connection will use the 'amq.topic'
   // exchange.
 
   var exchange, routingKey;
@@ -1400,15 +1413,18 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.queueDeclareOk:
       this.state = 'open';
+      this.name = args.queue;
+      this.connection.queues[this.name] = this;
       if (this._openCallback) {
         this._openCallback(this);
         this._openCallback = null;
       }
       // TODO this is legacy interface, remove me
-      this.emit('open', args.messageCount, args.consumerCount);
+      this.emit('open', args.queue, args.messageCount, args.consumerCount);
       break;
 
     case methods.basicConsumeOk:
+      debug('basicConsumeOk', sys.inspect(args, null));
       break;
 
     case methods.queueBindOk:
@@ -1427,7 +1443,12 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.emit('error', e);
       this.emit('close', e);
       break;
-
+    
+    case methods.channelCloseOk:
+      delete this.connection.queues[this.name]
+      this.emit('close')
+      break;
+    
     case methods.basicDeliver:
       this.currentMessage = new Message(this, args);
       break;
@@ -1448,7 +1469,6 @@ Queue.prototype._onContentHeader = function (channel, classInfo, weight, propert
 
   this.emit('rawMessage', this.currentMessage);
 };
-
 
 Queue.prototype._onContent = function (channel, data) {
   this.currentMessage.read += data.length
@@ -1477,8 +1497,8 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
   switch (method) {
     case methods.channelOpenOk:
-      // Default exchanges don't need to be declared
-      if (/^amq\./.test(this.name)) {
+      // Pre-baked exchanges don't need to be declared
+      if (/^$|(amq\.)/.test(this.name)) {
         this.state = 'open';
         this.emit('open');
       } else {
@@ -1516,6 +1536,11 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.emit('close', e);
       break;
 
+    case methods.channelCloseOk:
+      delete this.connection.exchanges[this.name]
+      this.emit('close')
+      break;
+
     case methods.basicReturn:
       sys.puts("Warning: Uncaught basicReturn: "+JSON.stringify(args));
       break;
@@ -1531,7 +1556,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
 // exchange.publish('routing.key', 'body');
 //
-// the thrid argument can specify additional options
+// the third argument can specify additional options
 // - mandatory (boolean, default false)
 // - immediate (boolean, default false)
 // - contentType (default 'application/octet-stream')
@@ -1583,4 +1608,3 @@ Exchange.prototype.destroy = function (ifUnused) {
         });
   });
 };
-
