@@ -185,7 +185,10 @@ AMQPParser.prototype.execute = function (data) {
 
         // Copy the incoming data byte-by-byte to the buffer.
         // FIXME This is slow! Can be improved with a memcpy binding.
-        this.frameBuffer[this.frameBuffer.used++] = data[i];
+        if(this.frameSize > 0)
+          this.frameBuffer[this.frameBuffer.used++] = data[i];
+        else
+          i--; // the frame ending is actuall this frame (rewind 1)
 
         if (this.frameBuffer.used == this.frameSize) {
           // Finished buffering the frame. Parse the frame.
@@ -205,6 +208,7 @@ AMQPParser.prototype.execute = function (data) {
               break;
 
             case 8:
+              debug("hearbeat");
               if (this.onHeartBeat) this.onHeartBeat();
               break;
 
@@ -716,6 +720,7 @@ function Connection (options) {
     };
 
     parser.onHeartBeat = function () {
+      self.emit("heartbeat");
       debug("heartbeat");
     };
 
@@ -819,7 +824,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
       this._sendMethod(0, methods.connectionTuneOk,
           { channelMax: 0
           , frameMax: maxFrameBuffer
-          , heartbeat: 0
+          , heartbeat: this.options.heartbeat || 0
           });
       // 6. Then we have to send a connectionOpen request
       this._sendMethod(0, methods.connectionOpen,
@@ -851,6 +856,9 @@ Connection.prototype._onMethod = function (channel, method, args) {
   }
 };
 
+Connection.prototype.heartbeat = function() {
+  this.write(new Buffer([8,0,0,0,0,0,0,206]));
+};
 
 Connection.prototype._sendMethod = function (channel, method, args) {
   debug(channel + " < " + method.name + " " + JSON.stringify(args));
