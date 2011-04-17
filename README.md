@@ -1,16 +1,20 @@
-# node-amqp
+# node-amqp-091
 
 IMPORTANT: This module only works with node v0.1.90 and later.
 
 This is a client for RabbitMQ (and maybe other servers?). It partially
-implements the 0.8 version of the AMQP protocol.
+implements the 0.9.1 version of the AMQP protocol.
+
+## Installation
+
+    npm install amqp
 
 ## Synopsis
 
 An example of connecting to a server and listening on a queue.
 
     var sys = require('sys');
-    var amqp = require('./amqp');
+    var amqp = require('amqp-091');
 
     var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 
@@ -33,7 +37,7 @@ An example of connecting to a server and listening on a queue.
 ## Connection
 
 `new amqp.Connection()` Instantiates a new connection. Use
-`connection.connect()` to connect to a server. 
+`connection.connect()` to connect to a server.
 
 `amqp.createConnection()` returns an instance of `amqp.Connection`, which is
 a subclass of `net.Stream`. All the event and methods which work on
@@ -149,10 +153,20 @@ If the `exchange` argument is left out `'amq.topic'` will be used.
 
 This method will emit 'queueBindOk' when ready.
 
+### queue.bind_headers([exchange,] routing)
+
+This method binds a queue to an exchange.  Until a queue is
+bound it will not receive any messages.
+
+This method is to be used on an "headers"-type exchange. The routing
+argument must contain the routing keys and the `x-match` value (`all` or `any`).
+
+If the `exchange` argument is left out `'amq.headers'` will be used.
+
 ### queue.destroy(options)
 
 Delete the queue. Without options, the queue will be deleted even if it has
-pending messages or attached consumers. If +options.ifUnused+ is true, then 
+pending messages or attached consumers. If +options.ifUnused+ is true, then
 the queue will only be deleted if there are no consumers. If
 +options.ifEmpty+ is true, the queue will only be deleted if it has no
 messages.

@@ -30,10 +30,10 @@ connection.addListener('ready', function () {
           q2.on('basicConsumeOk', function () {
             exchange1.publish("node-consumer-1", 'foo');
             exchange1.publish("node-consumer-2", 'foo');
-            q2.destroy();
 
             setTimeout(function () {
               // wait one second to receive the message, then quit
+              q2.destroy();
               connection.end();
             }, 1000);
           });
