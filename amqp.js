@@ -281,7 +281,7 @@ function parseLongString (buffer) {
   var length = parseInt(buffer, 4);
   var s = buffer.slice(buffer.read, buffer.read + length);
   buffer.read += length;
-  return s;
+  return s.toString();
 }
 
 
@@ -576,13 +576,13 @@ function serializeTable (b, object) {
         break;
 
       case 'number':
-        if (value < 0) {
+        if (value <= 0xFFFFFFFF) {
           b[b.used++] = 'I'.charCodeAt(0);
           serializeInt(b, 4, value);
         } else if (value > 0xFFFFFFFF) {
           b[b.used++] = 'T'.charCodeAt(0);
           serializeInt(b, 8, value);
-        }
+        } 
         // TODO decimal? meh.
         break;
 
