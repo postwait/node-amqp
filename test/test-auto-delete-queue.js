@@ -8,10 +8,8 @@ connection.addListener('ready', function () {
 
   var e = connection.exchange();
 
-  var q = connection.queue('node-test-autodelete', {exclusive: true}, function (messageCount, consumerCount) {
+  connection.queue('node-test-autodelete', {exclusive: true}, function (q) {
     puts('queue opened.');
-    assert.equal(0, messageCount);
-    assert.equal(0, consumerCount);
     
     q.bind(e, "#");
     

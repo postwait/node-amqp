@@ -1,5 +1,6 @@
 require('./harness');
 
+var inspect = require('eyes').inspector({styles: {all: 'magenta'}, maxLength: 20480000});
 var recvCount = 0;
 
 connection.addListener('ready', function () {
