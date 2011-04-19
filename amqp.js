@@ -1378,11 +1378,12 @@ Queue.prototype.destroy = function (options) {
   options = options || {};
   return this._taskPush(methods.queueDeleteOk, function () {
     self.connection._sendMethod(self.channel, methods.queueDelete,
-        { ticket: 0
+        { reserved1: 0
+        , ticket: 0
         , queue: self.name
         , ifUnused: options.ifUnused ? true : false
         , ifEmpty: options.ifEmpty ? true : false
-        , nowait: false
+        , noWait: false
         , "arguments": {}
         });
   });
@@ -1582,7 +1583,8 @@ Exchange.prototype.destroy = function (ifUnused) {
   var self = this;
   return this._taskPush(methods.exchangeDeleteOk, function () {
     self.connection._sendMethod(self.channel, methods.exchangeDelete,
-        { ticket: 0
+        { reserved1: 0
+        , ticket: 0
         , exchange: self.name
         , ifUnused: ifUnused ? true : false
         , noWait: false
