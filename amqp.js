@@ -104,7 +104,7 @@ function AMQPParser (version, type) {
   this.isClient = (type == 'client');
   this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
 
-  if (version != '0-9-1') throw new Error("Unsupported protocol version");
+  if (version != '0-9-1') throwError("Unsupported protocol version");
 
   protocol = require('./amqp-definitions-'+version);
 
@@ -138,6 +138,11 @@ function AMQPParser (version, type) {
   this.frameHeader.used = 0;
 }
 
+// If there's an error in the parser, call the onError handler or throw
+AMQPParser.prototype.throwError = function (error) {
+  if(this.onError) this.onError(error);
+  else throw new Error(error);
+};
 
 // Everytime data is recieved on the socket, pass it to this function for
 // parsing.
@@ -171,7 +176,7 @@ AMQPParser.prototype.execute = function (data) {
                                                ]));
 
           if (this.frameSize > maxFrameBuffer) {
-            throw new Error("Oversized frame " + this.frameSize);
+            throwError("Oversized frame " + this.frameSize);
           }
 
           // TODO use a free list and keep a bunch of 8k buffers around
@@ -215,7 +220,7 @@ AMQPParser.prototype.execute = function (data) {
               break;
 
             default:
-              throw new Error("Unhandled frame type " + this.frameType);
+              throwError("Unhandled frame type " + this.frameType);
               break;
           }
           this.state = 'frameEnd';
@@ -229,7 +234,7 @@ AMQPParser.prototype.execute = function (data) {
           debug('data = ' + data.toString());
           debug('frameHeader: ' + this.frameHeader.toString());
           debug('frameBuffer: ' + this.frameBuffer.toString());
-          throw new Error("Oversized frame");
+          throwError("Oversized frame");
         }
         this.state = 'frameHeader';
         break;
@@ -413,13 +418,13 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
 
   // Make sure that this is a method that we understand.
   if (!methodTable[classId] || !methodTable[classId][methodId]) {
-    throw new Error("Received unknown [classId, methodId] pair [" +
-                    classId + ", " + methodId + "]");
+    throwError("Received unknown [classId, methodId] pair [" +
+               classId + ", " + methodId + "]");
   }
 
   var method = methodTable[classId][methodId];
 
-  if (!method) throw new Error("bad method?");
+  if (!method) throwError("bad method?");
 
   var args = parseFields(buffer, method.fields);
 
@@ -441,7 +446,7 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
   var classInfo = classes[classIndex];
 
   if (classInfo.fields.length > 15) {
-    throw new Error("TODO: support more than 15 properties");
+    throwError("TODO: support more than 15 properties");
   }
 
 
@@ -732,6 +737,12 @@ function Connection (options) {
       debug("heartbeat");
     };
 
+    parser.onError = function(e) {
+      self.end();
+      self.emit("error", e);
+      self.emit("close");
+      parser = null;
+    };
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
