@@ -1424,7 +1424,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
       }
       this.emit('error', e);
 */
-      this.emit('close', e);
+      this.emit('close');
       break;
 
     case methods.basicDeliver:
