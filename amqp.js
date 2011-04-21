@@ -1416,12 +1416,14 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.channelClose:
       this.state = "closed";
+/*
       var e = new Error(args.replyText);
       e.code = args.replyCode;
       if (!this.listeners('close').length) {
         sys.puts('Unhandled channel error: ' + args.replyText);
       }
       this.emit('error', e);
+*/
       this.emit('close', e);
       break;
 
