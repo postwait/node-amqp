@@ -1394,6 +1394,10 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
 
 
   var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+
+  this.exchange = self.connection.exchanges[exchangeName];
+  this.exchange.binds++;
+
   self.connection._sendMethod(self.channel, methods.queueBind,
       { reserved1: 0
       , queue: self.name
@@ -1470,9 +1474,13 @@ Queue.prototype.bind_headers = function (/* [exchange,] matchingPairs */) {
 
 Queue.prototype.destroy = function (options) {
   var self = this;
+
   options = options || {};
+
   return this._taskPush(methods.queueDeleteOk, function () {
     self.connection.queueClosed(self.name);
+    self.exchange.binds--;
+    self.exchange.cleanup();
     self.connection._sendMethod(self.channel, methods.queueDelete,
         { reserved1: 0
         , queue: self.name
@@ -1582,6 +1590,7 @@ Queue.prototype._onContent = function (channel, data) {
 function Exchange (connection, channel, name, options, openCallback) {
   Channel.call(this, connection, channel);
   this.name = name;
+  this.binds = 0; // keep track of queues bound
   this.options = options || { autoDelete: true};
   this._openCallback = openCallback;
 }
@@ -1693,6 +1702,12 @@ Exchange.prototype.publish = function (routingKey, data, options) {
     // If you need to stream something large, chunk it yourself.
     self.connection._sendBody(self.channel, data, options);
   });
+};
+
+// do any necessary cleanups eg. after queue destruction  
+Exchange.prototype.cleanup = function() {
+	if (this.binds == 0) // don't keep reference open if unused
+    	this.connection.exchangeClosed(this.name);
 };
 
 
