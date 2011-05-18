@@ -1395,8 +1395,10 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
 
   var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
 
-  this.exchange = self.connection.exchanges[exchangeName];
-  this.exchange.binds++;
+  if(exchangeName in self.connection.exchanges) {
+    this.exchange = self.connection.exchanges[exchangeName];
+    this.exchange.binds++;
+  }
 
   self.connection._sendMethod(self.channel, methods.queueBind,
       { reserved1: 0
@@ -1479,8 +1481,10 @@ Queue.prototype.destroy = function (options) {
 
   return this._taskPush(methods.queueDeleteOk, function () {
     self.connection.queueClosed(self.name);
-    self.exchange.binds--;
-    self.exchange.cleanup();
+    if('exchange' in self) {
+      self.exchange.binds--;
+      self.exchange.cleanup();
+    }
     self.connection._sendMethod(self.channel, methods.queueDelete,
         { reserved1: 0
         , queue: self.name
