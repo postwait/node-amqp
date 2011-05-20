@@ -1,6 +1,31 @@
 { "name" : "amqp"
-, "version" : "0.0.5"
-, "description" : "amqp 0.9.1 bindings for RabbitMQ"
-, "author": "Ryan Dahl, Stephane Alnet"
-, "main": "./amqp"
+, "description" : "AMQP driver for node"
+, "keywords" : [ "amqp" ]
+, "version" : "0.0.6"
+, "preferGlobal" : true
+, "author" : { "name" : "Ryan Dahl" }
+, "contributors" :
+  [ { "name" : "Vasili Sviridov" }
+  , { "name" : "Theo Schlossnagle" }
+  , { "name" : "Vincent Desjardins" }
+  , { "name" : "Liang-Chi Hsieh" }
+  , { "name" : "Tim Baga" }
+  , { "name" : "Stéphane Alnet" }
+  , { "name" : "Alen Mujezinovic" }
+  , { "name" : "Michael Bridgen" }
+  ]
+, "repository" :
+  { "type" : "git"
+  , "url" : "git://github.com/postwait/node-amqp.git"
+  }
+, "bugs" :
+  { "web" : "http://github.com/postwait/node-amqp/issues"
+  }
+, "main" : "./amqp"
+, "engines" : { "node" : "0.4 || 0.5" }
+, "licenses" :
+  [ { "type" : "MIT"
+    , "url" : "http://github.com/postwait/node-amqp/raw/master/LICENSE-MIT"
+    }
+  ]
 }

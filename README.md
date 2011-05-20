@@ -1,6 +1,6 @@
-# node-amqp-091
+# node-amqp
 
-IMPORTANT: This module only works with node v0.1.90 and later.
+IMPORTANT: This module only works with node v0.4.0 and later.
 
 This is a client for RabbitMQ (and maybe other servers?). It partially
 implements the 0.9.1 version of the AMQP protocol.
