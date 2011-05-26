@@ -104,7 +104,7 @@ function AMQPParser (version, type) {
   this.isClient = (type == 'client');
   this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
 
-  if (version != '0-9-1') throwError("Unsupported protocol version");
+  if (version != '0-9-1') this.throwError("Unsupported protocol version");
 
   protocol = require('./amqp-definitions-'+version);
 
@@ -176,7 +176,7 @@ AMQPParser.prototype.execute = function (data) {
                                                ]));
 
           if (this.frameSize > maxFrameBuffer) {
-            throwError("Oversized frame " + this.frameSize);
+            this.throwError("Oversized frame " + this.frameSize);
           }
 
           // TODO use a free list and keep a bunch of 8k buffers around
@@ -220,7 +220,7 @@ AMQPParser.prototype.execute = function (data) {
               break;
 
             default:
-              throwError("Unhandled frame type " + this.frameType);
+              this.throwError("Unhandled frame type " + this.frameType);
               break;
           }
           this.state = 'frameEnd';
@@ -234,7 +234,7 @@ AMQPParser.prototype.execute = function (data) {
           debug('data = ' + data.toString());
           debug('frameHeader: ' + this.frameHeader.toString());
           debug('frameBuffer: ' + this.frameBuffer.toString());
-          throwError("Oversized frame");
+          this.throwError("Oversized frame");
         }
         this.state = 'frameHeader';
         break;
@@ -418,13 +418,13 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
 
   // Make sure that this is a method that we understand.
   if (!methodTable[classId] || !methodTable[classId][methodId]) {
-    throwError("Received unknown [classId, methodId] pair [" +
+    this.throwError("Received unknown [classId, methodId] pair [" +
                classId + ", " + methodId + "]");
   }
 
   var method = methodTable[classId][methodId];
 
-  if (!method) throwError("bad method?");
+  if (!method) this.throwError("bad method?");
 
   var args = parseFields(buffer, method.fields);
 
@@ -446,7 +446,7 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
   var classInfo = classes[classIndex];
 
   if (classInfo.fields.length > 15) {
-    throwError("TODO: support more than 15 properties");
+    this.throwError("TODO: support more than 15 properties");
   }
 
 
