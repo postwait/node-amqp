@@ -1,20 +1,17 @@
 var events = require('events'),
     sys = require('sys'),
     net = require('net'),
-    protocol, Buffer = require('buffer').Buffer,
+    protocol,
+    Buffer = require('buffer').Buffer,
     Promise = require('./promise').Promise,
     jspack = require('./jspack').jspack;
 
-function mixin() {
+function mixin () {
   // copy reference to target object
-  var target = arguments[0] || {},
-      i = 1,
-      length = arguments.length,
-      deep = false,
-      source;
+  var target = arguments[0] || {}, i = 1, length = arguments.length, deep = false, source;
 
   // Handle a deep copy situation
-  if (typeof target === "boolean") {
+  if ( typeof target === "boolean" ) {
     deep = target;
     target = arguments[1] || {};
     // skip the boolean and the target
@@ -22,28 +19,28 @@ function mixin() {
   }
 
   // Handle case when target is a string or something (possible in deep copy)
-  if (typeof target !== "object" && !(typeof target === 'function')) target = {};
+  if ( typeof target !== "object" && !(typeof target === 'function') )
+    target = {};
 
   // mixin process itself if only one argument is passed
-  if (length == i) {
+  if ( length == i ) {
     target = GLOBAL;
     --i;
   }
 
-  for (; i < length; i++) {
+  for ( ; i < length; i++ ) {
     // Only deal with non-null/undefined values
-    if ((source = arguments[i]) != null) {
+    if ( (source = arguments[i]) != null ) {
       // Extend the base object
-      Object.getOwnPropertyNames(source).forEach(function (k) {
-        var d = Object.getOwnPropertyDescriptor(source, k) || {
-          value: source[k]
-        };
+      Object.getOwnPropertyNames(source).forEach(function(k){
+        var d = Object.getOwnPropertyDescriptor(source, k) || {value: source[k]};
         if (d.get) {
           target.__defineGetter__(k, d.get);
           if (d.set) {
             target.__defineSetter__(k, d.set);
           }
-        } else {
+        }
+        else {
           // Prevent never-ending loop
           if (target === d.value) {
             return;
@@ -51,9 +48,11 @@ function mixin() {
 
           if (deep && d.value && typeof d.value === "object") {
             target[k] = mixin(deep,
-            // Never move original objects, clone them
-            source[k] || (d.value.length != null ? [] : {}), d.value);
-          } else {
+              // Never move original objects, clone them
+              source[k] || (d.value.length != null ? [] : {})
+            , d.value);
+          }
+          else {
             target[k] = d.value;
           }
         }
@@ -66,8 +65,7 @@ function mixin() {
 
 
 var debugLevel = process.env['NODE_DEBUG_AMQP'] ? 1 : 0;
-
-function debug(x) {
+function debug (x) {
   if (debugLevel > 0) sys.error(x + '\n');
 }
 
@@ -85,7 +83,9 @@ var classes = {};
 
 // parser
 
+
 var maxFrameBuffer = 131072; // same as rabbitmq
+
 
 // An interruptible AMQP parser.
 //
@@ -101,46 +101,47 @@ var maxFrameBuffer = 131072; // same as rabbitmq
 // This class does not subclass EventEmitter, in order to reduce the speed
 // of emitting the callbacks. Since this is an internal class, that should
 // be fine.
-
-
-function AMQPParser(version, type) {
+function AMQPParser (version, type) {
   this.isClient = (type == 'client');
   this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
 
   if (version != '0-9-1') this.throwError("Unsupported protocol version");
 
-  protocol = require('./amqp-definitions-' + version);
+  protocol = require('./amqp-definitions-'+version);
 
-  (function () { // anon scope for init
-    //debug("initializing amqp methods...");
-    for (var i = 0; i < protocol.classes.length; i++) {
-      var classInfo = protocol.classes[i];
-      classes[classInfo.index] = classInfo;
-      for (var j = 0; j < classInfo.methods.length; j++) {
-        var methodInfo = classInfo.methods[j];
+(function () { // anon scope for init
+  //debug("initializing amqp methods...");
+  for (var i = 0; i < protocol.classes.length; i++) {
+    var classInfo = protocol.classes[i];
+    classes[classInfo.index] = classInfo;
+    for (var j = 0; j < classInfo.methods.length; j++) {
+      var methodInfo = classInfo.methods[j];
 
-        var name = classInfo.name + methodInfo.name[0].toUpperCase() + methodInfo.name.slice(1);
-        //debug(name);
-        var method = {
-          name: name,
-          fields: methodInfo.fields,
-          methodIndex: methodInfo.index,
-          classIndex: classInfo.index
-        };
+      var name = classInfo.name
+               + methodInfo.name[0].toUpperCase()
+               + methodInfo.name.slice(1);
+      //debug(name);
 
-        if (!methodTable[classInfo.index]) methodTable[classInfo.index] = {};
-        methodTable[classInfo.index][methodInfo.index] = method;
-        methods[name] = method;
-      }
+      var method = { name: name
+                   , fields: methodInfo.fields
+                   , methodIndex: methodInfo.index
+                   , classIndex: classInfo.index
+                   };
+
+      if (!methodTable[classInfo.index]) methodTable[classInfo.index] = {};
+      methodTable[classInfo.index][methodInfo.index] = method;
+      methods[name] = method;
     }
-  })(); // end anon scope
+  }
+})(); // end anon scope
+
   this.frameHeader = new Buffer(7);
   this.frameHeader.used = 0;
 }
 
 // If there's an error in the parser, call the onError handler or throw
 AMQPParser.prototype.throwError = function (error) {
-  if (this.onError) this.onError(error);
+  if(this.onError) this.onError(error);
   else throw new Error(error);
 };
 
@@ -152,118 +153,126 @@ AMQPParser.prototype.execute = function (data) {
   debug('execute: ' + data.toString());
   for (var i = 0; i < data.length; i++) {
     switch (this.state) {
-    case 'frameHeader':
-      // Here we buffer the frame header. Remember, this is a fully
-      // interruptible parser - it could be (although unlikely)
-      // that we receive only several octets of the frame header
-      // in one packet.
-      this.frameHeader[this.frameHeader.used++] = data[i];
+      case 'frameHeader':
+        // Here we buffer the frame header. Remember, this is a fully
+        // interruptible parser - it could be (although unlikely)
+        // that we receive only several octets of the frame header
+        // in one packet.
+        this.frameHeader[this.frameHeader.used++] = data[i];
 
-      if (this.frameHeader.used == this.frameHeader.length) {
-        // Finished buffering the frame header - parse it
-        //var h = this.frameHeader.unpack("oonN", 0);
-        this.frameHeader.read = 0;
-        this.frameType = this.frameHeader[this.frameHeader.read++];
-        this.frameChannel = localParseInt(this.frameHeader, 2);
-        this.frameSize = localParseInt(this.frameHeader, 4);
+        if (this.frameHeader.used == this.frameHeader.length) {
+          // Finished buffering the frame header - parse it
+          //var h = this.frameHeader.unpack("oonN", 0);
 
-        this.frameHeader.used = 0; // for reuse
-        debug("got frame: " + JSON.stringify([this.frameType
-                                                        , this.frameChannel
-                                                        , this.frameSize
-                                                        ]));
+          this.frameHeader.read = 0;
+          this.frameType = this.frameHeader[this.frameHeader.read++];
+          this.frameChannel = locallocalParseInt(this.frameHeader, 2);
+          this.frameSize = locallocalParseInt(this.frameHeader, 4);
 
-        if (this.frameSize > maxFrameBuffer) {
-          this.throwError("Oversized frame " + this.frameSize);
-        }
+          this.frameHeader.used = 0; // for reuse
 
-        // TODO use a free list and keep a bunch of 8k buffers around
-        this.frameBuffer = new Buffer(this.frameSize);
-        this.frameBuffer.used = 0;
-        this.state = 'bufferFrame';
-      }
-      break;
+          debug("got frame: " + JSON.stringify([ this.frameType
+                                               , this.frameChannel
+                                               , this.frameSize
+                                               ]));
 
-    case 'bufferFrame':
-      // Buffer the entire frame. I would love to avoid this, but doing
-      // otherwise seems to be extremely painful.
-      // Copy the incoming data byte-by-byte to the buffer.
-      // FIXME This is slow! Can be improved with a memcpy binding.
-      if (this.frameSize > 0) this.frameBuffer[this.frameBuffer.used++] = data[i];
-      else i--; // the frame ending is actuall this frame (rewind 1)
-      if (this.frameBuffer.used == this.frameSize) {
-        // Finished buffering the frame. Parse the frame.
-        switch (this.frameType) {
-        case 1:
-          this._parseMethodFrame(this.frameChannel, this.frameBuffer);
-          break;
-
-        case 2:
-          this._parseHeaderFrame(this.frameChannel, this.frameBuffer);
-          break;
-
-        case 3:
-          if (this.onContent) {
-            this.onContent(this.frameChannel, this.frameBuffer);
+          if (this.frameSize > maxFrameBuffer) {
+            this.throwError("Oversized frame " + this.frameSize);
           }
-          break;
 
-        case 8:
-          debug("hearbeat");
-          if (this.onHeartBeat) this.onHeartBeat();
-          break;
-
-        default:
-          this.throwError("Unhandled frame type " + this.frameType);
-          break;
+          // TODO use a free list and keep a bunch of 8k buffers around
+          this.frameBuffer = new Buffer(this.frameSize);
+          this.frameBuffer.used = 0;
+          this.state = 'bufferFrame';
         }
-        this.state = 'frameEnd';
-      }
-      break;
+        break;
 
-    case 'frameEnd':
-      // Frames are terminated by a single octet.
-      if (data[i] != 206 /* constants.frameEnd */ ) {
-        debug('data[' + i + '] = ' + data[i].toString(16));
-        debug('data = ' + data.toString());
-        debug('frameHeader: ' + this.frameHeader.toString());
-        debug('frameBuffer: ' + this.frameBuffer.toString());
-        this.throwError("Oversized frame");
-      }
-      this.state = 'frameHeader';
-      break;
+      case 'bufferFrame':
+        // Buffer the entire frame. I would love to avoid this, but doing
+        // otherwise seems to be extremely painful.
+
+        // Copy the incoming data byte-by-byte to the buffer.
+        // FIXME This is slow! Can be improved with a memcpy binding.
+        if(this.frameSize > 0)
+          this.frameBuffer[this.frameBuffer.used++] = data[i];
+        else
+          i--; // the frame ending is actuall this frame (rewind 1)
+
+        if (this.frameBuffer.used == this.frameSize) {
+          // Finished buffering the frame. Parse the frame.
+          switch (this.frameType) {
+            case 1:
+              this._parseMethodFrame(this.frameChannel, this.frameBuffer);
+              break;
+
+            case 2:
+              this._parseHeaderFrame(this.frameChannel, this.frameBuffer);
+              break;
+
+            case 3:
+              if (this.onContent) {
+                this.onContent(this.frameChannel, this.frameBuffer);
+              }
+              break;
+
+            case 8:
+              debug("hearbeat");
+              if (this.onHeartBeat) this.onHeartBeat();
+              break;
+
+            default:
+              this.throwError("Unhandled frame type " + this.frameType);
+              break;
+          }
+          this.state = 'frameEnd';
+        }
+        break;
+
+      case 'frameEnd':
+        // Frames are terminated by a single octet.
+        if (data[i] != 206 /* constants.frameEnd */) {
+          debug('data[' + i + '] = ' + data[i].toString(16));
+          debug('data = ' + data.toString());
+          debug('frameHeader: ' + this.frameHeader.toString());
+          debug('frameBuffer: ' + this.frameBuffer.toString());
+          this.throwError("Oversized frame");
+        }
+        this.state = 'frameHeader';
+        break;
     }
   }
 };
 
 
 // parse Network Byte Order integers. size can be 1,2,4,8
-
-
 function localParseInt(buffer, size) {
   var int = 0;
   switch (size) {
-  case 1:
-    return buffer[buffer.read++];
+    case 1:
+      return buffer[buffer.read++];
 
-  case 2:
-    return (buffer[buffer.read++] << 8) + buffer[buffer.read++];
+    case 2:
+      return (buffer[buffer.read++] << 8) + buffer[buffer.read++];
 
-  case 4:
-    return (buffer[buffer.read++] << 24) + (buffer[buffer.read++] << 16) + (buffer[buffer.read++] << 8) + buffer[buffer.read++];
+    case 4:
+      return (buffer[buffer.read++] << 24) + (buffer[buffer.read++] << 16) +
+             (buffer[buffer.read++] << 8)  + buffer[buffer.read++];
 
-  case 8:
-    return (buffer[buffer.read++] << 56) + (buffer[buffer.read++] << 48) + (buffer[buffer.read++] << 40) + (buffer[buffer.read++] << 32) + (buffer[buffer.read++] << 24) + (buffer[buffer.read++] << 16) + (buffer[buffer.read++] << 8) + buffer[buffer.read++];
+    case 8:
+      return (buffer[buffer.read++] << 56) + (buffer[buffer.read++] << 48) +
+             (buffer[buffer.read++] << 40) + (buffer[buffer.read++] << 32) +
+             (buffer[buffer.read++] << 24) + (buffer[buffer.read++] << 16) +
+             (buffer[buffer.read++] << 8)  + buffer[buffer.read++];
 
-  default:
-    throw new Error("cannot parse ints of that size");
+    default:
+      this.throwError("cannot parse ints of that size");
   }
 }
 
 
 function parseShortString(buffer) {
   var length = buffer[buffer.read++];
-  var s = buffer.toString('utf-8', buffer.read, buffer.read + length);
+  var s = buffer.toString('utf8', buffer.read, buffer.read+length);
   buffer.read += length;
   return s;
 }
@@ -286,77 +295,78 @@ function parseSignedInteger(buffer) {
   return int;
 }
 
-function parseTable(buffer) {
+
+function parseTable (buffer) {
   var length = buffer.read + localParseInt(buffer, 4);
   for (var i = 0; i < buffer.length; ++i) {
     var y = String.fromCharCode(buffer[i]) || 'F';
-    if (y.length == 0) y = 'F'; //buffer[i].toString();
+    if(y.length == 0) y = 'F';
   }
   var table = {};
   while (buffer.read < length) {
     var field = parseShortString(buffer);
     switch (buffer[buffer.read++]) {
-    case 'S'.charCodeAt(0):
-      table[field] = parseLongString(buffer);
-      break;
+      case 'S'.charCodeAt(0):
+        table[field] = parseLongString(buffer);
+        break;
 
-    case 'I'.charCodeAt(0):
-      table[field] = parseSignedInteger(buffer);
-      break;
+      case 'I'.charCodeAt(0):
+        table[field] = parseSignedInteger(buffer);
+        break;
 
-    case 'D'.charCodeAt(0):
-      var dec = localParseInt(buffer, 1);
-      var num = localParseInt(buffer, 4);
-      table[field] = num / (dec * 10);
-      break;
+      case 'D'.charCodeAt(0):
+        var dec = localParseInt(buffer, 1);
+        var num = localParseInt(buffer, 4);
+        table[field] = num / (dec * 10);
+        break;
 
-    case 'd'.charCodeAt(0):
-      var b = [];
-      for (var i = 0; i < 8; ++i)
-      b[i] = buffer[buffer.read++];
+      case 'd'.charCodeAt(0):
+        var b = [];
+        for (var i = 0; i < 8; ++i)
+          b[i] = buffer[buffer.read++];
 
-      table[field] = (new jspack(true)).Unpack('d', b);
-      break;
+          table[field] = (new jspack(true)).Unpack('d', b);
+          break;
 
-    case 'f'.charCodeAt(0):
-      var b = [];
-      for (var i = 0; i < 4; ++i)
-      b[i] = buffer[buffer.read++];
+      case 'f'.charCodeAt(0):
+        var b = [];
+        for (var i = 0; i < 4; ++i)
+          b[i] = buffer[buffer.read++];
 
-      table[field] = (new jspack(true)).Unpack('f', b);
-      break;
+          table[field] = (new jspack(true)).Unpack('f', b);
+          break;
 
-    case 'T'.charCodeAt(0):
-      var int = localParseInt(buffer, 8);
-      table[field] = new Date();
-      table[field].setTime(int * 1000);
-      break;
+      case 'T'.charCodeAt(0):
+        var int = localParseInt(buffer, 8);
+        table[field] = new Date();
+        table[field].setTime(int * 1000);
+        break;
 
-    case 'F'.charCodeAt(0):
-      table[field] = parseTable(buffer);
-      break;
+      case 'F'.charCodeAt(0):
+        table[field] = parseTable(buffer);
+        break;
 
-    case 'l'.charCodeAt(0):
-      table[field] = localParseInt(buffer, 8);
-      break;
+      case 'l'.charCodeAt(0):
+        table[field] = localParseInt(buffer, 8);
+        break;
 
-    case 't'.charCodeAt(0):
-      table[field] = (localParseInt(buffer, 1) > 0);
-      break;
+      case 't'.charCodeAt(0):
+        table[field] = (localParseInt(buffer, 1) > 0);
+        break;
 
-    case 'a'.charCodeAt(0):
-      var len = localParseInt(buffer, 4);
-      table[field] = buffer.splice(buffer.read, buffer.read + len);
-      break;
+      case 'a'.charCodeAt(0):
+        var len = localParseInt(buffer, 4);
+        table[field] = buffer.splice(buffer.read, buffer.read + len);
+        break;
 
-    default:
-      throw new Error("Unknown field value type " + buffer[buffer.read - 1]);
+      default:
+        this.throwError("Unknown field value type " + buffer[buffer.read-1]);
     }
   }
   return table;
 }
 
-function parseFields(buffer, fields) {
+function parseFields (buffer, fields) {
   var args = {};
 
   var bitIndex = 0;
@@ -367,50 +377,53 @@ function parseFields(buffer, fields) {
     var field = fields[i];
 
     //debug("parsing field " + field.name + " of type " + field.domain);
+
     switch (field.domain) {
-    case 'bit':
-      // 8 bits can be packed into one octet.
-      // XXX check if bitIndex greater than 7?
-      value = (buffer[buffer.read] & (1 << bitIndex)) ? true : false;
+      case 'bit':
+        // 8 bits can be packed into one octet.
 
-      if (fields[i + 1] && fields[i + 1].domain == 'bit') {
-        bitIndex++;
-      } else {
-        bitIndex = 0;
-        buffer.read++;
-      }
-      break;
+        // XXX check if bitIndex greater than 7?
 
-    case 'octet':
-      value = buffer[buffer.read++];
-      break;
+        value = (buffer[buffer.read] & (1 << bitIndex)) ? true : false;
 
-    case 'short':
-      value = localParseInt(buffer, 2);
-      break;
+        if (fields[i+1] && fields[i+1].domain == 'bit') {
+          bitIndex++;
+        } else {
+          bitIndex = 0;
+          buffer.read++;
+        }
+        break;
 
-    case 'long':
-      value = localParseInt(buffer, 4);
-      break;
+      case 'octet':
+        value = buffer[buffer.read++];
+        break;
 
-    case 'longlong':
-      value = localParseInt(buffer, 8);
-      break;
+      case 'short':
+        value = localParseInt(buffer, 2);
+        break;
 
-    case 'shortstr':
-      value = parseShortString(buffer);
-      break;
+      case 'long':
+        value = localParseInt(buffer, 4);
+        break;
 
-    case 'longstr':
-      value = parseLongString(buffer);
-      break;
+      case 'longlong':
+        value = localParseInt(buffer, 8);
+        break;
 
-    case 'table':
-      value = parseTable(buffer);
-      break;
+      case 'shortstr':
+        value = parseShortString(buffer);
+        break;
 
-    default:
-      throw new Error("Unhandled parameter type " + field.domain);
+      case 'longstr':
+        value = parseLongString(buffer);
+        break;
+
+      case 'table':
+        value = parseTable(buffer);
+        break;
+
+      default:
+        this.throwError("Unhandled parameter type " + field.domain);
     }
     //debug("got " + value);
     args[field.name] = value;
@@ -423,12 +436,13 @@ function parseFields(buffer, fields) {
 AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
   buffer.read = 0;
   var classId = localParseInt(buffer, 2),
-      methodId = localParseInt(buffer, 2);
+     methodId = localParseInt(buffer, 2);
 
 
   // Make sure that this is a method that we understand.
   if (!methodTable[classId] || !methodTable[classId][methodId]) {
-    this.throwError("Received unknown [classId, methodId] pair [" + classId + ", " + methodId + "]");
+    this.throwError("Received unknown [classId, methodId] pair [" +
+               classId + ", " + methodId + "]");
   }
 
   var method = methodTable[classId][methodId];
@@ -465,7 +479,7 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
   for (var i = 0; i < classInfo.fields.length; i++) {
     var field = classInfo.fields[i];
     // groan.
-    if (propertyFlags & (1 << (15 - i))) fields.push(field);
+    if (propertyFlags & (1 << (15-i))) fields.push(field);
   }
 
   var properties = parseFields(buffer, fields);
@@ -478,69 +492,72 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
 function serializeFloat(b, size, value, bigEndian) {
   var jp = new jspack(bigEndian);
 
-  switch (size) {
+  switch(size) {
   case 4:
     var x = jp.pack('f', [value]);
     for (var i = 0; i < x.length; ++i)
-    b[b.used++] = x[i];
+      b[b.used++] = x[i];
     break;
-
+  
   case 8:
-    var x = jp.Pack('d', [value]);
+    var x = jp.pack('d', [value]);
     for (var i = 0; i < x.length; ++i)
-    b[b.used++] = x[i];
+      b[b.used++] = x[i];
     break;
 
   default:
-    this.throwError("unknown floating point size");
+    this.throwError("Unknown floating point size");
   }
 }
 
-function serializeInt(b, size, int) {
+function serializeInt (b, size, int) {
   if (b.used + size >= b.length) {
-    throw new Error("write out of bounds");
+    this.throwError("write out of bounds");
   }
 
   // Only 4 cases - just going to be explicit instead of looping.
+
   switch (size) {
     // octet
-  case 1:
-    b[b.used++] = int;
-    break;
+    case 1:
+      b[b.used++] = int;
+      break;
 
     // short
-  case 2:
-    b[b.used++] = (int & 0xFF00) >> 8;
-    b[b.used++] = (int & 0x00FF) >> 0;
-    break;
+    case 2:
+      b[b.used++] = (int & 0xFF00) >> 8;
+      b[b.used++] = (int & 0x00FF) >> 0;
+      break;
 
     // long
-  case 4:
-    b[b.used++] = (int & 0xFF000000) >> 24;
-    b[b.used++] = (int & 0x00FF0000) >> 16;
-    b[b.used++] = (int & 0x0000FF00) >> 8;
-    b[b.used++] = (int & 0x000000FF) >> 0;
-    break;
+    case 4:
+      b[b.used++] = (int & 0xFF000000) >> 24;
+      b[b.used++] = (int & 0x00FF0000) >> 16;
+      b[b.used++] = (int & 0x0000FF00) >> 8;
+      b[b.used++] = (int & 0x000000FF) >> 0;
+      break;
+
 
     // long long
-  case 8:
-    b[b.used++] = (int & 0xFF00000000000000) >> 56;
-    b[b.used++] = (int & 0x00FF000000000000) >> 48;
-    b[b.used++] = (int & 0x0000FF0000000000) >> 40;
-    b[b.used++] = (int & 0x000000FF00000000) >> 32;
-    b[b.used++] = (int & 0x00000000FF000000) >> 24;
-    b[b.used++] = (int & 0x0000000000FF0000) >> 16;
-    b[b.used++] = (int & 0x000000000000FF00) >> 8;
-    b[b.used++] = (int & 0x00000000000000FF) >> 0;
-    break;
+    case 8:
+      b[b.used++] = (int & 0xFF00000000000000) >> 56;
+      b[b.used++] = (int & 0x00FF000000000000) >> 48;
+      b[b.used++] = (int & 0x0000FF0000000000) >> 40;
+      b[b.used++] = (int & 0x000000FF00000000) >> 32;
+      b[b.used++] = (int & 0x00000000FF000000) >> 24;
+      b[b.used++] = (int & 0x0000000000FF0000) >> 16;
+      b[b.used++] = (int & 0x000000000000FF00) >> 8;
+      b[b.used++] = (int & 0x00000000000000FF) >> 0;
+      break;
 
-  default:
-    throw new Error("Bad size");
+    default:
+      throw new Error("Bad size");
   }
 }
 
-function serializeShortString(b, string) {
-  if (typeof (string) != "string") {
+
+function serializeShortString (b, string) {
+  if (typeof(string) != "string") {
     throw new Error("param must be a string");
   }
   var byteLength = Buffer.byteLength(string, 'utf8');
@@ -555,15 +572,16 @@ function serializeShortString(b, string) {
   b.used += byteLength;
 }
 
-function serializeLongString(b, string) {
+
+function serializeLongString (b, string) {
   // we accept string, object, or buffer for this parameter.
   // in the case of string we serialize it to utf8.
-  if (typeof (string) == 'string') {
+  if (typeof(string) == 'string') {
     var byteLength = Buffer.byteLength(string, 'utf8');
     serializeInt(b, 4, byteLength);
     b.write(string, b.used, 'utf8');
     b.used += byteLength;
-  } else if (typeof (string) == 'object') {
+  } else if (typeof(string) == 'object') {
     serializeTable(b, string);
   } else {
     // data is Buffer
@@ -594,37 +612,29 @@ function isBigInt(value) {
   return value > 0xffffffff;
 }
 
-function getCode(dec) {
-  var hexArray = new Array("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F");
-
-
-
-
+function getCode(dec) { 
+  var hexArray = "0123456789ABCDEF".split('');
+  
   var code1 = Math.floor(dec / 16);
   var code2 = dec - code1 * 16;
-
-
-  var decToHex = hexArray[code2];
-
-
-  return (decToHex);
+  return hexArray[code2];
 }
 
 function isFloat(value)
 {
-  return value === +value && value!==(value|0);
+  return value === +value && value !== (value|0);
 }
 
-function serializeTable(b, object) {
-  if (typeof (object) != "object") {
+function serializeTable (b, object) {
+  if (typeof(object) != "object") {
     throw new Error("param must be an object");
   }
 
   // Save our position so that we can go back and write the length of this table
   // at the beginning of the packet (once we know how many entries there are).
   var lengthIndex = b.used;
-
   b.used += 4; // sizeof long
+
   var startIndex = b.used;
 
   for (var key in object) {
@@ -634,48 +644,48 @@ function serializeTable(b, object) {
 
     var value = object[key];
 
-    switch (typeof (value)) {
-    case 'string':
-      b[b.used++] = 'S'.charCodeAt(0);
-      serializeLongString(b, value);
-      break;
+    switch (typeof(value)) {
+      case 'string':
+        b[b.used++] = 'S'.charCodeAt(0);
+        serializeLongString(b, value);
+        break;
 
-    case 'number':
-      if (!isFloat(value)) {
-        if (isBigInt(value)) {
-          // 64-bit uint
-          b[b.used++] = 'l'.charCodeAt(0);
-          serializeInt(b, 8, value);
+      case 'number':
+        if (!isFloat(value)) {
+          if (isBigInt(value)) {
+            // 64-bit uint
+            b[b.used++] = 'l'.charCodeAt(0);
+            serializeInt(b, 8, value);
+          } else {
+            //32-bit uint
+            b[b.used++] = 'I'.charCodeAt(0);
+            serializeInt(b, 4, value);
+          }
         } else {
-          // 32-bit uint
-          b[b.used++] = 'I'.charCodeAt(0);
-          serializeInt(b, 4, value);
+          //64-bit float
+          b[b.used++] = 'd'.charCodeAt(0);
+          serializeFloat(b, 8, value);
         }
-      } else {
-        // 64-bit float
-        b[b.used++] = 'd'.charCodeAt(0);
-        serializeFloat(b, 8, value);
-      }
-      break;
+        break;
 
-    case 'boolean':
-      b[b.used++] = 't'.charCodeAt(0);
-      b[b.used++] = value;
-      break;
+      case 'boolean':
+        b[b.used++] = 't'charCodeAt(0);
+        b[b.used++] = value;
+        break;
 
-    default:
-      if (value instanceof Date) {
+      default:
+      if(value instanceof Date) {
         b[b.used++] = 'T'.charCodeAt(0);
-        serializeDate(b, value);
+        serializeDate(b.value);
       } else if (value instanceof Buffer) {
         b[b.used++] = 'a'.charCodeAt(0);
         serializeBuffer(b, value);
       } else {
-        if (typeof (value) == 'object') {
+        if(typeof(value) === 'object') {
           b[b.used++] = 'F'.charCodeAt(0);
           serializeTable(b, value);
         } else {
-          throw new Error('cannot serialize object: ' + typeof (value));
+          this.throwError("unsupported type in amqp table: " + typeof(value));
         }
       }
     }
@@ -689,13 +699,12 @@ function serializeTable(b, object) {
 }
 
 
-function serializeFields(buffer, fields, args, strict) {
+function serializeFields (buffer, fields, args, strict) {
   var bitField = 0;
   var bitIndex = 0;
   for (var i = 0; i < fields.length; i++) {
     var field = fields[i];
     var domain = field.domain;
-
     if (!(field.name in args)) {
       if (strict) {
         throw new Error("Missing field '" + field.name + "' of type '" + domain + "' while executing AMQP method '" + arguments.callee.caller.arguments[1].name + "'");
@@ -706,75 +715,77 @@ function serializeFields(buffer, fields, args, strict) {
     var param = args[field.name];
 
     //debug("domain: " + domain + " param: " + param);
+
     switch (domain) {
-    case 'bit':
-      if (typeof (param) != "boolean") {
-        throw new Error("Unmatched field " + JSON.stringify(field));
-      }
+      case 'bit':
+        if (typeof(param) != "boolean") {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
 
-      if (param) bitField |= (1 << bitIndex);
-      bitIndex++;
+        if (param) bitField |= (1 << bitIndex);
+        bitIndex++;
 
-      if (!fields[i + 1] || fields[i + 1].domain != 'bit') {
-        debug('SET bit field ' + field.name + ' 0x' + bitField.toString(16));
-        buffer[buffer.used++] = bitField;
-        bitField = 0;
-        bitIndex = 0;
-      }
-      break;
+        if (!fields[i+1] || fields[i+1].domain != 'bit') {
+          debug('SET bit field ' + field.name + ' 0x' + bitField.toString(16));
+          buffer[buffer.used++] = bitField;
+          bitField = 0;
+          bitIndex = 0;
+        }
+        break;
 
-    case 'octet':
-      if (typeof (param) != "number" || param > 0xFF) {
-        throw new Error("Unmatched field " + JSON.stringify(field));
-      }
-      buffer[buffer.used++] = param;
-      break;
+      case 'octet':
+        if (typeof(param) != "number" || param > 0xFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        buffer[buffer.used++] = param;
+        break;
 
-    case 'short':
-      if (typeof (param) != "number" || param > 0xFFFF) {
-        throw new Error("Unmatched field " + JSON.stringify(field));
-      }
-      serializeInt(buffer, 2, param);
-      break;
+      case 'short':
+        if (typeof(param) != "number" || param > 0xFFFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeInt(buffer, 2, param);
+        break;
 
-    case 'long':
-      if (typeof (param) != "number" || param > 0xFFFFFFFF) {
-        throw new Error("Unmatched field " + JSON.stringify(field));
-      }
-      serializeInt(buffer, 4, param);
-      break;
+      case 'long':
+        if (typeof(param) != "number" || param > 0xFFFFFFFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeInt(buffer, 4, param);
+        break;
 
-    case 'longlong':
-      serializeInt(buffer, 8, param);
-      break;
+      case 'longlong':
+        serializeInt(buffer, 8, param);
+        break;
 
-    case 'shortstr':
-      if (typeof (param) != "string" || param.length > 0xFF) {
-        throw new Error("Unmatched field " + JSON.stringify(field));
-      }
-      serializeShortString(buffer, param);
-      break;
+      case 'shortstr':
+        if (typeof(param) != "string" || param.length > 0xFF) {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeShortString(buffer, param);
+        break;
 
-    case 'longstr':
-      serializeLongString(buffer, param);
-      break;
+      case 'longstr':
+        serializeLongString(buffer, param);
+        break;
 
-    case 'table':
-      if (typeof (param) != "object") {
-        throw new Error("Unmatched field " + JSON.stringify(field));
-      }
-      serializeTable(buffer, param);
-      break;
+      case 'table':
+        if (typeof(param) != "object") {
+          throw new Error("Unmatched field " + JSON.stringify(field));
+        }
+        serializeTable(buffer, param);
+        break;
 
-    default:
-      throw new Error("Unknown domain value type " + domain);
+      default:
+        throw new Error("Unknown domain value type " + domain);
     }
   }
 }
 
 
 
-function Connection(options) {
+
+function Connection (options) {
   net.Stream.call(this);
 
   var self = this;
@@ -789,9 +800,7 @@ function Connection(options) {
 
   self.addListener('connect', function () {
     // channel 0 is the control channel.
-    self.channels = {
-      0: self
-    };
+    self.channels = {0:self};
     self.queues = {};
     self.exchanges = {};
 
@@ -824,7 +833,7 @@ function Connection(options) {
       debug("heartbeat");
     };
 
-    parser.onError = function (e) {
+    parser.onError = function(e) {
       self.end();
       self.emit("error", e);
       self.emit("close");
@@ -833,7 +842,7 @@ function Connection(options) {
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
-    self.write("AMQP" + String.fromCharCode(0, 0, 9, 1));
+    self.write("AMQP" + String.fromCharCode(0,0,9,1));
     state = 'handshake';
   });
 
@@ -852,13 +861,12 @@ sys.inherits(Connection, net.Stream);
 exports.Connection = Connection;
 
 
-var defaultOptions = {
-  host: 'localhost',
-  port: 5672,
-  login: 'guest',
-  password: 'guest',
-  vhost: '/'
-};
+var defaultOptions = { host: 'localhost'
+                     , port: 5672
+                     , login: 'guest'
+                     , password: 'guest'
+                     , vhost: '/'
+                     };
 
 
 exports.createConnection = function (options) {
@@ -869,7 +877,7 @@ exports.createConnection = function (options) {
 };
 
 Connection.prototype.setOptions = function (options) {
-  var o = {};
+  var o  = {};
   mixin(o, defaultOptions, options || {});
   this.options = o;
 };
@@ -883,6 +891,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
 
   // Channel 0 is the control channel. If not zero then deligate to
   // one of the channel objects.
+
   if (channel > 0) {
     if (!this.channels[channel]) {
       debug("Received message on untracked channel.");
@@ -896,75 +905,76 @@ Connection.prototype._onMethod = function (channel, method, args) {
   }
 
   // channel 0
+
   switch (method) {
     // 2. The server responds, after the version string, with the
     // 'connectionStart' method (contains various useless information)
-  case methods.connectionStart:
-    // We check that they're serving us AMQP 0-9
-    if (args.versionMajor != 0 && args.versionMinor != 9) {
-      this.end();
-      this.emit('error', new Error("Bad server version"));
-      return;
-    }
-    this.serverProperties = args.serverProperties;
-    // 3. Then we reply with StartOk, containing our useless information.
-    this._sendMethod(0, methods.connectionStartOk, {
-      clientProperties: {
-        version: '0.0.1',
-        platform: 'node-' + process.version,
-        product: 'node-amqp'
-      },
-      mechanism: 'AMQPLAIN',
-      response: {
-        LOGIN: this.options.login,
-        PASSWORD: this.options.password
-      },
-      locale: 'en_US'
-    });
-    break;
+    case methods.connectionStart:
+      // We check that they're serving us AMQP 0-9
+      if (args.versionMajor != 0 && args.versionMinor != 9) {
+        this.end();
+        this.emit('error', new Error("Bad server version"));
+        return;
+      }
+      this.serverProperties = args.serverProperties;
+      // 3. Then we reply with StartOk, containing our useless information.
+      this._sendMethod(0, methods.connectionStartOk,
+          { clientProperties:
+            { version: '0.0.1'
+            , platform: 'node-' + process.version
+            , product: 'node-amqp'
+            }
+          , mechanism: 'AMQPLAIN'
+          , response:
+            { LOGIN: this.options.login
+            , PASSWORD: this.options.password
+            }
+          , locale: 'en_US'
+          });
+      break;
 
     // 4. The server responds with a connectionTune request
-  case methods.connectionTune:
-    // 5. We respond with connectionTuneOk
-    this._sendMethod(0, methods.connectionTuneOk, {
-      channelMax: 0,
-      frameMax: maxFrameBuffer,
-      heartbeat: this.options.heartbeat || 0
-    });
-    // 6. Then we have to send a connectionOpen request
-    this._sendMethod(0, methods.connectionOpen, {
-      virtualHost: this.options.vhost
-      // , capabilities: ''
-      // , insist: true
-      ,
-      reserved1: '',
-      reserved2: true
-    });
-    break;
+    case methods.connectionTune:
+      // 5. We respond with connectionTuneOk
+      this._sendMethod(0, methods.connectionTuneOk,
+          { channelMax: 0
+          , frameMax: maxFrameBuffer
+          , heartbeat: this.options.heartbeat || 0
+          });
+      // 6. Then we have to send a connectionOpen request
+      this._sendMethod(0, methods.connectionOpen,
+          { virtualHost: this.options.vhost
+          // , capabilities: ''
+          // , insist: true
+          , reserved1: ''
+          , reserved2: true
+          });
+      break;
 
 
-  case methods.connectionOpenOk:
-    // 7. Finally they respond with connectionOpenOk
-    // Whew! That's why they call it the Advanced MQP.
-    this.emit('ready');
-    break;
+    case methods.connectionOpenOk:
+      // 7. Finally they respond with connectionOpenOk
+      // Whew! That's why they call it the Advanced MQP.
+      this.emit('ready');
+      break;
 
-  case methods.connectionClose:
-    var e = new Error(args.replyText);
-    e.code = args.replyCode;
-    if (!this.listeners('close').length) {
-      sys.puts('Unhandled connection error: ' + args.replyText);
-    }
-    this.destroy(e);
-    break;
+    case methods.connectionClose:
+      var e = new Error(args.replyText);
+      e.code = args.replyCode;
+      if (!this.listeners('close').length) {
+        sys.puts('Unhandled connection error: ' + args.replyText);
+      }
+      this.destroy(e);
+      break;
 
-  default:
-    throw new Error("Uncaught method '" + method.name + "' with args " + JSON.stringify(args));
+    default:
+      throw new Error("Uncaught method '" + method.name + "' with args " +
+          JSON.stringify(args));
   }
 };
 
-Connection.prototype.heartbeat = function () {
-  this.write(new Buffer([8, 0, 0, 0, 0, 0, 0, 206]));
+Connection.prototype.heartbeat = function() {
+  this.write(new Buffer([8,0,0,0,0,0,0,206]));
 };
 
 Connection.prototype._sendMethod = function (channel, method, args) {
@@ -973,16 +983,19 @@ Connection.prototype._sendMethod = function (channel, method, args) {
   b.used = 0;
 
   b[b.used++] = 1; // constants.frameMethod
+
   serializeInt(b, 2, channel);
 
   var lengthIndex = b.used;
 
   serializeInt(b, 4, 42); // replace with actual length.
+
   var startIndex = b.used;
 
 
   serializeInt(b, 2, method.classIndex); // short, classId
   serializeInt(b, 2, method.methodIndex); // short, methodId
+
   serializeFields(b, method.fields, args, true);
 
   var endIndex = b.used;
@@ -993,9 +1006,11 @@ Connection.prototype._sendMethod = function (channel, method, args) {
   b.used = endIndex;
 
   b[b.used++] = 206; // constants.frameEnd;
+
   var c = b.slice(0, b.used);
 
   //debug("sending frame: " + c);
+
   this.write(c);
 };
 
@@ -1017,41 +1032,44 @@ Connection.prototype._sendMethod = function (channel, method, args) {
 // - userId
 // - appId
 // - clusterId
-
-
-function sendHeader(connection, channel, size, properties) {
+function sendHeader (connection, channel, size, properties) {
   var b = new Buffer(maxFrameBuffer); // FIXME allocating too much.
-  // use freelist?
+                                      // use freelist?
   b.used = 0;
 
   var classInfo = classes[60]; // always basic class.
+
   // 7 OCTET FRAME HEADER
+
   b[b.used++] = 2; // constants.frameHeader
+
   serializeInt(b, 2, channel);
 
   var lengthStart = b.used;
 
-  serializeInt(b, 4, 0 /*dummy*/ ); // length
+  serializeInt(b, 4, 0 /*dummy*/); // length
+
   var bodyStart = b.used;
 
   // HEADER'S BODY
-  serializeInt(b, 2, classInfo.index); // class 60 for Basic
-  serializeInt(b, 2, 0); // weight, always 0 for rabbitmq
-  serializeInt(b, 8, size); // byte size of body
+
+  serializeInt(b, 2, classInfo.index);   // class 60 for Basic
+  serializeInt(b, 2, 0);                 // weight, always 0 for rabbitmq
+  serializeInt(b, 8, size);              // byte size of body
+
   // properties - first propertyFlags
-  var props = {
-    'contentType': 'application/octet-stream'
-  };
+  var props = {'contentType': 'application/octet-stream'};
   mixin(props, properties);
   var propertyFlags = 0;
   for (var i = 0; i < classInfo.fields.length; i++) {
-    if (props[classInfo.fields[i].name]) propertyFlags |= 1 << (15 - i);
+    if (props[classInfo.fields[i].name]) propertyFlags |= 1 << (15-i);
   }
   serializeInt(b, 2, propertyFlags);
   // now the actual properties.
   serializeFields(b, classInfo.fields, props, false);
 
   //serializeTable(b, props);
+
   var bodyEnd = b.used;
 
   // Go back to the header and write in the length now that we know it.
@@ -1060,10 +1078,13 @@ function sendHeader(connection, channel, size, properties) {
   b.used = bodyEnd;
 
   // 1 OCTET END
+
   b[b.used++] = 206; // constants.frameEnd;
+
   var s = b.slice(0, b.used);
 
   //debug('header sent: ' + JSON.stringify(s));
+
   connection.write(s);
 }
 
@@ -1074,13 +1095,15 @@ Connection.prototype._sendBody = function (channel, body, properties) {
   // - body is instance of Buffer
   // - body is an object and its JSON representation is sent
   // Does not handle the case for streaming bodies.
-  if (typeof (body) == 'string') {
+  if (typeof(body) == 'string') {
     var length = Buffer.byteLength(body);
     //debug('send message length ' + length);
+
     sendHeader(this, channel, length, properties);
 
     //debug('header sent');
-    var b = new Buffer(7 + length + 1);
+
+    var b = new Buffer(7+length+1);
     b.used = 0;
     b[b.used++] = 3; // constants.frameBody
     serializeInt(b, 2, channel);
@@ -1093,6 +1116,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     return this.write(b);
 
     //debug('body sent: ' + JSON.stringify(b));
+
   } else if (body instanceof Buffer) {
     sendHeader(this, channel, body.length, properties);
 
@@ -1111,13 +1135,11 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 
     debug('sending json: ' + jsonBody);
 
-    properties = mixin({
-      contentType: 'text/json'
-    }, properties);
+    properties = mixin({contentType: 'text/json' }, properties);
 
     sendHeader(this, channel, length, properties);
 
-    var b = new Buffer(7 + length + 1);
+    var b = new Buffer(7+length+1);
     b.used = 0;
 
     b[b.used++] = 3; // constants.frameBody
@@ -1138,7 +1160,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - durable (boolean)
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
-Connection.prototype.queue = function (name /* options, openCallback */ ) {
+Connection.prototype.queue = function (name /* options, openCallback */) {
   if (name != '' && this.queues[name]) return this.queues[name];
   this.channelCounter++;
   var channel = this.channelCounter;
@@ -1152,7 +1174,8 @@ Connection.prototype.queue = function (name /* options, openCallback */ ) {
   }
 
   if (this.queues[name]) { // already declared? callback anyway
-    if (callback) callback(this.queues[name]);
+    if (callback) 
+      callback(this.queues[name]);
     return this.queues[name];
   }
 
@@ -1186,7 +1209,8 @@ Connection.prototype.exchange = function (name, options, openCallback) {
   if (name != '' && options.type === undefined) options.type = 'topic';
 
   if (this.exchanges[name]) { // already declared? callback anyway
-    if (openCallback) openCallback(this.exchanges[name]);
+    if (openCallback) 
+      openCallback(this.exchanges[name]);
     return this.exchanges[name];
   }
 
@@ -1201,7 +1225,7 @@ Connection.prototype.exchange = function (name, options, openCallback) {
 // Publishes a message to the default exchange.
 Connection.prototype.publish = function (routingKey, body, options) {
   if (!this._defaultExchange) this._defaultExchange = this.exchange();
-  return this._defaultExchange.publish(routingKey, body, options);
+    return this._defaultExchange.publish(routingKey, body, options);
 };
 
 
@@ -1224,17 +1248,15 @@ Connection.prototype.publish = function (routingKey, body, options) {
 // - userId
 // - appId
 // - clusterId
-
-
-function Message(queue, args) {
+function Message (queue, args) {
   events.EventEmitter.call(this);
 
   this.queue = queue;
 
   this.deliveryTag = args.deliveryTag;
   this.redelivered = args.redelivered;
-  this.exchange = args.exchange;
-  this.routingKey = args.routingKey;
+  this.exchange    = args.exchange;
+  this.routingKey  = args.routingKey;
   this.consumerTag = args.consumerTag;
 }
 sys.inherits(Message, events.EventEmitter);
@@ -1244,40 +1266,35 @@ sys.inherits(Message, events.EventEmitter);
 // Set first arg to 'true' to acknowledge this and all previous messages
 // received on this queue.
 Message.prototype.acknowledge = function (all) {
-  this.queue.connection._sendMethod(this.queue.channel, methods.basicAck, {
-    reserved1: 0,
-    deliveryTag: this.deliveryTag,
-    multiple: all ? true : false
-  });
+  this.queue.connection._sendMethod(this.queue.channel, methods.basicAck,
+      { reserved1: 0
+      , deliveryTag: this.deliveryTag
+      , multiple: all ? true : false
+      });
 };
 
 
 // This class is not exposed to the user. Queue and Exchange are subclasses
 // of Channel. This just provides a task queue.
-
-
-function Channel(connection, channel) {
+function Channel (connection, channel) {
   events.EventEmitter.call(this);
 
   this.channel = channel;
   this.connection = connection;
   this._tasks = [];
 
-  this.connection._sendMethod(channel, methods.channelOpen, {
-    reserved1: ""
-  });
+  this.connection._sendMethod(channel, methods.channelOpen, {reserved1: ""});
 }
 sys.inherits(Channel, events.EventEmitter);
 
 
 Channel.prototype._taskPush = function (reply, cb) {
   var promise = new Promise();
-  this._tasks.push({
-    promise: promise,
-    reply: reply,
-    sent: false,
-    cb: cb
-  });
+  this._tasks.push({ promise: promise
+                   , reply: reply
+                   , sent: false
+                   , cb: cb
+                   });
   this._tasksFlush();
   return promise;
 };
@@ -1293,7 +1310,7 @@ Channel.prototype._tasksFlush = function () {
     if (!task.reply) {
       // if we don't expect a reply, just delete it now
       this._tasks.splice(i, 1);
-      i = i - 1;
+      i = i-1;
     }
   }
 };
@@ -1314,103 +1331,96 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
   return false;
 };
 
-Channel.prototype._onChannelMethod = function (channel, method, args) {
-  switch (method) {
-  case methods.channelCloseOk:
-    delete this.connection.channels[this.channel]
-    this.state = 'closed'
-  default:
-    this._onMethod(channel, method, args);
-  }
+Channel.prototype._onChannelMethod = function(channel, method, args) {
+    switch (method) {
+    case methods.channelCloseOk:
+        delete this.connection.channels[this.channel]
+        this.state = 'closed'
+    default:
+        this._onMethod(channel, method, args);
+    }
 }
 
-Channel.prototype.close = function () {
+Channel.prototype.close = function() { 
   this.state = 'closing';
-  this.connection._sendMethod(this.channel, methods.channelClose, {
-    'replyText': 'Goodbye from node',
-    'replyCode': 200,
-    'classId': 0,
-    'methodId': 0
-  });
+    this.connection._sendMethod(this.channel, methods.channelClose,
+                                {'replyText': 'Goodbye from node',
+                                 'replyCode': 200,
+                                 'classId': 0,
+                                 'methodId': 0});
 }
 
-function Queue(connection, channel, name, options, callback) {
+function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
 
   this.name = name;
   this.consumerTagListeners = {};
-
+  
   var self = this;
-
+  
   // route messages to subscribers based on consumerTag
-  this.on('rawMessage', function (message) {
+  this.on('rawMessage', function(message) {
     if (message.consumerTag && self.consumerTagListeners[message.consumerTag]) {
       self.consumerTagListeners[message.consumerTag](message);
     }
   });
-
-  this.options = {
-    autoDelete: true
-  };
+  
+  this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
 
   this._openCallback = callback;
 }
 sys.inherits(Queue, Channel);
 
-Queue.prototype.subscribeRaw = function ( /* options, messageListener */ ) {
+Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   var self = this;
 
-  var messageListener = arguments[arguments.length - 1];
-  var consumerTag = 'node-amqp-' + process.pid + '-' + Math.random();
+  var messageListener = arguments[arguments.length-1];
+  var consumerTag = 'node-amqp-'+process.pid+'-'+Math.random();
   this.consumerTagListeners[consumerTag] = messageListener;
 
-  var options = {};
+  var options = { };
   if (typeof arguments[0] == 'object') {
     mixin(options, arguments[0]);
   }
 
   return this._taskPush(methods.basicConsumeOk, function () {
-    self.connection._sendMethod(self.channel, methods.basicConsume, {
-      reserved1: 0,
-      queue: self.name,
-      consumerTag: consumerTag,
-      noLocal: options.noLocal ? true : false,
-      noAck: options.noAck ? true : false,
-      exclusive: options.exclusive ? true : false,
-      noWait: false,
-      "arguments": {}
-    });
+    self.connection._sendMethod(self.channel, methods.basicConsume,
+        { reserved1: 0
+        , queue: self.name
+        , consumerTag: consumerTag
+        , noLocal: options.noLocal ? true : false
+        , noAck: options.noAck ? true : false
+        , exclusive: options.exclusive ? true : false
+        , noWait: false
+        , "arguments": {}
+        });
   });
 };
 
 
-Queue.prototype.subscribe = function ( /* options, messageListener */ ) {
+Queue.prototype.subscribe = function (/* options, messageListener */) {
   var self = this;
 
-  var messageListener = arguments[arguments.length - 1];
-  if (typeof (messageListener) !== "function") messageListener = null;
+  var messageListener = arguments[arguments.length-1];
+  if(typeof(messageListener) !== "function") messageListener = null;
 
-  var options = {
-    ack: false
-  };
+  var options = { ack: false };
   if (typeof arguments[0] == 'object') {
     if (arguments[0].ack) options.ack = true;
   }
 
   if (options.ack) {
-    self.connection._sendMethod(self.channel, methods.basicQos, {
-      reserved1: 0,
-      prefetchSize: 0,
-      prefetchCount: 1,
-      global: false
-    });
+    self.connection._sendMethod(self.channel, methods.basicQos,
+        { reserved1: 0
+        , prefetchSize: 0
+        , prefetchCount: 1
+        , global: false
+        });
   }
 
   // basic consume
-  var rawOptions = {
-    noAck: !options.ack
-  };
+  var rawOptions = { noAck: !options.ack };
   return this.subscribeRaw(rawOptions, function (m) {
     var isJSON = (m.contentType == 'text/json') || (m.contentType == 'application/json');
 
@@ -1439,15 +1449,11 @@ Queue.prototype.subscribe = function ( /* options, messageListener */ ) {
       if (isJSON) {
         json = JSON.parse(b);
       } else {
-        json = {
-          data: b,
-          contentType: m.contentType
-        };
+        json = { data: b, contentType: m.contentType };
       }
 
       json._routingKey = m.routingKey;
       json._deliveryTag = m.deliveryTag;
-
 
       var headers = {};
       for(var i in this.headers)
@@ -1480,12 +1486,13 @@ Queue.prototype.shift = function () {
 };
 
 
-Queue.prototype.bind = function ( /* [exchange,] routingKey */ ) {
+Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   var self = this;
 
   // The first argument, exchange is optional.
   // If not supplied the connection will use the 'amq.topic'
   // exchange.
+
   var exchange, routingKey;
 
   if (arguments.length == 2) {
@@ -1499,28 +1506,29 @@ Queue.prototype.bind = function ( /* [exchange,] routingKey */ ) {
 
   var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
 
-  if (exchangeName in self.connection.exchanges) {
+  if(exchangeName in self.connection.exchanges) {
     this.exchange = self.connection.exchanges[exchangeName];
     this.exchange.binds++;
   }
 
-  self.connection._sendMethod(self.channel, methods.queueBind, {
-    reserved1: 0,
-    queue: self.name,
-    exchange: exchangeName,
-    routingKey: routingKey,
-    noWait: false,
-    "arguments": {}
-  });
+  self.connection._sendMethod(self.channel, methods.queueBind,
+      { reserved1: 0
+      , queue: self.name
+      , exchange: exchangeName
+      , routingKey: routingKey
+      , noWait: false
+      , "arguments": {}
+      });
 
 };
 
-Queue.prototype.unbind = function ( /* [exchange,] routingKey */ ) {
+Queue.prototype.unbind = function (/* [exchange,] routingKey */) {
   var self = this;
 
   // The first argument, exchange is optional.
   // If not supplied the connection will use the default 'amq.topic'
   // exchange.
+
   var exchange, routingKey;
 
   if (arguments.length == 2) {
@@ -1534,23 +1542,24 @@ Queue.prototype.unbind = function ( /* [exchange,] routingKey */ ) {
 
   return this._taskPush(methods.queueUnbindOk, function () {
     var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
-    self.connection._sendMethod(self.channel, methods.queueUnbind, {
-      reserved1: 0,
-      queue: self.name,
-      exchange: exchangeName,
-      routingKey: routingKey,
-      noWait: false,
-      "arguments": {}
-    });
+    self.connection._sendMethod(self.channel, methods.queueUnbind,
+        { reserved1: 0
+        , queue: self.name
+        , exchange: exchangeName
+        , routingKey: routingKey
+        , noWait: false
+        , "arguments": {}
+        });
   });
 };
 
-Queue.prototype.bind_headers = function ( /* [exchange,] matchingPairs */ ) {
+Queue.prototype.bind_headers = function (/* [exchange,] matchingPairs */) {
   var self = this;
 
   // The first argument, exchange is optional.
   // If not supplied the connection will use the default 'amq.headers'
   // exchange.
+
   var exchange, matchingPairs;
 
   if (arguments.length == 2) {
@@ -1564,14 +1573,14 @@ Queue.prototype.bind_headers = function ( /* [exchange,] matchingPairs */ ) {
 
   return this._taskPush(methods.queueBindOk, function () {
     var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
-    self.connection._sendMethod(self.channel, methods.queueBind, {
-      reserved1: 0,
-      queue: self.name,
-      exchange: exchangeName,
-      routingKey: '',
-      noWait: false,
-      "arguments": matchingPairs
-    });
+    self.connection._sendMethod(self.channel, methods.queueBind,
+        { reserved1: 0
+        , queue: self.name
+        , exchange: exchangeName
+        , routingKey: ''
+        , noWait: false
+        , "arguments": matchingPairs
+        });
   });
 };
 
@@ -1583,17 +1592,17 @@ Queue.prototype.destroy = function (options) {
 
   return this._taskPush(methods.queueDeleteOk, function () {
     self.connection.queueClosed(self.name);
-    if ('exchange' in self) {
+    if('exchange' in self) {
       self.exchange.binds--;
       self.exchange.cleanup();
     }
-    self.connection._sendMethod(self.channel, methods.queueDelete, {
-      reserved1: 0,
-      queue: self.name,
-      ifUnused: options.ifUnused ? true : false,
-      ifEmpty: options.ifEmpty ? true : false,
-      noWait: false,
-      "arguments": {}
+    self.connection._sendMethod(self.channel, methods.queueDelete,
+        { reserved1: 0
+        , queue: self.name
+        , ifUnused: options.ifUnused ? true : false
+        , ifEmpty: options.ifEmpty ? true : false
+        , noWait: false
+        , "arguments": {}
     });
   });
 };
@@ -1604,44 +1613,44 @@ Queue.prototype._onMethod = function (channel, method, args) {
   if (this._handleTaskReply.apply(this, arguments)) return;
 
   switch (method) {
-  case methods.channelOpenOk:
-    this.connection._sendMethod(channel, methods.queueDeclare, {
-      reserved1: 0,
-      queue: this.name,
-      passive: this.options.passive ? true : false,
-      durable: this.options.durable ? true : false,
-      exclusive: this.options.exclusive ? true : false,
-      autoDelete: this.options.autoDelete ? true : false,
-      noWait: false,
-      "arguments": {}
-    });
-    this.state = "declare queue";
-    break;
+    case methods.channelOpenOk:
+      this.connection._sendMethod(channel, methods.queueDeclare,
+          { reserved1: 0
+          , queue: this.name
+          , passive: this.options.passive ? true : false
+          , durable: this.options.durable ? true : false
+          , exclusive: this.options.exclusive ? true : false
+          , autoDelete: this.options.autoDelete ? true : false
+          , noWait: false
+          , "arguments": {}
+          });
+      this.state = "declare queue";
+      break;
 
-  case methods.queueDeclareOk:
-    this.state = 'open';
-    this.name = args.queue;
-    this.connection.queues[this.name] = this;
-    if (this._openCallback) {
-      this._openCallback(this);
-      this._openCallback = null;
-    }
-    // TODO this is legacy interface, remove me
-    this.emit('open', args.queue, args.messageCount, args.consumerCount);
-    break;
+    case methods.queueDeclareOk:
+      this.state = 'open';
+      this.name = args.queue;
+      this.connection.queues[this.name] = this;
+      if (this._openCallback) {
+        this._openCallback(this);
+        this._openCallback = null;
+      }
+      // TODO this is legacy interface, remove me
+      this.emit('open', args.queue, args.messageCount, args.consumerCount);
+      break;
 
-  case methods.basicConsumeOk:
-    debug('basicConsumeOk', sys.inspect(args, null));
-    break;
+    case methods.basicConsumeOk:
+      debug('basicConsumeOk', sys.inspect(args, null));
+      break;
 
-  case methods.queueBindOk:
-    break;
+    case methods.queueBindOk:
+      break;
 
-  case methods.basicQosOk:
-    break;
+    case methods.basicQosOk:
+      break;
 
-  case methods.channelClose:
-    this.state = "closed";
+    case methods.channelClose:
+      this.state = "closed";
 /*
       var e = new Error(args.replyText);
       e.code = args.replyCode;
@@ -1650,23 +1659,24 @@ Queue.prototype._onMethod = function (channel, method, args) {
       }
       this.emit('error', e);
 */
-    this.emit('close');
-    break;
+      this.emit('close');
+      break;
+    
+    case methods.channelCloseOk:
+      delete this.connection.queues[this.name]
+      this.emit('close')
+      break;
+    
+    case methods.basicDeliver:
+      this.currentMessage = new Message(this, args);
+      break;
 
-  case methods.channelCloseOk:
-    delete this.connection.queues[this.name]
-    this.emit('close')
-    break;
+    case methods.queueDeleteOk:
+      break;
 
-  case methods.basicDeliver:
-    this.currentMessage = new Message(this, args);
-    break;
-
-  case methods.queueDeleteOk:
-    break;
-
-  default:
-    throw new Error("Uncaught method '" + method.name + "' with args " + JSON.stringify(args) + "; tasks = " + JSON.stringify(this._tasks));
+    default:
+      throw new Error("Uncaught method '" + method.name + "' with args " +
+          JSON.stringify(args) + "; tasks = " + JSON.stringify(this._tasks));
   }
 
   this._tasksFlush();
@@ -1692,13 +1702,11 @@ Queue.prototype._onContent = function (channel, data) {
 
 
 
-function Exchange(connection, channel, name, options, openCallback) {
+function Exchange (connection, channel, name, options, openCallback) {
   Channel.call(this, connection, channel);
   this.name = name;
   this.binds = 0; // keep track of queues bound
-  this.options = options || {
-    autoDelete: true
-  };
+  this.options = options || { autoDelete: true};
   this._openCallback = openCallback;
 }
 sys.inherits(Exchange, Channel);
@@ -1710,59 +1718,60 @@ Exchange.prototype._onMethod = function (channel, method, args) {
   if (this._handleTaskReply.apply(this, arguments)) return true;
 
   switch (method) {
-  case methods.channelOpenOk:
-    // Pre-baked exchanges don't need to be declared
-    if (/^$|(amq\.)/.test(this.name)) {
+    case methods.channelOpenOk:
+      // Pre-baked exchanges don't need to be declared
+      if (/^$|(amq\.)/.test(this.name)) {
+        this.state = 'open';
+        this.emit('open');
+      } else {
+        this.connection._sendMethod(channel, methods.exchangeDeclare,
+            { reserved1:  0
+            , reserved2:  false
+            , reserved3:  false
+            , exchange:   this.name
+            , type:       this.options.type || 'topic'
+            , passive:    this.options.passive    ? true : false
+            , durable:    this.options.durable    ? true : false
+            , autoDelete: this.options.autoDelete ? true : false
+            , internal:   this.options.internal   ? true : false
+            , noWait:     false
+            , "arguments": {}
+            });
+        this.state = 'declaring';
+      }
+      break;
+
+    case methods.exchangeDeclareOk:
       this.state = 'open';
       this.emit('open');
-    } else {
-      this.connection._sendMethod(channel, methods.exchangeDeclare, {
-        reserved1: 0,
-        reserved2: false,
-        reserved3: false,
-        exchange: this.name,
-        type: this.options.type || 'topic',
-        passive: this.options.passive ? true : false,
-        durable: this.options.durable ? true : false,
-        autoDelete: this.options.autoDelete ? true : false,
-        internal: this.options.internal ? true : false,
-        noWait: false,
-        "arguments": {}
-      });
-      this.state = 'declaring';
-    }
-    break;
+      if (this._openCallback) {
+        this._openCallback(this);
+        this._openCallback = null;
+      }
+      break;
 
-  case methods.exchangeDeclareOk:
-    this.state = 'open';
-    this.emit('open');
-    if (this._openCallback) {
-      this._openCallback(this);
-      this._openCallback = null;
-    }
-    break;
+    case methods.channelClose:
+      this.state = "closed";
+      var e = new Error(args.replyText);
+      e.code = args.replyCode;
+      if (!this.listeners('close').length) {
+        sys.puts('Unhandled channel error: ' + args.replyText);
+      }
+      this.emit('close', e);
+      break;
 
-  case methods.channelClose:
-    this.state = "closed";
-    var e = new Error(args.replyText);
-    e.code = args.replyCode;
-    if (!this.listeners('close').length) {
-      sys.puts('Unhandled channel error: ' + args.replyText);
-    }
-    this.emit('close', e);
-    break;
+    case methods.channelCloseOk:
+      delete this.connection.exchanges[this.name]
+      this.emit('close')
+      break;
 
-  case methods.channelCloseOk:
-    delete this.connection.exchanges[this.name]
-    this.emit('close')
-    break;
+    case methods.basicReturn:
+      sys.puts("Warning: Uncaught basicReturn: "+JSON.stringify(args));
+      break;
 
-  case methods.basicReturn:
-    sys.puts("Warning: Uncaught basicReturn: " + JSON.stringify(args));
-    break;
-
-  default:
-    throw new Error("Uncaught method '" + method.name + "' with args " + JSON.stringify(args));
+    default:
+      throw new Error("Uncaught method '" + method.name + "' with args " +
+          JSON.stringify(args));
   }
 
   this._tasksFlush();
@@ -1792,13 +1801,13 @@ Exchange.prototype.publish = function (routingKey, data, options) {
 
   var self = this;
   return this._taskPush(null, function () {
-    self.connection._sendMethod(self.channel, methods.basicPublish, {
-      reserved1: 0,
-      exchange: self.name,
-      routingKey: routingKey,
-      mandatory: options.mandatory ? true : false,
-      immediate: options.immediate ? true : false
-    });
+    self.connection._sendMethod(self.channel, methods.basicPublish,
+        { reserved1: 0
+        , exchange:   self.name
+        , routingKey: routingKey
+        , mandatory:  options.mandatory ? true : false
+        , immediate:  options.immediate ? true : false
+        });
     // This interface is probably not appropriate for streaming large files.
     // (Of course it's arguable about whether AMQP is the appropriate
     // transport for large files.) The content header wants to know the size
@@ -1811,9 +1820,9 @@ Exchange.prototype.publish = function (routingKey, data, options) {
 };
 
 // do any necessary cleanups eg. after queue destruction  
-Exchange.prototype.cleanup = function () {
-  if (this.binds == 0) // don't keep reference open if unused
-  this.connection.exchangeClosed(this.name);
+Exchange.prototype.cleanup = function() {
+	if (this.binds == 0) // don't keep reference open if unused
+    	this.connection.exchangeClosed(this.name);
 };
 
 
@@ -1821,11 +1830,11 @@ Exchange.prototype.destroy = function (ifUnused) {
   var self = this;
   return this._taskPush(methods.exchangeDeleteOk, function () {
     self.connection.exchangeClosed(self.name);
-    self.connection._sendMethod(self.channel, methods.exchangeDelete, {
-      reserved1: 0,
-      exchange: self.name,
-      ifUnused: ifUnused ? true : false,
-      noWait: false
-    });
+    self.connection._sendMethod(self.channel, methods.exchangeDelete,
+        { reserved1: 0
+        , exchange: self.name
+        , ifUnused: ifUnused ? true : false
+        , noWait: false
+        });
   });
 };
