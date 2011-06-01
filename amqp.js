@@ -511,8 +511,8 @@ function serializeFloat(b, size, value, bigEndian) {
 }
 
 function serializeInt (b, size, int) {
-  if (b.used + size >= b.length) {
-    this.throwError("write out of bounds");
+  if (b.used + size > b.length) {
+    throw new Error("write out of bounds");
   }
 
   // Only 4 cases - just going to be explicit instead of looping.
