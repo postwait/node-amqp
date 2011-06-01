@@ -265,7 +265,7 @@ function localParseInt(buffer, size) {
              (buffer[buffer.read++] << 8)  + buffer[buffer.read++];
 
     default:
-      this.throwError("cannot parse ints of that size");
+      throw new Error("cannot parse ints of that size");
   }
 }
 
@@ -669,7 +669,7 @@ function serializeTable (b, object) {
         break;
 
       case 'boolean':
-        b[b.used++] = 't'charCodeAt(0);
+        b[b.used++] = 't'.charCodeAt(0);
         b[b.used++] = value;
         break;
 
