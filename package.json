@@ -13,6 +13,7 @@
   , { "name" : "Stéphane Alnet" }
   , { "name" : "Alen Mujezinovic" }
   , { "name" : "Michael Bridgen" }
+  , { "name" : "Chris Bond" }
   ]
 , "repository" :
   { "type" : "git"
