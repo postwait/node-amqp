@@ -610,6 +610,11 @@ function getCode(dec) {
   return (decToHex);
 }
 
+function isFloat(value)
+{
+  return value === +value && value!==(value|0);
+}
+
 function serializeTable(b, object) {
   if (typeof (object) != "object") {
     throw new Error("param must be an object");
@@ -636,7 +641,7 @@ function serializeTable(b, object) {
       break;
 
     case 'number':
-      if (value === +value && value!==(value|0)) {
+      if (!isFloat(value)) {
         if (isBigInt(value)) {
           // 64-bit uint
           b[b.used++] = 'l'.charCodeAt(0);
