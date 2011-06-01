@@ -166,8 +166,8 @@ AMQPParser.prototype.execute = function (data) {
 
           this.frameHeader.read = 0;
           this.frameType = this.frameHeader[this.frameHeader.read++];
-          this.frameChannel = locallocalParseInt(this.frameHeader, 2);
-          this.frameSize = locallocalParseInt(this.frameHeader, 4);
+          this.frameChannel = localParseInt(this.frameHeader, 2);
+          this.frameSize = localParseInt(this.frameHeader, 4);
 
           this.frameHeader.used = 0; // for reuse
 
