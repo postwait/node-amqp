@@ -307,7 +307,7 @@ function parseTable (buffer) {
         break;
 
       case 'I'.charCodeAt(0):
-        table[field] = parseSignedInteger(buffer);
+        table[field] = parseInt(buffer, 4);
         break;
 
       case 'D'.charCodeAt(0):
@@ -350,9 +350,12 @@ function parseTable (buffer) {
         table[field] = (parseInt(buffer, 1) > 0);
         break;
 
-      case 'a'.charCodeAt(0):
+      case 'x'.charCodeAt(0):
         var len = parseInt(buffer, 4);
-        table[field] = buffer.splice(buffer.read, buffer.read + len);
+        var buf = new Buffer(len);
+        buffer.copy(buf, 0, buffer.read, buffer.read + len);
+        buffer.read += len;
+        table[field] = buf;
         break;
 
       default:
@@ -490,13 +493,13 @@ function serializeFloat(b, size, value, bigEndian) {
 
   switch(size) {
   case 4:
-    var x = jp.pack('f', [value]);
+    var x = jp.Pack('f', [value]);
     for (var i = 0; i < x.length; ++i)
       b[b.used++] = x[i];
     break;
   
   case 8:
-    var x = jp.pack('d', [value]);
+    var x = jp.Pack('d', [value]);
     for (var i = 0; i < x.length; ++i)
       b[b.used++] = x[i];
     break;
@@ -594,10 +597,8 @@ function serializeDate(b, date) {
 
 function serializeBuffer(b, buffer) {
   serializeInt(b, 4, buffer.length);
-
-  for (var i = 0; i < buffer.length; ++i) {
-    b[b.used++] = buffer[i];
-  }
+  buffer.copy(b, b.used, 0);
+  b.used += buffer.length;
 }
 
 function serializeBase64(b, buffer) {
@@ -672,9 +673,9 @@ function serializeTable (b, object) {
       default:
       if(value instanceof Date) {
         b[b.used++] = 'T'.charCodeAt(0);
-        serializeDate(b.value);
+        serializeDate(b, value);
       } else if (value instanceof Buffer) {
-        b[b.used++] = 'a'.charCodeAt(0);
+        b[b.used++] = 'x'.charCodeAt(0);
         serializeBuffer(b, value);
       } else {
         if(typeof(value) === 'object') {
