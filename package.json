@@ -1,7 +1,7 @@
 { "name" : "amqp"
 , "description" : "AMQP driver for node"
 , "keywords" : [ "amqp" ]
-, "version" : "0.0.6"
+, "version" : "0.0.7"
 , "preferGlobal" : true
 , "author" : { "name" : "Ryan Dahl" }
 , "contributors" :
