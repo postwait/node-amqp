@@ -10,10 +10,10 @@ connection.addListener('ready', function () {
 
   q.bind("#");
 
-  q.subscribe(function (msg, opt) {
+  q.subscribe(function (msg) {
     recvCount++;
 
-    switch (opt.routingKey) {
+    switch (msg._routingKey) {
       case 'message.msg1':
         assert.equal(1, msg.one);
         assert.equal(2, msg.two);
@@ -22,19 +22,16 @@ connection.addListener('ready', function () {
       case 'message.msg2':
         assert.equal('world', msg.hello);
         assert.equal('bar', msg.foo);
-        assert.equal('quux', opt.headers.baz);
         break;
 
       default:
-        throw new Error('unexpected routing key: ' + opt.routingKey);
+        throw new Error('unexpected routing key: ' + msg._routingKey);
     }
   })
   .addCallback(function () {
     puts("publishing 2 msg messages");
     connection.publish('message.msg1', {two:2, one:1});
-    connection.publish('message.msg2',
-                       {foo:'bar', hello: 'world'},
-                       { headers: {baz: 'quux'}});
+    connection.publish('message.msg2', {foo:'bar', hello: 'world'});
 
     setTimeout(function () {
       // wait one second to receive the message, then quit

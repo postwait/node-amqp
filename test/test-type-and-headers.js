@@ -13,14 +13,14 @@ connection.addListener('ready', function () {
   q.bind(exchange, "*")
 
   q.subscribeRaw(function (m) {
-    puts("--- Message (" + m.properties.deliveryTag + ", '" + m.properties.routingKey + "') ---");
-    puts("--- type: " + m.properties.type);
-    puts("--- headers: " + JSON.stringify(m.properties.headers));
+    puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+    puts("--- type: " + m.type);
+    puts("--- headers: " + JSON.stringify(m.headers));
 
     recvCount++;
 
-    assert.equal('typeProperty', m.properties.type);
-    assert.equal('fooHeader', m.properties.headers['foo']);
+    assert.equal('typeProperty', m.type);
+    assert.equal('fooHeader', m.headers['foo']);
   })
   .addCallback(function () {
     puts("publishing message");
