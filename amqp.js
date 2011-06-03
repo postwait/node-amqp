@@ -1449,10 +1449,10 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
         json = { data: b, contentType: m.contentType };
       }
 
-      json._routingKey = m.routingKey;
-      json._deliveryTag = m.deliveryTag;
-
-      var headers = {};
+      var headers = {
+          routingKey: m.routingKey,
+          deliveryTag : m.deliveryTag
+      };
       for (var i in this.headers) {
         if(this.headers.hasOwnProperty(i)) {
           if(this.headers[i] instanceof Buffer)

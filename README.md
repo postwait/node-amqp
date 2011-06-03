@@ -113,8 +113,8 @@ Returns a reference to a queue. The options are
 
 An easy subscription command. It works like this
 
-    q.subscribe(function (message) {
-      puts('Got a message with routing key ' + message._routingKey);
+    q.subscribe(function (message, headers) {
+      puts('Got a message with routing key ' + headers.routingKey);
     });
 
 It will automatically acknowledge receipt of each message.

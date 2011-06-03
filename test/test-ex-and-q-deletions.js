@@ -38,12 +38,12 @@ connection.addListener('ready', function () {
             }, 1000);
           });
           
-          q1.subscribe(function (m) {
-            assert.equal('node-consumer-1', m._routingKey);
+          q1.subscribe(function (m, h) {
+            assert.equal('node-consumer-1', h.routingKey);
             recvCount++;
           });
-          q2.subscribe(function (m) {
-            assert.equal('node-consumer-2', m._routingKey);
+          q2.subscribe(function (m, h) {
+            assert.equal('node-consumer-2', h.routingKey);
             recvCount++;
           })
         });
