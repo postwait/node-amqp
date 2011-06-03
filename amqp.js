@@ -1,7 +1,8 @@
 var events = require('events'),
     sys = require('sys'),
     net = require('net'),
-    protocol = require('./amqp-definitions-0-8'),
+    protocol,
+    jspack = require('./jspack').jspack,
     Buffer = require('buffer').Buffer,
     Promise = require('./promise').Promise;
 
@@ -69,7 +70,6 @@ function debug (x) {
 }
 
 
-
 // a look up table for methods recieved
 // indexed on class id, method id
 var methodTable = {};
@@ -79,6 +79,35 @@ var methods = {};
 
 // classes keyed on their index
 var classes = {};
+
+
+// parser
+
+
+var maxFrameBuffer = 131072; // same as rabbitmq
+
+
+// An interruptible AMQP parser.
+//
+// type is either 'server' or 'client'
+// version is '0-9-1'.
+//
+// Instances of this class have several callbacks
+// - onMethod(channel, method, args);
+// - onHeartBeat()
+// - onContent(channel, buffer);
+// - onContentHeader(channel, class, weight, properties, size);
+//
+// This class does not subclass EventEmitter, in order to reduce the speed
+// of emitting the callbacks. Since this is an internal class, that should
+// be fine.
+function AMQPParser (version, type) {
+  this.isClient = (type == 'client');
+  this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
+
+  if (version != '0-9-1') this.throwError("Unsupported protocol version");
+
+  protocol = require('./amqp-definitions-'+version);
 
 (function () { // anon scope for init
   //debug("initializing amqp methods...");
@@ -106,38 +135,15 @@ var classes = {};
   }
 })(); // end anon scope
 
-
-
-// parser
-
-
-var maxFrameBuffer = 131072; // same as rabbitmq
-
-
-// An interruptible AMQP parser.
-//
-// type is either 'server' or 'client'
-// version is '0-8' or '0-9-1'. Currently only supporting '0-8'.
-//
-// Instances of this class have several callbacks
-// - onMethod(channel, method, args);
-// - onHeartBeat()
-// - onContent(channel, buffer);
-// - onContentHeader(channel, class, weight, properties, size);
-//
-// This class does not subclass EventEmitter, in order to reduce the speed
-// of emitting the callbacks. Since this is an internal class, that should
-// be fine.
-function AMQPParser (version, type) {
-  this.isClient = (type == 'client');
-  this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
-
-  if (version != '0-8') throw new Error("Unsupported protocol version");
-
   this.frameHeader = new Buffer(7);
   this.frameHeader.used = 0;
 }
 
+// If there's an error in the parser, call the onError handler or throw
+AMQPParser.prototype.throwError = function (error) {
+  if(this.onError) this.onError(error);
+  else throw new Error(error);
+};
 
 // Everytime data is recieved on the socket, pass it to this function for
 // parsing.
@@ -171,7 +177,7 @@ AMQPParser.prototype.execute = function (data) {
                                                ]));
 
           if (this.frameSize > maxFrameBuffer) {
-            throw new Error("Oversized frame " + this.frameSize);
+            this.throwError("Oversized frame " + this.frameSize);
           }
 
           // TODO use a free list and keep a bunch of 8k buffers around
@@ -187,7 +193,10 @@ AMQPParser.prototype.execute = function (data) {
 
         // Copy the incoming data byte-by-byte to the buffer.
         // FIXME This is slow! Can be improved with a memcpy binding.
-        this.frameBuffer[this.frameBuffer.used++] = data[i];
+        if(this.frameSize > 0)
+          this.frameBuffer[this.frameBuffer.used++] = data[i];
+        else
+          i--; // the frame ending is actuall this frame (rewind 1)
 
         if (this.frameBuffer.used == this.frameSize) {
           // Finished buffering the frame. Parse the frame.
@@ -207,11 +216,12 @@ AMQPParser.prototype.execute = function (data) {
               break;
 
             case 8:
+              debug("hearbeat");
               if (this.onHeartBeat) this.onHeartBeat();
               break;
 
             default:
-              throw new Error("Unhandled frame type " + this.frameType);
+              this.throwError("Unhandled frame type " + this.frameType);
               break;
           }
           this.state = 'frameEnd';
@@ -225,7 +235,7 @@ AMQPParser.prototype.execute = function (data) {
           debug('data = ' + data.toString());
           debug('frameHeader: ' + this.frameHeader.toString());
           debug('frameBuffer: ' + this.frameBuffer.toString());
-          throw new Error("Oversized frame");
+          this.throwError("Oversized frame");
         }
         this.state = 'frameHeader';
         break;
@@ -262,7 +272,7 @@ function parseInt (buffer, size) {
 
 function parseShortString (buffer) {
   var length = buffer[buffer.read++];
-  var s = buffer.toString('utf-8', buffer.read, buffer.read+length);
+  var s = buffer.toString('utf8', buffer.read, buffer.read+length);
   buffer.read += length;
   return s;
 }
@@ -272,7 +282,7 @@ function parseLongString (buffer) {
   var length = parseInt(buffer, 4);
   var s = buffer.slice(buffer.read, buffer.read + length);
   buffer.read += length;
-  return s;
+  return s.toString();
 }
 
 
@@ -297,26 +307,55 @@ function parseTable (buffer) {
         break;
 
       case 'I'.charCodeAt(0):
-        table[field] = parseSignedInteger(buffer);
+        table[field] = parseInt(buffer, 4);
         break;
 
       case 'D'.charCodeAt(0):
-        var decimals = buffer[buffer.read++];
-        var int = parseInt(buffer, 4);
-        // TODO make into float...?
-        // FIXME this isn't correct
-        table[field] = '?';
+        var dec = parseInt(buffer, 1);
+        var num = parseInt(buffer, 4);
+        table[field] = num / (dec * 10);
         break;
 
+      case 'd'.charCodeAt(0):
+        var b = [];
+        for (var i = 0; i < 8; ++i)
+          b[i] = buffer[buffer.read++];
+
+          table[field] = (new jspack(true)).Unpack('d', b);
+          break;
+
+      case 'f'.charCodeAt(0):
+        var b = [];
+        for (var i = 0; i < 4; ++i)
+          b[i] = buffer[buffer.read++];
+
+          table[field] = (new jspack(true)).Unpack('f', b);
+          break;
+
       case 'T'.charCodeAt(0):
-        // 64bit time stamps. Awesome.
         var int = parseInt(buffer, 8);
-        // TODO FIXME this isn't correct
-        table[field] = '?';
+        table[field] = new Date();
+        table[field].setTime(int * 1000);
         break;
 
       case 'F'.charCodeAt(0):
         table[field] = parseTable(buffer);
+        break;
+
+      case 'l'.charCodeAt(0):
+        table[field] = parseInt(buffer, 8);
+        break;
+
+      case 't'.charCodeAt(0):
+        table[field] = (parseInt(buffer, 1) > 0);
+        break;
+
+      case 'x'.charCodeAt(0):
+        var len = parseInt(buffer, 4);
+        var buf = new Buffer(len);
+        buffer.copy(buf, 0, buffer.read, buffer.read + len);
+        buffer.read += len;
+        table[field] = buf;
         break;
 
       default:
@@ -401,13 +440,13 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
 
   // Make sure that this is a method that we understand.
   if (!methodTable[classId] || !methodTable[classId][methodId]) {
-    throw new Error("Received unknown [classId, methodId] pair [" +
-                    classId + ", " + methodId + "]");
+    this.throwError("Received unknown [classId, methodId] pair [" +
+               classId + ", " + methodId + "]");
   }
 
   var method = methodTable[classId][methodId];
 
-  if (!method) throw new Error("bad method?");
+  if (!method) this.throwError("bad method?");
 
   var args = parseFields(buffer, method.fields);
 
@@ -429,7 +468,7 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
   var classInfo = classes[classIndex];
 
   if (classInfo.fields.length > 15) {
-    throw new Error("TODO: support more than 15 properties");
+    this.throwError("TODO: support more than 15 properties");
   }
 
 
@@ -449,11 +488,29 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
   }
 };
 
+function serializeFloat(b, size, value, bigEndian) {
+  var jp = new jspack(bigEndian);
 
-// Network byte order serialization
-// (NOTE: javascript always uses network byte order for its ints.)
+  switch(size) {
+  case 4:
+    var x = jp.Pack('f', [value]);
+    for (var i = 0; i < x.length; ++i)
+      b[b.used++] = x[i];
+    break;
+  
+  case 8:
+    var x = jp.Pack('d', [value]);
+    for (var i = 0; i < x.length; ++i)
+      b[b.used++] = x[i];
+    break;
+
+  default:
+    throw new Error("Unknown floating point size");
+  }
+}
+
 function serializeInt (b, size, int) {
-  if (b.used + size >= b.length) {
+  if (b.used + size > b.length) {
     throw new Error("write out of bounds");
   }
 
@@ -521,7 +578,7 @@ function serializeLongString (b, string) {
   if (typeof(string) == 'string') {
     var byteLength = Buffer.byteLength(string, 'utf8');
     serializeInt(b, 4, byteLength);
-    b.write(string, b.used, 'utf-8');
+    b.write(string, b.used, 'utf8');
     b.used += byteLength;
   } else if (typeof(string) == 'object') {
     serializeTable(b, string);
@@ -534,14 +591,46 @@ function serializeLongString (b, string) {
   }
 }
 
+function serializeDate(b, date) {
+  serializeInt(b, 8, date.valueOf() / 1000);
+}
+
+function serializeBuffer(b, buffer) {
+  serializeInt(b, 4, buffer.length);
+  buffer.copy(b, b.used, 0);
+  b.used += buffer.length;
+}
+
+function serializeBase64(b, buffer) {
+  serializeLongString(b, buffer.toString('base64'));
+}
+
+function isBigInt(value) {
+  return value > 0xffffffff;
+}
+
+function getCode(dec) { 
+  var hexArray = "0123456789ABCDEF".split('');
+  
+  var code1 = Math.floor(dec / 16);
+  var code2 = dec - code1 * 16;
+  return hexArray[code2];
+}
+
+function isFloat(value)
+{
+  return value === +value && value !== (value|0);
+}
 
 function serializeTable (b, object) {
   if (typeof(object) != "object") {
     throw new Error("param must be an object");
   }
 
+  // Save our position so that we can go back and write the length of this table
+  // at the beginning of the packet (once we know how many entries there are).
   var lengthIndex = b.used;
-  b.used += 4; // for the long
+  b.used += 4; // sizeof long
 
   var startIndex = b.used;
 
@@ -559,22 +648,43 @@ function serializeTable (b, object) {
         break;
 
       case 'number':
-        if (value < 0) {
-          b[b.used++] = 'I'.charCodeAt(0);
-          serializeInt(b, 4, value);
-        } else if (value > 0xFFFFFFFF) {
-          b[b.used++] = 'T'.charCodeAt(0);
-          serializeInt(b, 8, value);
+        if (!isFloat(value)) {
+          if (isBigInt(value)) {
+            // 64-bit uint
+            b[b.used++] = 'l'.charCodeAt(0);
+            serializeInt(b, 8, value);
+          } else {
+            //32-bit uint
+            b[b.used++] = 'I'.charCodeAt(0);
+            serializeInt(b, 4, value);
+          }
+        } else {
+          //64-bit float
+          b[b.used++] = 'd'.charCodeAt(0);
+          serializeFloat(b, 8, value);
         }
-        // TODO decimal? meh.
         break;
 
-      case 'object':
-        serializeTable(b, value);
+      case 'boolean':
+        b[b.used++] = 't'.charCodeAt(0);
+        b[b.used++] = value;
         break;
 
       default:
-        throw new Error("unsupported type in amqp table");
+      if(value instanceof Date) {
+        b[b.used++] = 'T'.charCodeAt(0);
+        serializeDate(b, value);
+      } else if (value instanceof Buffer) {
+        b[b.used++] = 'x'.charCodeAt(0);
+        serializeBuffer(b, value);
+      } else {
+        if(typeof(value) === 'object') {
+          b[b.used++] = 'F'.charCodeAt(0);
+          serializeTable(b, value);
+        } else {
+          this.throwError("unsupported type in amqp table: " + typeof(value));
+        }
+      }
     }
   }
 
@@ -589,14 +699,12 @@ function serializeTable (b, object) {
 function serializeFields (buffer, fields, args, strict) {
   var bitField = 0;
   var bitIndex = 0;
-
   for (var i = 0; i < fields.length; i++) {
     var field = fields[i];
     var domain = field.domain;
-
     if (!(field.name in args)) {
       if (strict) {
-        throw new Error("Missing field '" + field.name + "' of type " + domain);
+        throw new Error("Missing field '" + field.name + "' of type '" + domain + "' while executing AMQP method '" + arguments.callee.caller.arguments[1].name + "'");
       }
       continue;
     }
@@ -619,7 +727,7 @@ function serializeFields (buffer, fields, args, strict) {
           buffer[buffer.used++] = bitField;
           bitField = 0;
           bitIndex = 0;
-        } 
+        }
         break;
 
       case 'octet':
@@ -685,14 +793,15 @@ function Connection (options) {
   var parser;
 
   this._defaultExchange = null;
+  this.channelCounter = 0;
 
   self.addListener('connect', function () {
     // channel 0 is the control channel.
-    self.channels = [self];
+    self.channels = {0:self};
     self.queues = {};
     self.exchanges = {};
 
-    parser = new AMQPParser('0-8', 'client');
+    parser = new AMQPParser('0-9-1', 'client');
 
     parser.onMethod = function (channel, method, args) {
       self._onMethod(channel, method, args);
@@ -717,13 +826,20 @@ function Connection (options) {
     };
 
     parser.onHeartBeat = function () {
+      self.emit("heartbeat");
       debug("heartbeat");
     };
 
+    parser.onError = function(e) {
+      self.end();
+      self.emit("error", e);
+      self.emit("close");
+      parser = null;
+    };
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
-    self.write("AMQP" + String.fromCharCode(1,1,8,0));
+    self.write("AMQP" + String.fromCharCode(0,0,9,1));
     state = 'handshake';
   });
 
@@ -778,10 +894,10 @@ Connection.prototype._onMethod = function (channel, method, args) {
       debug("Received message on untracked channel.");
       return;
     }
-    if (!this.channels[channel]._onMethod) {
-      throw new Error('Channel ' + channel + ' has no _onMethod method.');
+    if (!this.channels[channel]._onChannelMethod) {
+      throw new Error('Channel ' + channel + ' has no _onChannelMethod method.');
     }
-    this.channels[channel]._onMethod(channel, method, args);
+    this.channels[channel]._onChannelMethod(channel, method, args);
     return;
   }
 
@@ -791,8 +907,8 @@ Connection.prototype._onMethod = function (channel, method, args) {
     // 2. The server responds, after the version string, with the
     // 'connectionStart' method (contains various useless information)
     case methods.connectionStart:
-      // We check that they're serving us AMQP 0-8
-      if (args.versionMajor != 8 && args.versionMinor != 0) {
+      // We check that they're serving us AMQP 0-9
+      if (args.versionMajor != 0 && args.versionMinor != 9) {
         this.end();
         this.emit('error', new Error("Bad server version"));
         return;
@@ -820,13 +936,15 @@ Connection.prototype._onMethod = function (channel, method, args) {
       this._sendMethod(0, methods.connectionTuneOk,
           { channelMax: 0
           , frameMax: maxFrameBuffer
-          , heartbeat: 0
+          , heartbeat: this.options.heartbeat || 0
           });
       // 6. Then we have to send a connectionOpen request
       this._sendMethod(0, methods.connectionOpen,
           { virtualHost: this.options.vhost
-          , capabilities: ''
-          , insist: true
+          // , capabilities: ''
+          // , insist: true
+          , reserved1: ''
+          , reserved2: true
           });
       break;
 
@@ -852,6 +970,9 @@ Connection.prototype._onMethod = function (channel, method, args) {
   }
 };
 
+Connection.prototype.heartbeat = function() {
+  this.write(new Buffer([8,0,0,0,0,0,0,206]));
+};
 
 Connection.prototype._sendMethod = function (channel, method, args) {
   debug(channel + " < " + method.name + " " + JSON.stringify(args));
@@ -1002,16 +1123,12 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     serializeInt(b, 2, channel);
     serializeInt(b, 4, body.length);
     this.write(b);
-
     this.write(body);
 
-    return this.write(String.fromCharCode(206)); // frameEnd
-
+    return this.write(new Buffer([206])); // frameEnd
   } else {
-    // Optimize for JSON.
-    // Use asciiWrite() which is much faster than utf8Write().
     var jsonBody = JSON.stringify(body);
-    var length = jsonBody.length;
+    var length = Buffer.byteLength(jsonBody);
 
     debug('sending json: ' + jsonBody);
 
@@ -1026,7 +1143,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     serializeInt(b, 2, channel);
     serializeInt(b, 4, length);
 
-    b.write(jsonBody, b.used, 'ascii');
+    b.write(jsonBody, b.used, 'utf8');
     b.used += length;
 
     b[b.used++] = 206; // constants.frameEnd;
@@ -1040,9 +1157,10 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - durable (boolean)
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
-Connection.prototype.queue = function (name /* , options, openCallback */) {
-  if (this.queues[name]) return this.queues[name];
-  var channel = this.channels.length;
+Connection.prototype.queue = function (name /* options, openCallback */) {
+  if (name != '' && this.queues[name]) return this.queues[name];
+  this.channelCounter++;
+  var channel = this.channelCounter;
 
   var options, callback;
   if (typeof arguments[1] == 'object') {
@@ -1052,9 +1170,14 @@ Connection.prototype.queue = function (name /* , options, openCallback */) {
     callback = arguments[1];
   }
 
+  if (this.queues[name]) { // already declared? callback anyway
+    if (callback) 
+      callback(this.queues[name]);
+    return this.queues[name];
+  }
 
   var q = new Queue(this, channel, name, options, callback);
-  this.channels.push(q);
+  this.channels[channel] = q;
   this.queues[name] = q;
   return q;
 };
@@ -1064,6 +1187,11 @@ Connection.prototype.queueClosed = function (name) {
   if (this.queues[name]) delete this.queues[name];
 };
 
+// remove an exchange when it's closed (called from Exchange)
+Connection.prototype.exchangeClosed = function (name) {
+  if (this.exchanges[name]) delete this.exchanges[name];
+};
+
 
 // connection.exchange('my-exchange', { type: 'topic' });
 // Options
@@ -1071,24 +1199,30 @@ Connection.prototype.queueClosed = function (name) {
 // - passive (boolean)
 // - durable (boolean)
 // - autoDelete (boolean, default true)
-Connection.prototype.exchange = function (name, options) {
-  if (!name) name = 'amq.topic';
+Connection.prototype.exchange = function (name, options, openCallback) {
+  if (name === undefined) name = 'amq.topic';
 
   if (!options) options = {};
-  if (options.type === undefined) options.type = 'topic';
+  if (name != '' && options.type === undefined) options.type = 'topic';
 
-  if (this.exchanges[name]) return this.exchanges[name];
-  var channel = this.channels.length;
-  var exchange = new Exchange(this, channel, name, options);
-  this.channels.push(exchange);
+  if (this.exchanges[name]) { // already declared? callback anyway
+    if (openCallback) 
+      openCallback(this.exchanges[name]);
+    return this.exchanges[name];
+  }
+
+  this.channelCounter++;
+  var channel = this.channelCounter;
+  var exchange = new Exchange(this, channel, name, options, openCallback);
+  this.channels[channel] = exchange;
   this.exchanges[name] = exchange;
   return exchange;
 };
 
-// Publishes a message to the amq.topic exchange.
-Connection.prototype.publish = function (routingKey, body) {
+// Publishes a message to the default exchange.
+Connection.prototype.publish = function (routingKey, body, options) {
   if (!this._defaultExchange) this._defaultExchange = this.exchange();
-  return this._defaultExchange.publish(routingKey, body);
+    return this._defaultExchange.publish(routingKey, body, options);
 };
 
 
@@ -1120,6 +1254,7 @@ function Message (queue, args) {
   this.redelivered = args.redelivered;
   this.exchange    = args.exchange;
   this.routingKey  = args.routingKey;
+  this.consumerTag = args.consumerTag;
 }
 sys.inherits(Message, events.EventEmitter);
 
@@ -1129,7 +1264,7 @@ sys.inherits(Message, events.EventEmitter);
 // received on this queue.
 Message.prototype.acknowledge = function (all) {
   this.queue.connection._sendMethod(this.queue.channel, methods.basicAck,
-      { ticket: 0
+      { reserved1: 0
       , deliveryTag: this.deliveryTag
       , multiple: all ? true : false
       });
@@ -1145,7 +1280,7 @@ function Channel (connection, channel) {
   this.connection = connection;
   this._tasks = [];
 
-  this.connection._sendMethod(channel, methods.channelOpen, {outOfBand: ""});
+  this.connection._sendMethod(channel, methods.channelOpen, {reserved1: ""});
 }
 sys.inherits(Channel, events.EventEmitter);
 
@@ -1160,7 +1295,6 @@ Channel.prototype._taskPush = function (reply, cb) {
   this._tasksFlush();
   return promise;
 };
-
 
 Channel.prototype._tasksFlush = function () {
   if (this.state != 'open') return;
@@ -1194,13 +1328,40 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
   return false;
 };
 
+Channel.prototype._onChannelMethod = function(channel, method, args) {
+    switch (method) {
+    case methods.channelCloseOk:
+        delete this.connection.channels[this.channel]
+        this.state = 'closed'
+    default:
+        this._onMethod(channel, method, args);
+    }
+}
 
+Channel.prototype.close = function() { 
+  this.state = 'closing';
+    this.connection._sendMethod(this.channel, methods.channelClose,
+                                {'replyText': 'Goodbye from node',
+                                 'replyCode': 200,
+                                 'classId': 0,
+                                 'methodId': 0});
+}
 
 function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
 
   this.name = name;
-
+  this.consumerTagListeners = {};
+  
+  var self = this;
+  
+  // route messages to subscribers based on consumerTag
+  this.on('rawMessage', function(message) {
+    if (message.consumerTag && self.consumerTagListeners[message.consumerTag]) {
+      self.consumerTagListeners[message.consumerTag](message);
+    }
+  });
+  
   this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
 
@@ -1208,12 +1369,12 @@ function Queue (connection, channel, name, options, callback) {
 }
 sys.inherits(Queue, Channel);
 
-
 Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   var self = this;
 
   var messageListener = arguments[arguments.length-1];
-  this.addListener('rawMessage', messageListener);
+  var consumerTag = 'node-amqp-'+process.pid+'-'+Math.random();
+  this.consumerTagListeners[consumerTag] = messageListener;
 
   var options = { };
   if (typeof arguments[0] == 'object') {
@@ -1222,14 +1383,13 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
 
   return this._taskPush(methods.basicConsumeOk, function () {
     self.connection._sendMethod(self.channel, methods.basicConsume,
-        { ticket: 0
+        { reserved1: 0
         , queue: self.name
-        , consumerTag: ''+new Date().getTime()
-        , consumerTag: "."
+        , consumerTag: consumerTag
         , noLocal: options.noLocal ? true : false
         , noAck: options.noAck ? true : false
         , exclusive: options.exclusive ? true : false
-        , nowait: false
+        , noWait: false
         , "arguments": {}
         });
   });
@@ -1240,23 +1400,20 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   var self = this;
 
   var messageListener = arguments[arguments.length-1];
+  if(typeof(messageListener) !== "function") messageListener = null;
 
   var options = { ack: false };
   if (typeof arguments[0] == 'object') {
     if (arguments[0].ack) options.ack = true;
   }
 
-  this.addListener('message', messageListener);
-
   if (options.ack) {
-    this._taskPush(methods.basicQosOk, function () {
-      self.connection._sendMethod(self.channel, methods.basicQos,
-          { ticket: 0
-          , prefetchSize: 0
-          , prefetchCount: 1
-          , global: false
-          });
-    });
+    self.connection._sendMethod(self.channel, methods.basicQos,
+        { reserved1: 0
+        , prefetchSize: 0
+        , prefetchCount: 1
+        , global: false
+        });
   }
 
   // basic consume
@@ -1295,8 +1452,17 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       json._routingKey = m.routingKey;
       json._deliveryTag = m.deliveryTag;
 
-
-      self.emit('message', json);
+      var headers = {};
+      for (var i in this.headers) {
+        if(this.headers.hasOwnProperty(i)) {
+          if(this.headers[i] instanceof Buffer)
+            headers[i] = this.headers[i].toString();
+          else
+            headers[i] = this.headers[i];
+        }
+      }
+      if (messageListener) messageListener(json, headers);
+      self.emit('message', json, headers);
     });
   });
 };
@@ -1315,29 +1481,96 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   var self = this;
 
   // The first argument, exchange is optional.
-  // If not supplied the connection will use the default 'amq.topic'
+  // If not supplied the connection will use the 'amq.topic'
   // exchange.
- 
+
   var exchange, routingKey;
 
   if (arguments.length == 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
   } else {
-    exchange = 'amq.topic';   
+    exchange = 'amq.topic';
     routingKey = arguments[0];
+  }
+
+
+  var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+
+  if(exchangeName in self.connection.exchanges) {
+    this.exchange = self.connection.exchanges[exchangeName];
+    this.exchange.binds++;
+  }
+
+  self.connection._sendMethod(self.channel, methods.queueBind,
+      { reserved1: 0
+      , queue: self.name
+      , exchange: exchangeName
+      , routingKey: routingKey
+      , noWait: false
+      , "arguments": {}
+      });
+
+};
+
+Queue.prototype.unbind = function (/* [exchange,] routingKey */) {
+  var self = this;
+
+  // The first argument, exchange is optional.
+  // If not supplied the connection will use the default 'amq.topic'
+  // exchange.
+
+  var exchange, routingKey;
+
+  if (arguments.length == 2) {
+    exchange = arguments[0];
+    routingKey = arguments[1];
+  } else {
+    exchange = 'amq.topic';
+    routingKey = arguments[0];
+  }
+
+
+  return this._taskPush(methods.queueUnbindOk, function () {
+    var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+    self.connection._sendMethod(self.channel, methods.queueUnbind,
+        { reserved1: 0
+        , queue: self.name
+        , exchange: exchangeName
+        , routingKey: routingKey
+        , noWait: false
+        , "arguments": {}
+        });
+  });
+};
+
+Queue.prototype.bind_headers = function (/* [exchange,] matchingPairs */) {
+  var self = this;
+
+  // The first argument, exchange is optional.
+  // If not supplied the connection will use the default 'amq.headers'
+  // exchange.
+
+  var exchange, matchingPairs;
+
+  if (arguments.length == 2) {
+    exchange = arguments[0];
+    matchingPairs = arguments[1];
+  } else {
+    exchange = 'amq.headers';
+    matchingPairs = arguments[0];
   }
 
 
   return this._taskPush(methods.queueBindOk, function () {
     var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
     self.connection._sendMethod(self.channel, methods.queueBind,
-        { ticket: 0
+        { reserved1: 0
         , queue: self.name
         , exchange: exchangeName
-        , routingKey: routingKey
-        , nowait: false
-        , "arguments": {}
+        , routingKey: ''
+        , noWait: false
+        , "arguments": matchingPairs
         });
   });
 };
@@ -1345,34 +1578,41 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
 
 Queue.prototype.destroy = function (options) {
   var self = this;
+
   options = options || {};
+
   return this._taskPush(methods.queueDeleteOk, function () {
     self.connection.queueClosed(self.name);
+    if('exchange' in self) {
+      self.exchange.binds--;
+      self.exchange.cleanup();
+    }
     self.connection._sendMethod(self.channel, methods.queueDelete,
-        { ticket: 0
+        { reserved1: 0
         , queue: self.name
         , ifUnused: options.ifUnused ? true : false
         , ifEmpty: options.ifEmpty ? true : false
-        , nowait: false
+        , noWait: false
         , "arguments": {}
-        });
+    });
   });
 };
 
 
 Queue.prototype._onMethod = function (channel, method, args) {
+  this.emit(method.name, args);
   if (this._handleTaskReply.apply(this, arguments)) return;
 
   switch (method) {
     case methods.channelOpenOk:
       this.connection._sendMethod(channel, methods.queueDeclare,
-          { ticket: 0
+          { reserved1: 0
           , queue: this.name
           , passive: this.options.passive ? true : false
           , durable: this.options.durable ? true : false
           , exclusive: this.options.exclusive ? true : false
           , autoDelete: this.options.autoDelete ? true : false
-          , nowait: false
+          , noWait: false
           , "arguments": {}
           });
       this.state = "declare queue";
@@ -1380,27 +1620,49 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.queueDeclareOk:
       this.state = 'open';
+      this.name = args.queue;
+      this.connection.queues[this.name] = this;
       if (this._openCallback) {
-        this._openCallback(args.messageCount, args.consumerCount);
+        this._openCallback(this);
         this._openCallback = null;
       }
       // TODO this is legacy interface, remove me
-      this.emit('open', args.messageCount, args.consumerCount);
+      this.emit('open', args.queue, args.messageCount, args.consumerCount);
+      break;
+
+    case methods.basicConsumeOk:
+      debug('basicConsumeOk', sys.inspect(args, null));
+      break;
+
+    case methods.queueBindOk:
+      break;
+
+    case methods.basicQosOk:
       break;
 
     case methods.channelClose:
       this.state = "closed";
+/*
       var e = new Error(args.replyText);
       e.code = args.replyCode;
       if (!this.listeners('close').length) {
         sys.puts('Unhandled channel error: ' + args.replyText);
       }
       this.emit('error', e);
-      this.emit('close', e);
+*/
+      this.emit('close');
       break;
-
+    
+    case methods.channelCloseOk:
+      delete this.connection.queues[this.name]
+      this.emit('close')
+      break;
+    
     case methods.basicDeliver:
       this.currentMessage = new Message(this, args);
+      break;
+
+    case methods.queueDeleteOk:
       break;
 
     default:
@@ -1420,7 +1682,6 @@ Queue.prototype._onContentHeader = function (channel, classInfo, weight, propert
   this.emit('rawMessage', this.currentMessage);
 };
 
-
 Queue.prototype._onContent = function (channel, data) {
   this.currentMessage.read += data.length
   this.currentMessage.emit('data', data);
@@ -1432,34 +1693,39 @@ Queue.prototype._onContent = function (channel, data) {
 
 
 
-function Exchange (connection, channel, name, options) {
+function Exchange (connection, channel, name, options, openCallback) {
   Channel.call(this, connection, channel);
   this.name = name;
+  this.binds = 0; // keep track of queues bound
   this.options = options || { autoDelete: true};
+  this._openCallback = openCallback;
 }
 sys.inherits(Exchange, Channel);
 
 
 
 Exchange.prototype._onMethod = function (channel, method, args) {
+  this.emit(method.name, args);
   if (this._handleTaskReply.apply(this, arguments)) return true;
 
   switch (method) {
     case methods.channelOpenOk:
-      // Default exchanges don't need to be declared
-      if (/^amq\./.test(this.name)) {
+      // Pre-baked exchanges don't need to be declared
+      if (/^$|(amq\.)/.test(this.name)) {
         this.state = 'open';
         this.emit('open');
       } else {
         this.connection._sendMethod(channel, methods.exchangeDeclare,
-            { ticket: 0
+            { reserved1:  0
+            , reserved2:  false
+            , reserved3:  false
             , exchange:   this.name
             , type:       this.options.type || 'topic'
             , passive:    this.options.passive    ? true : false
             , durable:    this.options.durable    ? true : false
             , autoDelete: this.options.autoDelete ? true : false
             , internal:   this.options.internal   ? true : false
-            , nowait:     false
+            , noWait:     false
             , "arguments": {}
             });
         this.state = 'declaring';
@@ -1469,6 +1735,10 @@ Exchange.prototype._onMethod = function (channel, method, args) {
     case methods.exchangeDeclareOk:
       this.state = 'open';
       this.emit('open');
+      if (this._openCallback) {
+        this._openCallback(this);
+        this._openCallback = null;
+      }
       break;
 
     case methods.channelClose:
@@ -1481,9 +1751,13 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.emit('close', e);
       break;
 
+    case methods.channelCloseOk:
+      delete this.connection.exchanges[this.name]
+      this.emit('close')
+      break;
+
     case methods.basicReturn:
       sys.puts("Warning: Uncaught basicReturn: "+JSON.stringify(args));
-      this.emit('basicReturn', args);
       break;
 
     default:
@@ -1497,7 +1771,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
 // exchange.publish('routing.key', 'body');
 //
-// the thrid argument can specify additional options
+// the third argument can specify additional options
 // - mandatory (boolean, default false)
 // - immediate (boolean, default false)
 // - contentType (default 'application/octet-stream')
@@ -1519,7 +1793,7 @@ Exchange.prototype.publish = function (routingKey, data, options) {
   var self = this;
   return this._taskPush(null, function () {
     self.connection._sendMethod(self.channel, methods.basicPublish,
-        { ticket: 0
+        { reserved1: 0
         , exchange:   self.name
         , routingKey: routingKey
         , mandatory:  options.mandatory ? true : false
@@ -1536,16 +1810,22 @@ Exchange.prototype.publish = function (routingKey, data, options) {
   });
 };
 
+// do any necessary cleanups eg. after queue destruction  
+Exchange.prototype.cleanup = function() {
+	if (this.binds == 0) // don't keep reference open if unused
+    	this.connection.exchangeClosed(this.name);
+};
+
 
 Exchange.prototype.destroy = function (ifUnused) {
   var self = this;
   return this._taskPush(methods.exchangeDeleteOk, function () {
+    self.connection.exchangeClosed(self.name);
     self.connection._sendMethod(self.channel, methods.exchangeDelete,
-        { ticket: 0
+        { reserved1: 0
         , exchange: self.name
         , ifUnused: ifUnused ? true : false
-        , nowait: false
+        , noWait: false
         });
   });
 };
-

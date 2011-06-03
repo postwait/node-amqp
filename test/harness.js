@@ -3,7 +3,7 @@ puts = sys.puts;
 global.assert =  require('assert');
 global.amqp = require('../amqp');
 
-var options = {};
+var options = global.options || {};
 if (process.argv[2]) {
   var server = process.argv[2].split(':');
   if (server[0]) options.host = server[0];
