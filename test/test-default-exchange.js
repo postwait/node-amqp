@@ -21,7 +21,8 @@ connection.addListener('ready', function () {
         }, 1000);
       });
       
-      q.subscribe(function (msg) { // register consumer
+      q.subscribe({ routingKeyInPayload: true },
+                  function (msg) { // register consumer
         recvCount++;
         switch (msg._routingKey) {
           case 'message.msg1':

@@ -12,10 +12,14 @@ connection.addListener('ready', function () {
 
     q.bind(exchange, "*");
   
-    q.subscribe(function (json) {
+    q.subscribe(function (json, headers, deliveryInfo) {
       recvCount++;
   
-      switch (json._routingKey) {
+      assert.equal("node-json-fanout", deliveryInfo.exchange);
+      assert.equal("node-json-queue", deliveryInfo.queue);
+      assert.equal(false, deliveryInfo.redelivered);
+
+      switch (deliveryInfo.routingKey) {
         case 'message.json1':
           assert.equal(1, json.one);
           assert.equal(2, json.two);

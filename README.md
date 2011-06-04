@@ -60,6 +60,16 @@ must be completed before any communication can begin. `net.Connection` does
 the handshake automatically and emits the `ready` event when the handshaking
 is complete.
 
+For backward compatability, two additional options are available. Older
+versions of amqp placed the routingKey and deliveryTag for incoming
+messages into the JSON payload received. This module was changed to
+leave inbound JSON payloads pristine.  Some applications may need the
+old behaviour. If the key 'routingKeyInPayload' is set to true in the
+connection options, the messages resulting from a subscribe call will
+include a 'routingKey' key in the JSON payload.  If the key
+'devlieryTagInPayload' is set to true in the connection options, the
+deliveryTag of the incoming message will be placed in the JSON payload.
+
 
 ### connection.publish(queueName, body)
 
@@ -113,17 +123,24 @@ Returns a reference to a queue. The options are
 
 An easy subscription command. It works like this
 
-    q.subscribe(function (message) {
-      puts('Got a message with routing key ' + message._routingKey);
+    q.subscribe(function (message, headers, deliveryInfo) {
+      puts('Got a message with routing key ' + deliveryInfo.routingKey);
     });
 
 It will automatically acknowledge receipt of each message.
 
-The only option that this method supports right now is the "ack" method,
-which defaults to false.  Setting the options argument to `{ ack: true }`
-will make it so that the AMQP server only delivers a single message at a
-time. When you want the next message, call `q.shift()`. When `ack` is false
-then you will receive messages as fast as they come in.
+There are several options available.  Setting the options argument to
+`{ ack: true }` (which defaults to false) will make it so that the AMQP
+server only delivers a single message at a time. When you want the next
+message, call `q.shift()`. When `ack` is false then you will receive
+messages as fast as they come in.
+
+The 'routingKeyInPayload' and 'deliveryKeyInPayload' options determing
+if the reception process will inject the routingKey and deliveryKey,
+respectively, into the JSON payload receieved.  These default to unset
+thus adopting the parent connection's values (which defualt to false).
+Setting these to true provide backward compability for older
+applications.
 
 This method will emit 'basicQosOk' when ready.
 

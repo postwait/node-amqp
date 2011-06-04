@@ -1402,9 +1402,15 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   var messageListener = arguments[arguments.length-1];
   if(typeof(messageListener) !== "function") messageListener = null;
 
-  var options = { ack: false };
+  var options = { ack: false,
+                  routingKeyInPayload: self.connection.options.routingKeyInPayload,
+                  deliveryTagInPayload: self.connection.options.deliveryTagInPayload };
   if (typeof arguments[0] == 'object') {
     if (arguments[0].ack) options.ack = true;
+    if (arguments[0].routingKeyInPayload)
+      options.routingKeyInPayload = arguments[0].routingKeyInPayload;
+    if (arguments[0].deliveryTagInPayload)
+      options.deliveryTagInPayload = arguments[0].deliveryTagInPayload;
   }
 
   if (options.ack) {
@@ -1442,15 +1448,21 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
     });
 
     m.addListener('end', function () {
-      var json;
+      var json, deliveryInfo = {};
       if (isJSON) {
         json = JSON.parse(b);
       } else {
         json = { data: b, contentType: m.contentType };
       }
-
-      json._routingKey = m.routingKey;
-      json._deliveryTag = m.deliveryTag;
+      deliveryInfo.queue = m.queue ? m.queue.name : null;
+      deliveryInfo.deliveryTag = m.deliveryTag;
+      deliveryInfo.redelivered = m.redelivered;
+      deliveryInfo.exchange = m.exchange;
+      deliveryInfo.routingKey = m.routingKey;
+      deliveryInfo.consumerTag = m.consumerTag;
+      deliveryInfo.contentType = m.contentType
+      if(options.routingKeyInPayload) json._routingKey = m.routingKey;
+      if(options.deliveryTagInPayload) json._deliveryTag = m.deliveryTag;
 
       var headers = {};
       for (var i in this.headers) {
@@ -1461,8 +1473,8 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
             headers[i] = this.headers[i];
         }
       }
-      if (messageListener) messageListener(json, headers);
-      self.emit('message', json, headers);
+      if (messageListener) messageListener(json, headers, deliveryInfo);
+      self.emit('message', json, headers, deliveryInfo);
     });
   });
 };
