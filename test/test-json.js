@@ -36,7 +36,7 @@ connection.addListener('ready', function () {
           break;
   
         default:
-          throw new Error('unexpected routing key: ' + json._routingKey);
+          throw new Error('unexpected routing key: ' + deliveryInfo.routingKey);
       }
     })
     .addCallback(function () {
