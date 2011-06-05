@@ -21,9 +21,9 @@ connection.addListener('ready', function () {
         }, 1000);
       });
       
-      q.subscribe(function (msg) { // register consumer
+      q.subscribe(function (msg, headers) { // register consumer
         recvCount++;
-        switch (msg._routingKey) {
+        switch (headers.routingKey) {
           case 'message.msg1':
             assert.equal(1, msg.one);
             assert.equal(2, msg.two);
@@ -35,7 +35,7 @@ connection.addListener('ready', function () {
             break;
 
           default:
-            throw new Error('unexpected routing key: ' + msg._routingKey);
+            throw new Error('unexpected routing key: ' + headers.routingKey);
         }
       })
     });
