@@ -9,6 +9,9 @@ connection.addListener('ready', function () {
   var exchange = connection.exchange('node-json-fanout', {type: 'fanout'});
 
   var q = connection.queue('node-json-queue', function() {
+    var origMessage1 = {two:2, one:1},
+        origMessage2 = {foo:'bar', hello: 'world'},
+        origMessage3 = {coffee:'caf\u00E9', tea: 'th\u00E9'};
 
     q.bind(exchange, "*");
   
@@ -21,18 +24,15 @@ connection.addListener('ready', function () {
 
       switch (deliveryInfo.routingKey) {
         case 'message.json1':
-          assert.equal(1, json.one);
-          assert.equal(2, json.two);
+          assert.deepEqual(origMessage1, json);
           break;
   
         case 'message.json2':
-          assert.equal('world', json.hello);
-          assert.equal('bar', json.foo);
+          assert.deepEqual(origMessage2, json);
           break;
   
         case 'message.json3':
-          assert.equal('caf\u00E9', json.coffee);
-          assert.equal('th\u00E9', json.tea);
+          assert.deepEqual(origMessage3, json);
           break;
   
         default:
@@ -41,9 +41,9 @@ connection.addListener('ready', function () {
     })
     .addCallback(function () {
       puts("publishing 3 json messages");
-      exchange.publish('message.json1', {two:2, one:1});
-      exchange.publish('message.json2', {foo:'bar', hello: 'world'}, {contentType: 'application/json'});
-      exchange.publish('message.json3', {coffee:'caf\u00E9', tea: 'th\u00E9'}, {contentType: 'application/json'});
+      exchange.publish('message.json1', origMessage1);
+      exchange.publish('message.json2', origMessage2, {contentType: 'application/json'});
+      exchange.publish('message.json3', origMessage3, {contentType: 'application/json'});
   
       setTimeout(function () {
         // wait one second to receive the message, then quit
