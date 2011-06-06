@@ -87,10 +87,10 @@ So use `connection.end()` to terminate a connection gracefully.
 ## Queue
 
 Events: A queue will call the callback given to the `connection.queue()`
-method once it is declared. For example:
+method once it is usable. For example:
 
-    var q = connection.queue('my-queue', function (name, messageCount, consumerCount) {
-      puts('There are ' + messageCount + ' messages waiting in the queue.');
+    var q = connection.queue('my-queue', function (queue) {
+      puts('Queue ' + queue.name + ' is open');
     });
 
 Declaring a queue with an empty name will make the server generate a
@@ -193,11 +193,18 @@ messages.
 
 ## Exchange
 
+Events: An exchange will call the callback given to the `connection.exchange()`
+method once it is usable. For example:
+
+    var exc = connection.exchange('my-exchange', function (exchange) {
+      puts('Exchange ' + exchange.name + ' is open');
+    });
+
 
 ### exchange.on('open', callback)
 
 The open event is emitted when the exchange is declared and ready to
-be used.
+be used. This interface is considered deprecated.
 
 
 ### connection.exchange()
