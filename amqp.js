@@ -1178,7 +1178,6 @@ Connection.prototype.queue = function (name /* options, openCallback */) {
 
   var q = new Queue(this, channel, name, options, callback);
   this.channels[channel] = q;
-  this.queues[name] = q;
   return q;
 };
 
