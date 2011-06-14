@@ -405,6 +405,7 @@ function parseFields (buffer, fields) {
         value = parseInt(buffer, 4);
         break;
 
+      case 'timestamp':
       case 'longlong':
         value = parseInt(buffer, 8);
         break;
@@ -751,6 +752,7 @@ function serializeFields (buffer, fields, args, strict) {
         serializeInt(buffer, 4, param);
         break;
 
+      case 'timestamp':
       case 'longlong':
         serializeInt(buffer, 8, param);
         break;
@@ -1246,6 +1248,8 @@ Connection.prototype.publish = function (routingKey, body, options) {
 // - appId
 // - clusterId
 function Message (queue, args) {
+  var msgProperties = classes[60].fields;
+
   events.EventEmitter.call(this);
 
   this.queue = queue;
@@ -1255,6 +1259,12 @@ function Message (queue, args) {
   this.exchange    = args.exchange;
   this.routingKey  = args.routingKey;
   this.consumerTag = args.consumerTag;
+
+  for (var i=0, l=msgProperties.length; i<l; i++) {
+      if (args[msgProperties[i].name]) {
+          this[msgProperties[i].name] = args[msgProperties[i].name];
+      }
+  }
 }
 sys.inherits(Message, events.EventEmitter);
 
@@ -1448,11 +1458,16 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
     });
 
     m.addListener('end', function () {
-      var json, deliveryInfo = {};
+      var json, deliveryInfo = {}, msgProperties = classes[60].fields;
       if (isJSON) {
         json = JSON.parse(b);
       } else {
         json = { data: b, contentType: m.contentType };
+      }
+      for (var i=0, l=msgProperties.length; i<l; i++) {
+        if (m[msgProperties[i].name]) {
+          deliveryInfo[msgProperties[i].name] = m[msgProperties[i].name];
+        }
       }
       deliveryInfo.queue = m.queue ? m.queue.name : null;
       deliveryInfo.deliveryTag = m.deliveryTag;
@@ -1460,7 +1475,6 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       deliveryInfo.exchange = m.exchange;
       deliveryInfo.routingKey = m.routingKey;
       deliveryInfo.consumerTag = m.consumerTag;
-      deliveryInfo.contentType = m.contentType
       if(options.routingKeyInPayload) json._routingKey = m.routingKey;
       if(options.deliveryTagInPayload) json._deliveryTag = m.deliveryTag;
 
@@ -1800,17 +1814,17 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 // - appId
 // - clusterId
 Exchange.prototype.publish = function (routingKey, data, options) {
-  options = options || {};
-
   var self = this;
+
+  options = options || {};
+  options.routingKey = routingKey;
+  options.exchange   = self.name;
+  options.mandatory  = options.mandatory ? true : false;
+  options.immediate  = options.immediate ? true : false;
+  options.reserved1  = 0;
+
   return this._taskPush(null, function () {
-    self.connection._sendMethod(self.channel, methods.basicPublish,
-        { reserved1: 0
-        , exchange:   self.name
-        , routingKey: routingKey
-        , mandatory:  options.mandatory ? true : false
-        , immediate:  options.immediate ? true : false
-        });
+    self.connection._sendMethod(self.channel, methods.basicPublish, options);
     // This interface is probably not appropriate for streaming large files.
     // (Of course it's arguable about whether AMQP is the appropriate
     // transport for large files.) The content header wants to know the size
