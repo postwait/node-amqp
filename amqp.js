@@ -4,7 +4,8 @@ var events = require('events'),
     protocol,
     jspack = require('./jspack').jspack,
     Buffer = require('buffer').Buffer,
-    Promise = require('./promise').Promise;
+    Promise = require('./promise').Promise,
+    URL = require('url');
 
 function mixin () {
   // copy reference to target object
@@ -860,13 +861,36 @@ sys.inherits(Connection, net.Stream);
 exports.Connection = Connection;
 
 
+var defaultPorts = { 'amqp': 5672, 'amqps': 5671 };
+
 var defaultOptions = { host: 'localhost'
-                     , port: 5672
+                     , port: defaultPorts['amqp']
                      , login: 'guest'
                      , password: 'guest'
                      , vhost: '/'
                      };
 
+function urlOptions(connectionString) {
+  var opts = {};
+  var url = URL.parse(connectionString);
+  var scheme = url.protocol.substring(0, url.protocol.lastIndexOf(':'));
+  if (scheme != 'amqp' && scheme != 'amqps') {
+    throw new Error('Connection URI must use amqp or amqps scheme. ' +
+                    'For example, "amqp://bus.megacorp.internal:5766".');
+  }
+  opts.ssl = ('amqps' === scheme);
+  opts.host = url.hostname;
+  opts.port = url.port || defaultPorts[url.scheme]
+  if (url.auth) {
+    var auth = url.auth.split(':');
+    auth[0] && (opts.login = auth[0]);
+    auth[1] && (opts.password = auth[1]);
+  }
+  if (url.pathname) {
+    opts.vhost = unescape(url.pathname.substr(1));
+  }
+  return opts;
+}
 
 exports.createConnection = function (options) {
   var c = new Connection();
@@ -878,6 +902,7 @@ exports.createConnection = function (options) {
 Connection.prototype.setOptions = function (options) {
   var o  = {};
   mixin(o, defaultOptions, options || {});
+  if (o['url']) mixin(o, urlOptions(o['url']));
   this.options = o;
 };
 
