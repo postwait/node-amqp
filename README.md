@@ -58,7 +58,7 @@ The options object has the these defaults:
 
 All of these can be passed in a single URL of the form
 
-    amqp[s]://[[user:password@]hostname[:port]/vhost
+    amqp[s]://[user:password@]hostname[:port][/vhost]
 
 Note that the vhost must be URL-encoded and appear as the only segment
 of the path, i.e., there is only the leading slash; leaving the path
@@ -68,7 +68,10 @@ be used (it could also be supplied as the path `/%2f`).
 This URL is supplied as the field `url` in the options; for example
 
     var conn =
-      amqp.createConnection({url: "amqp://guest:guest@localhost:5672/%2f"});
+      amqp.createConnection({url: "amqp://guest:guest@localhost:5672"});
+
+Options provided as individual fields will override values given in
+the URL.
 
 After a connection is established the `'connect'` event is fired as it is
 with any `net.Connection` instance. AMQP requires a 7-way handshake which

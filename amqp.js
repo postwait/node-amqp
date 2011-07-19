@@ -880,7 +880,7 @@ function urlOptions(connectionString) {
   }
   opts.ssl = ('amqps' === scheme);
   opts.host = url.hostname;
-  opts.port = url.port || defaultPorts[url.scheme]
+  opts.port = url.port || defaultPorts[scheme]
   if (url.auth) {
     var auth = url.auth.split(':');
     auth[0] && (opts.login = auth[0]);
@@ -901,8 +901,8 @@ exports.createConnection = function (options) {
 
 Connection.prototype.setOptions = function (options) {
   var o  = {};
-  mixin(o, defaultOptions, options || {});
-  if (o['url']) mixin(o, urlOptions(o['url']));
+  urlo = (options && options.url) ? urlOptions(options.url) : {};
+  mixin(o, defaultOptions, urlo, options || {});
   this.options = o;
 };
 
