@@ -1185,7 +1185,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.queue = function (name /* options, openCallback */) {
-  if (name != '' && this.queues[name]) return this.queues[name];
+  if (name != '' && this.queues[name]) return this.queues[name]; // This will bypass the callback further down, won't it?
   this.channelCounter++;
   var channel = this.channelCounter;
 
@@ -1197,7 +1197,7 @@ Connection.prototype.queue = function (name /* options, openCallback */) {
     callback = arguments[1];
   }
 
-  if (this.queues[name]) { // already declared? callback anyway
+  if (name != '' && this.queues[name]) { // already declared? callback anyway - or will it? (returns on first line of method)
     if (callback) 
       callback(this.queues[name]);
     return this.queues[name];
@@ -1205,7 +1205,6 @@ Connection.prototype.queue = function (name /* options, openCallback */) {
 
   var q = new Queue(this, channel, name, options, callback);
   this.channels[channel] = q;
-  this.queues[name] = q;
   return q;
 };
 
