@@ -44,6 +44,8 @@ a subclass of `net.Stream`. All the event and methods which work on
 `net.Stream` can also be used on an `amqp.Connection` instace. (E.G. the
 events `'connected'` and ``'closed'`.)
 
+### Connection options and URL
+
 `amqp.createConnection()` takes an options object as its only parameter.
 The options object has the these defaults:
 
@@ -53,6 +55,23 @@ The options object has the these defaults:
     , password: 'guest'
     , vhost: '/'
     }
+
+All of these can be passed in a single URL of the form
+
+    amqp[s]://[user:password@]hostname[:port][/vhost]
+
+Note that the vhost must be URL-encoded and appear as the only segment
+of the path, i.e., there is only the leading slash; leaving the path
+entirely empty indicates that the default vhost `/`, as above, should
+be used (it could also be supplied as the path `/%2f`).
+
+This URL is supplied as the field `url` in the options; for example
+
+    var conn =
+      amqp.createConnection({url: "amqp://guest:guest@localhost:5672"});
+
+Options provided as individual fields will override values given in
+the URL.
 
 After a connection is established the `'connect'` event is fired as it is
 with any `net.Connection` instance. AMQP requires a 7-way handshake which
