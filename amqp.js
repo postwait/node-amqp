@@ -1185,10 +1185,6 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 // - exclusive (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.queue = function (name /* options, openCallback */) {
-  if (name != '' && this.queues[name]) return this.queues[name];
-  this.channelCounter++;
-  var channel = this.channelCounter;
-
   var options, callback;
   if (typeof arguments[1] == 'object') {
     options = arguments[1];
@@ -1197,15 +1193,17 @@ Connection.prototype.queue = function (name /* options, openCallback */) {
     callback = arguments[1];
   }
 
-  if (this.queues[name]) { // already declared? callback anyway
-    if (callback) 
+  if (name != '' && this.queues[name]) { // already declared? callback anyway
+    if (callback)
       callback(this.queues[name]);
     return this.queues[name];
   }
 
+  this.channelCounter++;
+  var channel = this.channelCounter;
+
   var q = new Queue(this, channel, name, options, callback);
   this.channels[channel] = q;
-  this.queues[name] = q;
   return q;
 };
 
