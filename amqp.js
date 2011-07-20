@@ -1168,7 +1168,7 @@ Connection.prototype.queue = function (name /* options, openCallback */) {
     callback = arguments[1];
   }
 
-  if (this.queues[name]) { // already declared? callback anyway
+  if (name != '' && this.queues[name]) { // already declared? callback anyway
     if (callback)
       callback(this.queues[name]);
     return this.queues[name];
@@ -1179,7 +1179,6 @@ Connection.prototype.queue = function (name /* options, openCallback */) {
 
   var q = new Queue(this, channel, name, options, callback);
   this.channels[channel] = q;
-  this.queues[name] = q;
   return q;
 };
 
