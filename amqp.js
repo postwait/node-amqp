@@ -785,7 +785,7 @@ function serializeFields (buffer, fields, args, strict) {
 
 
 
-function Connection (options) {
+function Connection (options, defaultExchange) {
   net.Stream.call(this);
 
   var self = this;
@@ -795,6 +795,8 @@ function Connection (options) {
   var state = 'handshake';
   var parser;
 
+  this._defaultExchangeName =
+    (defaultExchange === undefined) ? '' : defaultExchange;
   this._defaultExchange = null;
   this.channelCounter = 0;
 
@@ -892,9 +894,10 @@ function urlOptions(connectionString) {
   return opts;
 }
 
-exports.createConnection = function (options) {
+exports.createConnection = function (options, defaultExchange) {
   var c = new Connection();
   c.setOptions(options);
+  c.setDefaultExchange(defaultExchange);
   c.reconnect();
   return c;
 };
@@ -905,6 +908,11 @@ Connection.prototype.setOptions = function (options) {
   mixin(o, defaultOptions, urlo, options || {});
   this.options = o;
 };
+
+Connection.prototype.setDefaultExchange = function(defaultExchange) {
+  this._defaultExchangeName =
+    (defaultExchange === undefined) ? '' : defaultExchange;
+}
 
 Connection.prototype.reconnect = function () {
   this.connect(this.options.port, this.options.host);
@@ -1225,7 +1233,7 @@ Connection.prototype.exchangeClosed = function (name) {
 // - durable (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.exchange = function (name, options, openCallback) {
-  if (name === undefined) name = 'amq.topic';
+  if (name === undefined) name = this._defaultExchangeName;
 
   if (!options) options = {};
   if (name != '' && options.type === undefined) options.type = 'topic';

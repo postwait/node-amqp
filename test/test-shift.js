@@ -6,8 +6,7 @@ var body = "hello world";
 connection.addListener('ready', function () {
   puts("connected to " + connection.serverProperties.product);
 
-  //var e = connection.exchange('node-ack-fanout', {type: 'fanout'});
-  var e = connection.exchange();
+  var e = connection.exchange('node-ack-fanout', {type: 'fanout'});
   var q = connection.queue('node-123ack-queue', function() {
     q.bind(e, 'ackmessage.*');
     q.on('queueBindOk', function() {

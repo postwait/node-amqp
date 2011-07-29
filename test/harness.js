@@ -10,7 +10,7 @@ if (process.argv[2]) {
   if (server[1]) options.port = parseInt(server[1]);
 }
 
-global.connection = amqp.createConnection(options);
+global.connection = amqp.createConnection(options, 'amq.topic');
 
 global.connection.addListener('error', function (e) {
   throw e;
