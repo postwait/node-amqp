@@ -785,18 +785,17 @@ function serializeFields (buffer, fields, args, strict) {
 
 
 
-function Connection (options, defaultExchange) {
+function Connection (connectionArgs, options) {
   net.Stream.call(this);
 
   var self = this;
 
-  this.setOptions(options);
+  this.setOptions(connectionArgs);
+  this.setImplOptions(options);
 
   var state = 'handshake';
   var parser;
 
-  this._defaultExchangeName =
-    (defaultExchange === undefined) ? '' : defaultExchange;
   this._defaultExchange = null;
   this.channelCounter = 0;
 
@@ -871,6 +870,7 @@ var defaultOptions = { host: 'localhost'
                      , password: 'guest'
                      , vhost: '/'
                      };
+var defaultImplOptions = { defaultExchangeName: '' };
 
 function urlOptions(connectionString) {
   var opts = {};
@@ -894,10 +894,10 @@ function urlOptions(connectionString) {
   return opts;
 }
 
-exports.createConnection = function (options, defaultExchange) {
+exports.createConnection = function (connectionArgs, options) {
   var c = new Connection();
-  c.setOptions(options);
-  c.setDefaultExchange(defaultExchange);
+  c.setOptions(connectionArgs);
+  c.setImplOptions(options);
   c.reconnect();
   return c;
 };
@@ -909,9 +909,10 @@ Connection.prototype.setOptions = function (options) {
   this.options = o;
 };
 
-Connection.prototype.setDefaultExchange = function(defaultExchange) {
-  this._defaultExchangeName =
-    (defaultExchange === undefined) ? '' : defaultExchange;
+Connection.prototype.setImplOptions = function(options) {
+  var o = {}
+  mixin(o, defaultImplOptions, options || {});
+  this.implOptions = o;
 }
 
 Connection.prototype.reconnect = function () {
@@ -1233,7 +1234,7 @@ Connection.prototype.exchangeClosed = function (name) {
 // - durable (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.exchange = function (name, options, openCallback) {
-  if (name === undefined) name = this._defaultExchangeName;
+  if (name === undefined) name = this.implOptions.defaultExchangeName;
 
   if (!options) options = {};
   if (name != '' && options.type === undefined) options.type = 'topic';

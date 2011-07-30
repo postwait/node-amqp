@@ -46,8 +46,8 @@ events `'connected'` and ``'closed'`.)
 
 ### Connection options and URL
 
-`amqp.createConnection([options, [defaultExchange]])` takes an options
-object as a parameter.  The options object has the these defaults:
+`amqp.createConnection([options, [implOptions]])` takes two options
+objects as parameters.  The first options object has the these defaults:
 
     { host: 'localhost'
     , port: 5672
@@ -73,8 +73,19 @@ This URL is supplied as the field `url` in the options; for example
 Options provided as individual fields will override values given in
 the URL.
 
-If a defaultExchange is provided, the the name specified will be used
-as the default exchange on which connection.publish will operate.
+The second options are specific to the node AMQP implementation. It has
+the default values:
+
+    { defaultExchangeName: '' }
+
+The defauleExchangeName is the default exchange to which
+connection.publish will publish. In the past, the default exchange was
+amq.topic, which is not ideal.  To emulate this behaviour, one can
+create a connection like:
+
+    var conn =
+      amqp.createConnection({url: "amqp://guest:guest@localhost:5672"},
+                            {defaultExchangeName: "amq.topic"});
 
 After a connection is established the `'connect'` event is fired as it is
 with any `net.Connection` instance. AMQP requires a 7-way handshake which
