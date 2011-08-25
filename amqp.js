@@ -499,7 +499,7 @@ function serializeFloat(b, size, value, bigEndian) {
     for (var i = 0; i < x.length; ++i)
       b[b.used++] = x[i];
     break;
-  
+
   case 8:
     var x = jp.Pack('d', [value]);
     for (var i = 0; i < x.length; ++i)
@@ -611,9 +611,9 @@ function isBigInt(value) {
   return value > 0xffffffff;
 }
 
-function getCode(dec) { 
+function getCode(dec) {
   var hexArray = "0123456789ABCDEF".split('');
-  
+
   var code1 = Math.floor(dec / 16);
   var code2 = dec - code1 * 16;
   return hexArray[code2];
@@ -1240,7 +1240,7 @@ Connection.prototype.exchange = function (name, options, openCallback) {
   if (name != '' && options.type === undefined) options.type = 'topic';
 
   if (this.exchanges[name]) { // already declared? callback anyway
-    if (openCallback) 
+    if (openCallback)
       openCallback(this.exchanges[name]);
     return this.exchanges[name];
   }
@@ -1380,7 +1380,7 @@ Channel.prototype._onChannelMethod = function(channel, method, args) {
     }
 }
 
-Channel.prototype.close = function() { 
+Channel.prototype.close = function() {
   this.state = 'closing';
     this.connection._sendMethod(this.channel, methods.channelClose,
                                 {'replyText': 'Goodbye from node',
@@ -1394,16 +1394,16 @@ function Queue (connection, channel, name, options, callback) {
 
   this.name = name;
   this.consumerTagListeners = {};
-  
+
   var self = this;
-  
+
   // route messages to subscribers based on consumerTag
   this.on('rawMessage', function(message) {
     if (message.consumerTag && self.consumerTagListeners[message.consumerTag]) {
       self.consumerTagListeners[message.consumerTag](message);
     }
   });
-  
+
   this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
 
@@ -1700,22 +1700,18 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.channelClose:
       this.state = "closed";
-/*
+      this.connection.queueClosed(this.name);
       var e = new Error(args.replyText);
       e.code = args.replyCode;
-      if (!this.listeners('close').length) {
-        sys.puts('Unhandled channel error: ' + args.replyText);
-      }
       this.emit('error', e);
-*/
       this.emit('close');
       break;
-    
+
     case methods.channelCloseOk:
-      delete this.connection.queues[this.name]
+      this.connection.queueClosed(this.name);
       this.emit('close')
       break;
-    
+
     case methods.basicDeliver:
       this.currentMessage = new Message(this, args);
       break;
@@ -1801,16 +1797,15 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
     case methods.channelClose:
       this.state = "closed";
+      this.connection.exchangeClosed(this.name);
       var e = new Error(args.replyText);
       e.code = args.replyCode;
-      if (!this.listeners('close').length) {
-        sys.puts('Unhandled channel error: ' + args.replyText);
-      }
-      this.emit('close', e);
+      this.emit('error', e);
+      this.emit('close');
       break;
 
     case methods.channelCloseOk:
-      delete this.connection.exchanges[this.name]
+      this.connection.exchangeClosed(this.name);
       this.emit('close')
       break;
 
@@ -1868,7 +1863,7 @@ Exchange.prototype.publish = function (routingKey, data, options) {
   });
 };
 
-// do any necessary cleanups eg. after queue destruction  
+// do any necessary cleanups eg. after queue destruction
 Exchange.prototype.cleanup = function() {
 	if (this.binds == 0) // don't keep reference open if unused
     	this.connection.exchangeClosed(this.name);
