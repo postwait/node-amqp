@@ -1490,9 +1490,14 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
     });
 
     m.addListener('end', function () {
-      var json, deliveryInfo = {}, msgProperties = classes[60].fields;
+      var json, parseError, deliveryInfo = {}, msgProperties = classes[60].fields;
       if (isJSON) {
-        json = JSON.parse(b);
+        try {
+          json = JSON.parse(b);
+        } catch (e) {
+          json = { data: b, contentType: m.contentType };
+          parseError = new ParseError;
+        }
       } else {
         json = { data: b, contentType: m.contentType };
       }
@@ -1519,8 +1524,13 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
             headers[i] = this.headers[i];
         }
       }
-      if (messageListener) messageListener(json, headers, deliveryInfo);
-      self.emit('message', json, headers, deliveryInfo);
+
+      if (parseError) {
+        self.emit('error', parseError, json, headers, deliveryInfo);
+      } else {
+        if (messageListener) messageListener(json, headers, deliveryInfo);
+        self.emit('message', json, headers, deliveryInfo);
+      }
     });
   });
 };
@@ -1887,3 +1897,14 @@ Exchange.prototype.destroy = function (ifUnused) {
         });
   });
 };
+
+exports.ParseError = ParseError;
+function ParseError (message) {
+  var tmp = Error.apply(this, arguments);
+  tmp.name = 'ParseError';
+  tmp.message = message || 'Could not parse message.';
+  Object.keys(tmp).forEach(function (key) {
+    this[key] = tmp[key];
+  }, this);
+}
+sys.inherits(ParseError, Error);
