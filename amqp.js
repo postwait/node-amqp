@@ -1432,7 +1432,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
         , noAck: options.noAck ? true : false
         , exclusive: options.exclusive ? true : false
         , noWait: false
-        , "arguments": {}
+        , "arguments": options.arguments || {}
         });
   });
 };
@@ -1453,6 +1453,8 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       options.routingKeyInPayload = arguments[0].routingKeyInPayload;
     if (arguments[0].deliveryTagInPayload)
       options.deliveryTagInPayload = arguments[0].deliveryTagInPayload;
+    if (arguments[0].arguments)
+      options.arguments = arguments[0].arguments;
   }
 
   if (options.ack) {
@@ -1466,6 +1468,8 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
 
   // basic consume
   var rawOptions = { noAck: !options.ack };
+  if (options.arguments)
+    rawOptions.arguments = options.arguments;
   return this.subscribeRaw(rawOptions, function (m) {
     var isJSON = (m.contentType == 'text/json') || (m.contentType == 'application/json');
 
