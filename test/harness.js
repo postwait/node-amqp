@@ -15,9 +15,11 @@ var implOpts = {
 
 global.connection = amqp.createConnection(options, implOpts);
 
-global.connection.addListener('error', function (e) {
+global.errorCallback = function(e) {
   throw e;
-})
+};
+
+global.connection.addListener('error', global.errorCallback);
 
 global.connection.addListener('close', function (e) {
   sys.puts('connection closed.');
