@@ -1168,7 +1168,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 
     debug('sending json: ' + jsonBody);
 
-    properties = mixin({contentType: 'text/json' }, properties);
+    properties = mixin({contentType: 'application/json' }, properties);
 
     sendHeader(this, channel, length, properties);
 

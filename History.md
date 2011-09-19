@@ -1,3 +1,9 @@
+...
+==================
+  * Change the default json content type to application/json
+  * add a basic-return event for exchanges to catch simple
+    basicReturn messages.
+
 0.1.0 / 2011-07-30
 ==================
 
