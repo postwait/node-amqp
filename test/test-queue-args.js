@@ -3,11 +3,6 @@ require('./harness');
 connection.on('ready', function() {
   puts("connected to " + connection.serverProperties.product);
 
-  var exchange = connection.exchange('node-queue-args', {type: 'fanout'});
-  exchange.on('close', function(err) {
-      console.log(err);
-  });
-
   connection.queue('node-queue-args-queue', {
       'arguments': {'x-expires': 3600000}
   }, function(q) {
