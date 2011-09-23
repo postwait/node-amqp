@@ -1168,7 +1168,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
 
     debug('sending json: ' + jsonBody);
 
-    properties = mixin({contentType: 'text/json' }, properties);
+    properties = mixin({contentType: 'application/json' }, properties);
 
     sendHeader(this, channel, length, properties);
 
@@ -1700,19 +1700,15 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.channelClose:
       this.state = "closed";
-/*
+      this.connection.queueClosed(this.name);
       var e = new Error(args.replyText);
       e.code = args.replyCode;
-      if (!this.listeners('close').length) {
-        sys.puts('Unhandled channel error: ' + args.replyText);
-      }
       this.emit('error', e);
-*/
       this.emit('close');
       break;
     
     case methods.channelCloseOk:
-      delete this.connection.queues[this.name]
+      this.connection.queueClosed(this.name);
       this.emit('close')
       break;
     
@@ -1801,21 +1797,20 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
     case methods.channelClose:
       this.state = "closed";
+      this.connection.exchangeClosed(this.name);
       var e = new Error(args.replyText);
       e.code = args.replyCode;
-      if (!this.listeners('close').length) {
-        sys.puts('Unhandled channel error: ' + args.replyText);
-      }
-      this.emit('close', e);
+      this.emit('error', e);
+      this.emit('close');
       break;
 
     case methods.channelCloseOk:
-      delete this.connection.exchanges[this.name]
-      this.emit('close')
+      this.connection.exchangeClosed(this.name);
+      this.emit('close');
       break;
 
     case methods.basicReturn:
-      sys.puts("Warning: Uncaught basicReturn: "+JSON.stringify(args));
+      this.emit('basic-return', args);
       break;
 
     default:
