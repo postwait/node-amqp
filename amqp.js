@@ -1671,7 +1671,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
           , exclusive: this.options.exclusive ? true : false
           , autoDelete: this.options.autoDelete ? true : false
           , noWait: false
-          , "arguments": {}
+          , "arguments": this.options.arguments || {}
           });
       this.state = "declare queue";
       break;
