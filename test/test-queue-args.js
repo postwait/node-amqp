@@ -9,8 +9,10 @@ connection.on('ready', function() {
 
 
 function doCheck(conn1, qName) {
-  conn1.queue( qName, {'arguments': {'x-expires': 300}}, function(q1) {
+  var args1 = {'x-expires': 300};
+  conn1.queue( qName, {'arguments': args1 }, function(q1) {
     puts("queue declared");
+    assert.deepEqual(q1.options.arguments, args1, 'arguments to not match');
     var conn2 = amqp.createConnection({});
     conn2.on('ready', function() {
       var q2 = conn2.queue(
