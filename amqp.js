@@ -904,7 +904,7 @@ exports.createConnection = function (connectionArgs, options) {
 
 Connection.prototype.setOptions = function (options) {
   var o  = {};
-  urlo = (options && options.url) ? urlOptions(options.url) : {};
+  var urlo = (options && options.url) ? urlOptions(options.url) : {};
   mixin(o, defaultOptions, urlo, options || {});
   this.options = o;
 };
