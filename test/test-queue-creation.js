@@ -22,11 +22,11 @@ function countdownLatch(num, callback) {
   }
 }
 
-var testsLeft = countdownLatch(2, function() {
+var testsLeft = countdownLatch(3, function() {
   connection.end();
 });
 
-// Test callback called, even if the queue already exists
+// Test multiple creations of the same queue
 
 var callbacks = 0;
 
@@ -37,13 +37,12 @@ connection.on('ready', function() {
 
   var q = connection.queue(queueName, queueOpts, function() {
     callbacks++;
-    // This should still call the callback, even though the queue has
-    // been memoised already.
+    testsLeft.decr();
     connection.queue(queueName, queueOpts, function() {
       callbacks++;
+      testsLeft.decr();
     });
 
-    testsLeft.decr();
   });
 
 });
