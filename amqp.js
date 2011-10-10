@@ -1349,7 +1349,7 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
     if (this._tasks[i].reply == method) {
       task = this._tasks[i];
       this._tasks.splice(i, 1);
-      task.promise.emitSuccess();
+      task.promise.emitSuccess(args);
       this._tasksFlush();
       return true;
     }
@@ -1425,6 +1425,18 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   });
 };
 
+Queue.prototype.unsubscribe = function(consumerTag) {
+  var self = this;
+  return this._taskPush(methods.basicCancelOk, function () {
+    self.connection._sendMethod(self.channel, methods.basicCancel,
+                                { reserved1: 0,
+                                  consumerTag: consumerTag,
+                                  noWait: false });
+  })
+  .addCallback(function () {
+    delete self.consumerTagListeners[consumerTag];
+  });
+};
 
 Queue.prototype.subscribe = function (/* options, messageListener */) {
   var self = this;
@@ -1513,7 +1525,6 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   });
 };
 Queue.prototype.subscribeJSON = Queue.prototype.subscribe;
-
 
 /* Acknowledges the last message */
 Queue.prototype.shift = function () {
