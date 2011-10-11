@@ -13,11 +13,19 @@ var implOpts = {
   defaultExchangeName: 'amq.topic'
 };
 
-global.connection = amqp.createConnection(options, implOpts);
+function harness_createConnection() {
+  return amqp.createConnection(options, implOpts);
+}
 
-global.connection.addListener('error', function (e) {
+global.harness_createConnection = harness_createConnection;
+
+global.connection = harness_createConnection();
+
+global.errorCallback = function(e) {
   throw e;
-})
+};
+
+global.connection.addListener('error', global.errorCallback);
 
 global.connection.addListener('close', function (e) {
   sys.puts('connection closed.');
