@@ -198,15 +198,15 @@ supplied to the *promise callback* of `Queue.subscribeRaw` or
       var ctag;
       queue.subscribe(function(msg) {...})
         .addCallback(function(ok) { ctag = ok.consumerTag; });
-      ...
+      // ... and in some other callback
       queue.unsubscribe(ctag);
     });
 
 Note that `Queue.unsubscribe` will not requeue messages that have not
 been acknowledged. You need to close the queue or connection for that
 to happen. You may also receive messages after calling `unsubscribe`;
-you will **not** receive messages from the queue after its promise
-callback has been invoked, however.
+you will **not** receive messages from the queue after the unsubscribe
+promise callback has been invoked, however.
 
 ### queue.shift()
 
