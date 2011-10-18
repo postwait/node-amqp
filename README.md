@@ -188,6 +188,26 @@ Look at the source code if you need to do this.
 
 This method will emit 'basicConsumeOk' when ready.
 
+### queue.unsubscribe(consumerTag)
+
+Unsubscribe from a queue, given the consumer tag. The consumer tag is
+supplied to the *promise callback* of `Queue.subscribeRaw` or
+`Queue.subscribe`:
+
+    connection.queue('foo', function(queue) {
+      var ctag;
+      queue.subscribe(function(msg) {...})
+        .addCallback(function(ok) { ctag = ok.consumerTag; });
+      ...
+      queue.unsubscribe(ctag);
+    });
+
+Note that `Queue.unsubscribe` will not requeue messages that have not
+been acknowledged. You need to close the queue or connection for that
+to happen. You may also receive messages after calling `unsubscribe`;
+you will **not** receive messages from the queue after its promise
+callback has been invoked, however.
+
 ### queue.shift()
 
 For use with `subscribe({ack: true}, fn)`. Acknowledges the last
