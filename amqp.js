@@ -1381,6 +1381,15 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
     mixin(options, arguments[0]);
   }
 
+  if (options.prefetchCount) {
+    self.connection._sendMethod(self.channel, methods.basicQos,
+        { reserved1: 0
+        , prefetchSize: 0
+        , prefetchCount: options.prefetchCount
+        , global: false
+        });
+  }
+
   return this._taskPush(methods.basicConsumeOk, function () {
     self.connection._sendMethod(self.channel, methods.basicConsume,
         { reserved1: 0
