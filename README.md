@@ -41,13 +41,13 @@ An example of connecting to a server and listening on a queue.
 
 `amqp.createConnection()` returns an instance of `amqp.Connection`, which is
 a subclass of `net.Stream`. All the event and methods which work on
-`net.Stream` can also be used on an `amqp.Connection` instace. (E.G. the
-events `'connected'` and ``'closed'`.)
+`net.Stream` can also be used on an `amqp.Connection` instance. (e.g., the
+events `'connected'` and `'closed'`.)
 
 ### Connection options and URL
 
 `amqp.createConnection([options, [implOptions]])` takes two options
-objects as parameters.  The first options object has the these defaults:
+objects as parameters.  The first options object has these defaults:
 
     { host: 'localhost'
     , port: 5672
@@ -61,9 +61,9 @@ All of these can be passed in a single URL of the form
     amqp[s]://[user:password@]hostname[:port][/vhost]
 
 Note that the vhost must be URL-encoded and appear as the only segment
-of the path, i.e., there is only the leading slash; leaving the path
-entirely empty indicates that the default vhost `/`, as above, should
-be used (it could also be supplied as the path `/%2f`).
+of the path, i.e., the only unencoded slash is that leading; leaving
+the path entirely empty indicates that the vhost `/`, as
+above, should be used (it could also be supplied as the path `/%2f`).
 
 This URL is supplied as the field `url` in the options; for example
 
@@ -78,9 +78,9 @@ the default values:
 
     { defaultExchangeName: '' }
 
-The defauleExchangeName is the default exchange to which
+The defaultExchangeName is the default exchange to which
 connection.publish will publish. In the past, the default exchange was
-amq.topic, which is not ideal.  To emulate this behaviour, one can
+`amq.topic`, which is not ideal.  To emulate this behaviour, one can
 create a connection like:
 
     var conn =
@@ -90,24 +90,25 @@ create a connection like:
 After a connection is established the `'connect'` event is fired as it is
 with any `net.Connection` instance. AMQP requires a 7-way handshake which
 must be completed before any communication can begin. `net.Connection` does
-the handshake automatically and emits the `ready` event when the handshaking
+the handshake automatically and emits the `'ready'` event when the handshaking
 is complete.
 
 For backward compatability, two additional options are available. Older
-versions of amqp placed the routingKey and deliveryTag for incoming
+versions of this library placed the routingKey and deliveryTag for incoming
 messages into the JSON payload received. This module was changed to
 leave inbound JSON payloads pristine.  Some applications may need the
 old behaviour. If the key 'routingKeyInPayload' is set to true in the
 connection options, the messages resulting from a subscribe call will
 include a 'routingKey' key in the JSON payload.  If the key
-'devlieryTagInPayload' is set to true in the connection options, the
+'devliryTagInPayload' is set to true in the connection options, the
 deliveryTag of the incoming message will be placed in the JSON payload.
 
 
 ### connection.publish(queueName, body)
 
-Publishes a message to the default exchange; this effectively
-publishes the message to the queue named.
+Publishes a message to the default exchange; if the defaultExchange is
+left as `''`, this effectively publishes the message to the queue
+named.
 
 ### connection.end()
 
@@ -168,14 +169,14 @@ server only delivers a single message at a time. When you want the next
 message, call `q.shift()`. When `ack` is false then you will receive
 messages as fast as they come in.
 
-The 'routingKeyInPayload' and 'deliveryKeyInPayload' options determing
+The 'routingKeyInPayload' and 'deliveryKeyInPayload' options determine
 if the reception process will inject the routingKey and deliveryKey,
-respectively, into the JSON payload receieved.  These default to unset
-thus adopting the parent connection's values (which defualt to false).
+respectively, into the JSON payload received.  These default to unset
+thus adopting the parent connection's values (which default to false).
 Setting these to true provide backward compability for older
 applications.
 
-This method will emit 'basicQosOk' when ready.
+This method will emit `'basicQosOk'` when ready.
 
 
 ### queue.subscribeRaw([options,] listener)
@@ -186,7 +187,7 @@ listener receives will be a stream of binary data. You probably want to use
 `subscribe` instead. For now this low-level interface is left undocumented.
 Look at the source code if you need to do this.
 
-This method will emit 'basicConsumeOk' when ready.
+This method will emit `'basicConsumeOk'` when ready.
 
 ### queue.shift()
 
@@ -197,11 +198,12 @@ message.
 ### queue.bind([exchange,] routing)
 
 This method binds a queue to an exchange.  Until a queue is
-bound it will not receive any messages.
+bound it will not receive any messages, unless they are sent through
+the unnamed exchange (see `defaultExchangeName` above).
 
 If the `exchange` argument is left out `'amq.topic'` will be used.
 
-This method will emit 'queueBindOk' when ready.
+This method will emit `'queueBindOk'` when ready.
 
 ### queue.bind_headers([exchange,] routing)
 
@@ -261,8 +263,8 @@ object for the second. The options are
     Non-durable exchanges (transient exchanges) are purged if/when a
     server restarts.
 - `autoDelete`: boolean, default true.
-    If set, the exchange is deleted when all queues have finished using
-    it.
+    If set, the exchange is deleted when there are no longer queues
+    bound to it.
 
 An exchange will emit the `'open'` event when it is finally declared.
 
@@ -272,22 +274,22 @@ An exchange will emit the `'open'` event when it is finally declared.
 Publishes a message to the exchange. The `routingKey` argument is a string
 which helps routing in `topic` and `direct` exchanges. The `message` can be
 either a Buffer or Object. A Buffer is used for sending raw bytes; an Object
-is convereted to JSON.
+is converted to JSON.
 
 `options` is an object with any of the following
 
 - `mandatory`: boolean, default false.
     This flag tells the server how to react if the message cannot be
     routed to a queue.  If this flag is set, the server will return an
-    unroutable message with a Return method.  If this flag is zero, the
+    unroutable message with a Return method.  If this flag is false, the
     server silently drops the message.
 - `immediate`: boolean, default false.
     This flag tells the server how to react if the message cannot be
     routed to a queue consumer immediately.  If this flag is set, the
     server will return an undeliverable message with a Return method.
-    If this flag is zero, the server will queue the message, but with
+    If this flag is false, the server will queue the message, but with
     no guarantee that it will ever be consumed.
-- `contentType`: default 'application/octet-stream'
+- `contentType`: default `'application/octet-stream'`
 - `contentEncoding`: default null.
 - `headers`: default `{}`. Arbitrary application-specific message headers.
 - `deliveryMode`: Non-persistent (1) or persistent (2)
