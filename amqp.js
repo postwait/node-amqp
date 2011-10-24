@@ -1749,6 +1749,7 @@ Queue.prototype._onContent = function (channel, data) {
 function Exchange (connection, channel, name, options, openCallback) {
   Channel.call(this, connection, channel);
   this.name = name;
+  this.messageCount = 0; // keeps track of message counts when confirm enabled
   this.binds = 0; // keep track of queues bound
   this.options = options || { autoDelete: true};
   this._openCallback = openCallback;
@@ -1808,6 +1809,27 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.emit('close');
       break;
 
+    case methods.basicAck:
+      if (this.confirmPromises) {
+        var entry = null;
+        var done = false;
+
+        while (this.confirmPromises.length > 0 && !done) {
+
+          entry = this.confirmPromises.shift();
+
+          setTimeout(function(promise){
+            promise.emitSuccess();
+          },0, entry.promise);
+
+          if (entry.deliveryTag == args.deliveryTag) {
+            done = true;
+          }
+        }
+
+      }
+      break;
+
     case methods.basicReturn:
       this.emit('basic-return', args);
       break;
@@ -1819,7 +1841,26 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
   this._tasksFlush();
 };
+// exchange.confirm
+//
+// Puts the exchange in confirm mode. This will cause the returned promise to emmit success when the rabbitmq server accepts responsibility for delivering the message.
+Exchange.prototype.confirm = function() {
 
+  var self = this;
+  var options = {
+    nowait: true
+  };
+
+  var promise = this._taskPush(methods.confirmSelectOK, function(){
+    self.connection._sendMethod(self.channel, methods.confirmSelect, options);
+  });
+
+  promise.addCallback(function(){
+    self.confirms = true;
+  });
+
+  return promise;
+}
 
 // exchange.publish('routing.key', 'body');
 //
@@ -1848,8 +1889,14 @@ Exchange.prototype.publish = function (routingKey, data, options) {
   options.mandatory  = options.mandatory ? true : false;
   options.immediate  = options.immediate ? true : false;
   options.reserved1  = 0;
+  
+  if (this.confirm) {
+	  this.messageCount++; // start counting at one, so increment first
+	  var deliveryTag = this.messageCount;
+  }
 
-  return this._taskPush(null, function () {
+  var promise = this._taskPush(null, function () {
+
     self.connection._sendMethod(self.channel, methods.basicPublish, options);
     // This interface is probably not appropriate for streaming large files.
     // (Of course it's arguable about whether AMQP is the appropriate
@@ -1860,6 +1907,18 @@ Exchange.prototype.publish = function (routingKey, data, options) {
     // If you need to stream something large, chunk it yourself.
     self.connection._sendBody(self.channel, data, options);
   });
+
+  if (this.confirm) {
+    if (!this.confirmPromises) {
+      this.confirmPromises = [];
+    }
+    this.confirmPromises.push({
+      deliveryTag: deliveryTag,
+      promise: promise
+    });
+  }
+
+  return promise;
 };
 
 // do any necessary cleanups eg. after queue destruction  
