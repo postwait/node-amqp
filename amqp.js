@@ -1848,10 +1848,10 @@ Exchange.prototype.confirm = function() {
 
   var self = this;
   var options = {
-    nowait: true
+    nowait: false
   };
 
-  var promise = this._taskPush(methods.confirmSelectOK, function(){
+  var promise = this._taskPush(methods.confirmSelectOk, function(){
     self.connection._sendMethod(self.channel, methods.confirmSelect, options);
   });
 

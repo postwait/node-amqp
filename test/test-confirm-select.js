@@ -7,14 +7,17 @@ connection.addListener('ready', function () {
 		type: 'fanout'
 	},
 	function(exchange) {
-		exchange.confirm();
+		var promise = exchange.confirm();
 
-		var  promise = exchange.publish("", "hello");
-		promise.addCallback(function(){			
-			fired = true;
-			followup();
+		promise.addCallback(function() {
+
+			var promise = exchange.publish("", "hello");
+			promise.addCallback(function(){
+				fired = true;
+				followup();
+			});
+
 		});
-
 
 	});
 });
