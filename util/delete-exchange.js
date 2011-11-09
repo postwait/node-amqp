@@ -1,8 +1,7 @@
-sys = require('sys');
 amqp = require('../amqp');
 
 var name = process.argv[2];
-sys.puts("exchange: " + name);
+console.log("exchange: " + name);
 
 var creds =
   { host:     process.env['AMQP_HOST']      || 'localhost'
@@ -18,10 +17,10 @@ connection.addListener('error', function (e) {
 });
 
 connection.addListener('ready', function () {
-  sys.puts("Connected");
+  console.log("Connected");
   var e = connection.exchange(name);
   e.destroy().addCallback(function () {
-    sys.puts('exchange destroyed.');
+    console.log('exchange destroyed.');
     connection.close();
   });
 });

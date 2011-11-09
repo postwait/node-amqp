@@ -1,4 +1,3 @@
-var sys =  require('sys');
 var amqp = require('./amqp');
 
 
@@ -9,35 +8,35 @@ connection.addListener('close', function (e) {
   if (e) {
     throw e;
   } else {
-    sys.puts('connection closed.');
+    console.log('connection closed.');
   }
 });
 
 
 connection.addListener('ready', function () {
-  sys.puts("connected to " + connection.serverProperties.product);
+  console.log("connected to " + connection.serverProperties.product);
 
   var exchange = connection.exchange('clock', {type: 'fanout'});
 
   var q = connection.queue('my-events-receiver');
 
   q.bind(exchange, "*").addCallback(function () {
-    sys.puts("publishing message");
+    console.log("publishing message");
     exchange.publish("message.json", {hello: 'world', foo: 'bar'});
     exchange.publish("message.text", 'hello world', {contentType: 'text/plain'});
   });
 
   q.subscribe(function (m) {
-    sys.puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
-    sys.puts("--- contentType: " + m.contentType);
+    console.log("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+    console.log("--- contentType: " + m.contentType);
 
     m.addListener('data', function (d) {
-      sys.puts(d);
+      console.log(d);
     });
 
     m.addListener('end', function () {
       m.acknowledge();
-      sys.puts("--- END (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+      console.log("--- END (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
     });
   });
 });
