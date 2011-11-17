@@ -6,7 +6,7 @@ connects = 0;
 var closed = 0;
 
 var hb = setInterval(function() {
-  puts(" -> heartbeat");
+  console.log(' -> heartbeat');
   connection.heartbeat();
 }, 1000);
 
@@ -17,21 +17,21 @@ setTimeout(function() {
 }, 5000);
 
 connection.on('heartbeat', function() {
-  puts(" <- heartbeat");
+  console.log(" <- heartbeat");
 });
 connection.on('close', function() {
-  puts("closed");
+  console.log('closed');
   closed = 1;
 });
 connection.addListener('ready', function () {
   connects++;
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   var e = connection.exchange();
 
   var q = connection.queue('node-test-hearbeat', {autoDelete: true});
   q.on('queueDeclareOk', function (args) {
-    puts('queue opened.');
+    console.log('queue opened.');
     assert.equal(0, args.messageCount);
     assert.equal(0, args.consumerCount);
 

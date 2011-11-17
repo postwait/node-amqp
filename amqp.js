@@ -1,5 +1,5 @@
 var events = require('events'),
-    sys = require('sys'),
+    util = require('util'),
     net = require('net'),
     protocol,
     jspack = require('./jspack').jspack,
@@ -67,7 +67,7 @@ function mixin () {
 
 var debugLevel = process.env['NODE_DEBUG_AMQP'] ? 1 : 0;
 function debug (x) {
-  if (debugLevel > 0) sys.error(x + '\n');
+  if (debugLevel > 0) console.error(x);
 }
 
 
@@ -858,7 +858,7 @@ function Connection (connectionArgs, options) {
     parser = null;
   });
 }
-sys.inherits(Connection, net.Stream);
+util.inherits(Connection, net.Stream);
 exports.Connection = Connection;
 
 
@@ -995,7 +995,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
       var e = new Error(args.replyText);
       e.code = args.replyCode;
       if (!this.listeners('close').length) {
-        sys.puts('Unhandled connection error: ' + args.replyText);
+        console.log('Unhandled connection error: ' + args.replyText);
       }
       this.destroy(e);
       break;
@@ -1286,7 +1286,7 @@ function Message (queue, args) {
       }
   }
 }
-sys.inherits(Message, events.EventEmitter);
+util.inherits(Message, events.EventEmitter);
 
 
 // Acknowledge recept of message.
@@ -1312,7 +1312,7 @@ function Channel (connection, channel) {
 
   this.connection._sendMethod(channel, methods.channelOpen, {reserved1: ""});
 }
-sys.inherits(Channel, events.EventEmitter);
+util.inherits(Channel, events.EventEmitter);
 
 
 Channel.prototype._taskPush = function (reply, cb) {
@@ -1397,7 +1397,7 @@ function Queue (connection, channel, name, options, callback) {
 
   this._openCallback = callback;
 }
-sys.inherits(Queue, Channel);
+util.inherits(Queue, Channel);
 
 Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   var self = this;
@@ -1688,7 +1688,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.basicConsumeOk:
-      debug('basicConsumeOk', sys.inspect(args, null));
+      debug('basicConsumeOk', util.inspect(args, null));
       break;
 
     case methods.queueBindOk:
@@ -1753,7 +1753,7 @@ function Exchange (connection, channel, name, options, openCallback) {
   this.options = options || { autoDelete: true};
   this._openCallback = openCallback;
 }
-sys.inherits(Exchange, Channel);
+util.inherits(Exchange, Channel);
 
 
 

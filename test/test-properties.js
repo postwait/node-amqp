@@ -19,7 +19,7 @@ var properties = {
 };
 
 connection.addListener('ready', function () {
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   var exchange = connection.exchange('node-json-fanout', {type: 'fanout'});
 
@@ -33,7 +33,7 @@ connection.addListener('ready', function () {
       assert.equal(properties[key], deliveryInfo[key]);
     })
     .addCallback(function () {
-      puts("publishing " + Object.keys(properties).length + " messages");
+      console.log('publishing ' + Object.keys(properties).length + " messages");
       Object.keys(properties).forEach(function(p) {
         var props = {};
         props[p] = properties[p];

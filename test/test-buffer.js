@@ -4,7 +4,7 @@ var recvCount = 0;
 var body = new Buffer([1,99,253,255,0,1,5,6])
 
 connection.addListener('ready', function () {
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   var exchange = connection.exchange('node-binary-fanout', {type: 'fanout'});
 
@@ -20,7 +20,7 @@ connection.addListener('ready', function () {
         m.acknowledge();
         switch (m.routingKey) {
           case 'message.bin1':
-            assert.equal(sys.inspect(body), sys.inspect(data));
+            assert.equal(util.inspect(body), util.inspect(data));
             break;
 
           default:
@@ -29,7 +29,7 @@ connection.addListener('ready', function () {
       });
     })
     .addCallback(function () {
-      puts("publishing 1 raw message");
+      console.log('publishing 1 raw message');
       exchange.publish('message.bin1', body);
   
       setTimeout(function () {

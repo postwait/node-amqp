@@ -1,5 +1,4 @@
-global.sys =  require('sys');
-puts = sys.puts;
+global.util =  require('util');
 global.assert =  require('assert');
 global.amqp = require('../amqp');
 
@@ -28,6 +27,6 @@ global.errorCallback = function(e) {
 global.connection.addListener('error', global.errorCallback);
 
 global.connection.addListener('close', function (e) {
-  sys.puts('connection closed.');
+  console.log('connection closed.');
 });
 
