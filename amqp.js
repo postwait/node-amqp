@@ -1501,7 +1501,13 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
     m.addListener('end', function () {
       var json, deliveryInfo = {}, msgProperties = classes[60].fields;
       if (isJSON) {
-        json = JSON.parse(b);
+        try {
+          json = JSON.parse(b);
+        } catch (e) {
+          json = null;
+          deliveryInfo.parseError = e;
+          deliveryInfo.rawData = b;
+        }
       } else {
         json = { data: b, contentType: m.contentType };
       }
