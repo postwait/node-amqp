@@ -1411,6 +1411,15 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
     mixin(options, arguments[0]);
   }
 
+  if (options.prefetchCount) {
+    self.connection._sendMethod(self.channel, methods.basicQos,
+        { reserved1: 0
+        , prefetchSize: 0
+        , prefetchCount: options.prefetchCount
+        , global: false
+        });
+  }
+
   return this._taskPush(methods.basicConsumeOk, function () {
     self.connection._sendMethod(self.channel, methods.basicConsume,
         { reserved1: 0
@@ -1496,7 +1505,13 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
     m.addListener('end', function () {
       var json, deliveryInfo = {}, msgProperties = classes[60].fields;
       if (isJSON) {
-        json = JSON.parse(b);
+        try {
+          json = JSON.parse(b);
+        } catch (e) {
+          json = null;
+          deliveryInfo.parseError = e;
+          deliveryInfo.rawData = b;
+        }
       } else {
         json = { data: b, contentType: m.contentType };
       }
