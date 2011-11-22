@@ -1538,8 +1538,8 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
             headers[i] = this.headers[i];
         }
       }
-      if (messageListener) messageListener(json, headers, deliveryInfo);
-      self.emit('message', json, headers, deliveryInfo);
+      if (messageListener) messageListener(json, headers, deliveryInfo, m);
+      self.emit('message', json, headers, deliveryInfo, m);
     });
   });
 };
