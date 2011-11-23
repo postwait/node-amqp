@@ -68,6 +68,7 @@ function mixin () {
 var debugLevel = process.env['NODE_DEBUG_AMQP'] ? 1 : 0;
 function debug (x) {
   if (debugLevel > 0) sys.error(x + '\n');
+  //console.log(x);
 }
 
 
@@ -1541,8 +1542,12 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   // If not supplied the connection will use the 'amq.topic'
   // exchange.
 
-  var exchange, routingKey;
-
+    var exchange, routingKey, callback;
+    if(typeOf(arguments[arguments.length-1]) == 'function'){
+        callback = arguments[arguments.length-1];
+        delete arguments[arguments.length-1];
+        arguments.length--;
+    }
   if (arguments.length == 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
@@ -1550,6 +1555,7 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
     exchange = 'amq.topic';
     routingKey = arguments[0];
   }
+  if(callback) this._bindCallback = callback;
 
 
   var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
@@ -1692,6 +1698,10 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.queueBindOk:
+        if (this._bindCallback) {
+            this._bindCallback(this);
+            this._bindCallback = null;
+      }
       break;
 
     case methods.basicQosOk:
