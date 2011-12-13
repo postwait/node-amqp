@@ -4,14 +4,14 @@ var recvCount = 0;
 var body = "hello world";
 
 connection.addListener('ready', function () {
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   var q = connection.queue('node-default-exchange', function() {
     q.bind("#"); // bind to queue
     
     q.on('queueBindOk', function() { // wait until queue is bound
       q.on('basicConsumeOk', function () { // wait until consumer is registered
-        puts("publishing 2 msg messages");
+        console.log('publishing 2 msg messages');
         connection.publish('message.msg1', {two:2, one:1});
         connection.publish('message.msg2', {foo:'bar', hello: 'world'});
 

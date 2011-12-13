@@ -4,7 +4,7 @@ var recvCount = 0;
 var body = "the devil is in the headers";
 
 connection.on('ready', function () {
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   var exchange = connection.exchange('node-h-fanout', {type: 'fanout'});
 
@@ -12,7 +12,7 @@ connection.on('ready', function () {
     q.bind(exchange, "*")
     q.on('queueBindOk', function() {
       q.on('basicConsumeOk', function () {
-        puts("publishing message");
+        console.log('publishing message');
         exchange.publish("to.me", body, { headers: { 
             foo: 'bar', 
             bar: 'foo',
@@ -25,7 +25,7 @@ connection.on('ready', function () {
         }, 1000);
       });
       q.subscribeRaw(function (m) {
-        puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+        console.log('--- Message (' + m.deliveryTag + ", '" + m.routingKey + "') ---");
         //puts("--- headers: " + JSON.stringify(m.headers));
         
         recvCount++;

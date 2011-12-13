@@ -4,7 +4,7 @@ var recvCount = 0;
 var body = "hello world";
 
 connection.addListener('ready', function () {
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   var exchange = connection.exchange('node-json-fanout', {type: 'fanout'});
 
@@ -40,7 +40,7 @@ connection.addListener('ready', function () {
       }
     })
     .addCallback(function () {
-      puts("publishing 3 json messages");
+      console.log('publishing 3 json messages');
       exchange.publish('message.json1', origMessage1);
       exchange.publish('message.json2', origMessage2, {contentType: 'application/json'});
       exchange.publish('message.json3', origMessage3, {contentType: 'application/json'});

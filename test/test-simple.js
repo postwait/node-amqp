@@ -1,17 +1,17 @@
 require('./harness');
 
 var recvCount = 0;
-var body = "hello world";
+var body = 'hello world';
 
 connection.addListener('ready', function () {
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   connection.exchange('node-simple-fanout', {type: 'fanout'}, function(exchange) {
       connection.queue('node-simple-queue', function(q) {
         q.bind(exchange, "*")
         q.on('queueBindOk', function() {
           q.on('basicConsumeOk', function () {
-            puts("publishing message");
+            console.log("publishing message");
             exchange.publish("message.text", body, {contentType: 'text/plain'});
 
             setTimeout(function () {
@@ -21,8 +21,8 @@ connection.addListener('ready', function () {
           });
 
           q.subscribeRaw(function (m) {
-            puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
-            puts("--- contentType: " + m.contentType);
+            console.log('--- Message (' + m.deliveryTag + ", '" + m.routingKey + "') ---");
+            console.log('--- contentType: ' + m.contentType);
 
             recvCount++;
 

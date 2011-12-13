@@ -7,7 +7,7 @@ var later = function(fun) {
     setTimeout(fun, 500);
 }
 connection.addListener('ready', function () {
-    puts("connected to " + connection.serverProperties.product);
+    console.log('connected to ' + connection.serverProperties.product);
 
     var q = connection.queue('node-simple-queue');
     var exchange = connection.exchange('node-simple-fanout', {type: 'fanout'});

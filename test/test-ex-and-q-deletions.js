@@ -3,7 +3,7 @@ require('./harness');
 var recvCount = 0;
 
 connection.addListener('ready', function () {
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   var exchange1 = connection.exchange('node-conn-share1', {type: 'direct'});
   var exchange2 = connection.exchange('node-conn-share2', {type: 'direct'});

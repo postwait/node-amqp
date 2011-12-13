@@ -4,14 +4,14 @@ var recvCount = 0;
 var body = "the devil is in the type, and also in the headers";
 
 connection.addListener('ready', function () {
-  puts("connected to " + connection.serverProperties.product);
+  console.log('connected to ' + connection.serverProperties.product);
 
   connection.exchange('node-th-fanout', {type: 'fanout'}, function(exchange) {
       connection.queue('node-th-queue', function(q) {
         q.bind(exchange, "*");
         q.on('queueBindOk', function() {
           q.on('basicConsumeOk', function () {
-            puts("publishing message");
+            console.log('publishing message');
             exchange.publish("message.text", body,
             {
               type: 'typeProperty',
@@ -33,10 +33,10 @@ connection.addListener('ready', function () {
             });
           });
           q.subscribeRaw(function (m) {
-            puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
-            puts("--- type: " + m.type);
-            puts("--- headers: " + JSON.stringify(m.headers));
-            puts("");
+            console.log('--- Message (' + m.deliveryTag + ", '" + m.routingKey + "') ---");
+            console.log('--- type: ' + m.type);
+            console.log('--- headers: ' + JSON.stringify(m.headers));
+            console.log('');
             recvCount++;
             assert.equal('typeProperty', m.type);
             assert.equal('Hello, World', m.headers.stringHeader);

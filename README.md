@@ -13,7 +13,6 @@ implements the 0.9.1 version of the AMQP protocol.
 
 An example of connecting to a server and listening on a queue.
 
-    var sys = require('sys');
     var amqp = require('amqp');
 
     var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
@@ -29,7 +28,7 @@ An example of connecting to a server and listening on a queue.
       // Receive messages
       q.subscribe(function (message) {
         // Print messages to stdout
-        sys.p(message);
+        console.log(message);
       });
     });
 
