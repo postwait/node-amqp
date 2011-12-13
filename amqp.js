@@ -1454,6 +1454,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   if(typeof(messageListener) !== "function") messageListener = null;
 
   var options = { ack: false,
+                  prefetchCount: 1,
                   routingKeyInPayload: self.connection.options.routingKeyInPayload,
                   deliveryTagInPayload: self.connection.options.deliveryTagInPayload };
   if (typeof arguments[0] == 'object') {
@@ -1462,13 +1463,16 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       options.routingKeyInPayload = arguments[0].routingKeyInPayload;
     if (arguments[0].deliveryTagInPayload)
       options.deliveryTagInPayload = arguments[0].deliveryTagInPayload;
+    if (arguments[0].prefetchCount != undefined)
+      options.prefetchCount = arguments[0].prefetchCount;
+
   }
 
   if (options.ack) {
     self.connection._sendMethod(self.channel, methods.basicQos,
         { reserved1: 0
         , prefetchSize: 0
-        , prefetchCount: 1
+        , prefetchCount: options.prefetchCount
         , global: false
         });
   }
@@ -1534,8 +1538,8 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
             headers[i] = this.headers[i];
         }
       }
-      if (messageListener) messageListener(json, headers, deliveryInfo);
-      self.emit('message', json, headers, deliveryInfo);
+      if (messageListener) messageListener(json, headers, deliveryInfo, m);
+      self.emit('message', json, headers, deliveryInfo, m);
     });
   });
 };

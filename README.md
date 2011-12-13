@@ -167,7 +167,12 @@ There are several options available.  Setting the options argument to
 `{ ack: true }` (which defaults to false) will make it so that the AMQP
 server only delivers a single message at a time. When you want the next
 message, call `q.shift()`. When `ack` is false then you will receive
-messages as fast as they come in.
+messages as fast as they come in. 
+
+You can also use the prefetchCount option to increase the window of how
+many messages the server will send you before you need to ack (quality of service).
+'{ ack: true, prefetchCount: 1 }' is the default and will only send you one
+message before you ack. Setting prefetchCount to 0 will make that window unlimited.
 
 The 'routingKeyInPayload' and 'deliveryKeyInPayload' options determine
 if the reception process will inject the routingKey and deliveryKey,
