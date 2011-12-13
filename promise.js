@@ -1,5 +1,5 @@
 var events = require('events');
-var inherits = require('sys').inherits;
+var inherits = require('util').inherits;
 
 exports.Promise = function () {
   events.EventEmitter.call(this);

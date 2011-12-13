@@ -20,7 +20,7 @@ connection.addListener('ready', function () {
         m.acknowledge();
         switch (m.routingKey) {
           case 'message.bin1':
-            assert.equal(sys.inspect(body), sys.inspect(data));
+            assert.equal(util.inspect(body), util.inspect(data));
             break;
 
           default:
