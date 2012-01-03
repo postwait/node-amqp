@@ -1,11 +1,11 @@
 var events = require('events'),
-util = require('util'),
-net = require('net'),
-protocol,
-jspack = require('./jspack').jspack,
-Buffer = require('buffer').Buffer,
-Promise = require('./promise').Promise,
-URL = require('url');
+    util = require('util'),
+    net = require('net'),
+    protocol,
+    jspack = require('./jspack').jspack,
+    Buffer = require('buffer').Buffer,
+    Promise = require('./promise').Promise,
+    URL = require('url');
 
 function mixin () {
   // copy reference to target object
