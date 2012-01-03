@@ -14,9 +14,9 @@ connection.on('ready', function () {
       q.on('basicConsumeOk', function () {
         puts("publishing message");
         exchange.publish("to.me", body, { headers: { 
-            foo: 'bar', 
-            bar: 'foo',
-            number: '123'
+          foo: 'bar', 
+          bar: 'foo',
+          number: '123'
         } });
 
         setTimeout(function () {

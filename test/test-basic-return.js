@@ -5,17 +5,18 @@ var fire, fired = false,
     replyText = null;
 
 connection.addListener('ready', function () {
-  connection.exchange('node-simple-fanout', {type: 'fanout'},
-                      function(exchange) {
-    exchange.on('basic-return', function(args) {
-      fired = true;
-      replyCode = args['replyCode'];
-      replyText = args['replyText'];
-      clearTimeout(fire);
-      followup();
+  connection.exchange(
+    'node-simple-fanout', {type: 'fanout'},
+    function(exchange) {
+      exchange.on('basic-return', function(args) {
+        fired = true;
+        replyCode = args['replyCode'];
+        replyText = args['replyText'];
+        clearTimeout(fire);
+        followup();
+      });
+      exchange.publish("", "hello", { mandatory: true, immediate: true });
     });
-    exchange.publish("", "hello", { mandatory: true, immediate: true });
-  });
 });
 
 function followup() {
