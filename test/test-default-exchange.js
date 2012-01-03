@@ -23,22 +23,22 @@ connection.addListener('ready', function () {
       
       q.subscribe({ routingKeyInPayload: true },
                   function (msg) { // register consumer
-        recvCount++;
-        switch (msg._routingKey) {
-          case 'message.msg1':
-            assert.equal(1, msg.one);
-            assert.equal(2, msg.two);
-            break;
+                    recvCount++;
+                    switch (msg._routingKey) {
+                    case 'message.msg1':
+                      assert.equal(1, msg.one);
+                      assert.equal(2, msg.two);
+                      break;
 
-          case 'message.msg2':
-            assert.equal('world', msg.hello);
-            assert.equal('bar', msg.foo);
-            break;
+                    case 'message.msg2':
+                      assert.equal('world', msg.hello);
+                      assert.equal('bar', msg.foo);
+                      break;
 
-          default:
-            throw new Error('unexpected routing key: ' + msg._routingKey);
-        }
-      })
+                    default:
+                      throw new Error('unexpected routing key: ' + msg._routingKey);
+                    }
+                  });
     });
   });
 
