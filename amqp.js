@@ -81,12 +81,38 @@ var methods = {};
 // classes keyed on their index
 var classes = {};
 
+(function () { // anon scope for init
+  //debug("initializing amqp methods...");
+  protocol = require('./amqp-definitions-0-9-1');
+
+  for (var i = 0; i < protocol.classes.length; i++) {
+    var classInfo = protocol.classes[i];
+    classes[classInfo.index] = classInfo;
+    for (var j = 0; j < classInfo.methods.length; j++) {
+      var methodInfo = classInfo.methods[j];
+      
+      var name = classInfo.name
+        + methodInfo.name[0].toUpperCase()
+        + methodInfo.name.slice(1);
+      //debug(name);
+      
+      var method = { name: name
+                     , fields: methodInfo.fields
+                     , methodIndex: methodInfo.index
+                     , classIndex: classInfo.index
+                   };
+      
+      if (!methodTable[classInfo.index]) methodTable[classInfo.index] = {};
+      methodTable[classInfo.index][methodInfo.index] = method;
+      methods[name] = method;
+    }
+  }
+})(); // end anon scope
 
 // parser
 
-
-var maxFrameBuffer = 131072; // same as rabbitmq
-
+var maxFrameBuffer = 131072; // 128k, same as rabbitmq (which was
+                             // copying qpid)
 
 // An interruptible AMQP parser.
 //
@@ -107,34 +133,6 @@ function AMQPParser (version, type) {
   this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
 
   if (version != '0-9-1') this.throwError("Unsupported protocol version");
-
-  protocol = require('./amqp-definitions-'+version);
-
-(function () { // anon scope for init
-  //debug("initializing amqp methods...");
-  for (var i = 0; i < protocol.classes.length; i++) {
-    var classInfo = protocol.classes[i];
-    classes[classInfo.index] = classInfo;
-    for (var j = 0; j < classInfo.methods.length; j++) {
-      var methodInfo = classInfo.methods[j];
-
-      var name = classInfo.name
-               + methodInfo.name[0].toUpperCase()
-               + methodInfo.name.slice(1);
-      //debug(name);
-
-      var method = { name: name
-                   , fields: methodInfo.fields
-                   , methodIndex: methodInfo.index
-                   , classIndex: classInfo.index
-                   };
-
-      if (!methodTable[classInfo.index]) methodTable[classInfo.index] = {};
-      methodTable[classInfo.index][methodInfo.index] = method;
-      methods[name] = method;
-    }
-  }
-})(); // end anon scope
 
   var frameHeader = new Buffer(7);
   frameHeader.used = 0;
@@ -427,7 +425,6 @@ AMQPParser.prototype._parseMethodFrame = function (channel, buffer) {
   var classId = parseInt(buffer, 2),
      methodId = parseInt(buffer, 2);
 
-
   // Make sure that this is a method that we understand.
   if (!methodTable[classId] || !methodTable[classId][methodId]) {
     this.throwError("Received unknown [classId, methodId] pair [" +
@@ -453,14 +450,11 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
   var weight = parseInt(buffer, 2);
   var size = parseInt(buffer, 8);
 
-
-
   var classInfo = classes[classIndex];
 
   if (classInfo.fields.length > 15) {
     this.throwError("TODO: support more than 15 properties");
   }
-
 
   var propertyFlags = parseInt(buffer, 2);
 
@@ -769,8 +763,6 @@ function serializeFields (buffer, fields, args, strict) {
     }
   }
 }
-
-
 
 
 function Connection (connectionArgs, options) {
