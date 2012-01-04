@@ -11,7 +11,7 @@ connection.addListener('ready', function () {
   var q = connection.queue('node-binary-queue', function() {
 
     q.bind(exchange, "*");
-  
+    
     q.subscribeRaw(function (m) {
       var data;
       m.addListener('data', function (d) { data = d; });
@@ -19,24 +19,24 @@ connection.addListener('ready', function () {
         recvCount++;
         m.acknowledge();
         switch (m.routingKey) {
-          case 'message.bin1':
-            assert.equal(util.inspect(body), util.inspect(data));
-            break;
+        case 'message.bin1':
+          assert.equal(util.inspect(body), util.inspect(data));
+          break;
 
-          default:
-            throw new Error('unexpected routing key: ' + m.routingKey);
+        default:
+          throw new Error('unexpected routing key: ' + m.routingKey);
         }
       });
     })
-    .addCallback(function () {
-      puts("publishing 1 raw message");
-      exchange.publish('message.bin1', body);
-  
-      setTimeout(function () {
-        // wait one second to receive the message, then quit
-        connection.end();
-      }, 1000);
-    })
+      .addCallback(function () {
+        puts("publishing 1 raw message");
+        exchange.publish('message.bin1', body);
+        
+        setTimeout(function () {
+          // wait one second to receive the message, then quit
+          connection.end();
+        }, 1000);
+      })
   });
 });
 
