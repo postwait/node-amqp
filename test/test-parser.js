@@ -37,4 +37,7 @@ var consume = [
   0,0,0,0,0,0,0,0,0, // content (no fields)
   206]; // frame delimiter
 
-packets(consume.slice(0, 4), consume.slice(4));
+for (var i = 0; i < consume.length; i++) {
+  connection = fresh_connection();
+  packets(consume.slice(0, i), consume.slice(i));
+}
