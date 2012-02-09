@@ -41,3 +41,21 @@ for (var i = 0; i < consume.length; i++) {
   connection = fresh_connection();
   packets(consume.slice(0, i), consume.slice(i));
 }
+
+// And test if a packet with more than one frame gets parsed OK
+
+var consumeX2 = [
+  1,0,1,0,0,0,13, // frame header
+  0,60,0,20, // method header
+  0,0,0,0,0,0,0,0,0, // content (no fields)
+  206,
+  1,0,1,0,0,0,13, // frame header
+  0,60,0,20, // method header
+  0,0,0,0,0,0,0,0,0, // content (no fields)
+  206
+]
+
+for (var j = 0; j < consumeX2.length; j++) {
+  connection = fresh_connection();
+  packets(consumeX2.slice(0, j), consumeX2.slice(j));
+}
