@@ -143,7 +143,7 @@ function AMQPParser (version, type) {
   function header(data) {
     var fh = frameHeader;
     var needed = fh.length - fh.used;
-    data.copy(fh, fh.used, 0, fh.length);
+    data.copy(fh, fh.used, 0, data.length);
     fh.used += data.length; // sloppy
     if (fh.used >= fh.length) {
       fh.read = 0;
@@ -166,7 +166,8 @@ function AMQPParser (version, type) {
   function frame(data) {
     var fb = frameBuffer;
     var needed = fb.length - fb.used;
-    data.copy(fb, 0, fb.used, fb.length);
+    data.copy(fb, fb.used, 0, data.length);
+    fb.used += data.length;
     if (data.length > needed) {
       return frameEnd(data.slice(needed));
     }
