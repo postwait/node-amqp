@@ -143,7 +143,7 @@ function AMQPParser (version, type) {
   function header(data) {
     var fh = frameHeader;
     var needed = fh.length - fh.used;
-    data.copy(fh, fh.used, 0, fh.length);
+    data.copy(fh, fh.used, 0, data.length);
     fh.used += data.length; // sloppy
     if (fh.used >= fh.length) {
       fh.read = 0;
