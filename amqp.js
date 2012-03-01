@@ -1271,7 +1271,7 @@ function Message (queue, args) {
 util.inherits(Message, events.EventEmitter);
 
 
-// Acknowledge recept of message.
+// Acknowledge receipt of message.
 // Set first arg to 'true' to acknowledge this and all previous messages
 // received on this queue.
 Message.prototype.acknowledge = function (all) {
@@ -1282,6 +1282,14 @@ Message.prototype.acknowledge = function (all) {
       });
 };
 
+// Reject an incoming message.
+// Set first arg to 'true' to requeue the message.
+Message.prototype.reject = function (requeue){
+	this.queue.connection._sendMethod(this.queue.channel, methods.basicReject,
+			{ deliveryTag: this.deliveryTag
+			, requeue: requeue ? true : false
+			});
+}
 
 // This class is not exposed to the user. Queue and Exchange are subclasses
 // of Channel. This just provides a task queue.
