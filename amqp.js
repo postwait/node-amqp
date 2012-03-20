@@ -1775,7 +1775,14 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       // Pre-baked exchanges don't need to be declared
       if (/^$|(amq\.)/.test(this.name)) {
         this.state = 'open';
+        // - issue #33 fix
+        if (this._openCallback) {
+         this._openCallback(this);
+         this._openCallback = null;
+        }
+        // --
         this.emit('open');
+       
       } else {
         this.connection._sendMethod(channel, methods.exchangeDeclare,
             { reserved1:  0
