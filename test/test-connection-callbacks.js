@@ -55,11 +55,12 @@ function cycleThroughTestCases(index) {
         connection.destroy();
     });
     connection.on('error', function(e) {
-        testLog(testCase.name,"Connection error. Abondoning test cycle.");
+        testLog(testCase.name,"Connection error. Abandoning test cycle.");
         throw(e);
     });
     connection.on('close', function(e) {
-        testLog(testCase.name,"Connection closed. Starting next test case.");               cycleThroughTestCases(index+1);
+        testLog(testCase.name,"Connection closed. Starting next test case.");
+				cycleThroughTestCases(index+1);
     });
     
 };
@@ -69,3 +70,4 @@ function readyCallback(connection) {
 };
 
 cycleThroughTestCases();
+
