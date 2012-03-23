@@ -13,7 +13,7 @@ implements the 0.9.1 version of the AMQP protocol.
 
 An example of connecting to a server and listening on a queue.
 
-    var sys = require('sys');
+```javascript
     var amqp = require('amqp');
 
     var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
@@ -29,10 +29,10 @@ An example of connecting to a server and listening on a queue.
       // Receive messages
       q.subscribe(function (message) {
         // Print messages to stdout
-        sys.p(message);
+        console.log(message);
       });
     });
-
+```
 
 ## Connection
 
@@ -67,8 +67,12 @@ above, should be used (it could also be supplied as the path `/%2f`).
 
 This URL is supplied as the field `url` in the options; for example
 
+```javascript
     var conn =
       amqp.createConnection({url: "amqp://guest:guest@localhost:5672"});
+
+```
+
 
 Options provided as individual fields will override values given in
 the URL.
@@ -83,9 +87,12 @@ connection.publish will publish. In the past, the default exchange was
 `amq.topic`, which is not ideal.  To emulate this behaviour, one can
 create a connection like:
 
+```javascript
     var conn =
       amqp.createConnection({url: "amqp://guest:guest@localhost:5672"},
                             {defaultExchangeName: "amq.topic"});
+```
+
 
 After a connection is established the `'connect'` event is fired as it is
 with any `net.Connection` instance. AMQP requires a 7-way handshake which
@@ -123,9 +130,12 @@ So use `connection.end()` to terminate a connection gracefully.
 Events: A queue will call the callback given to the `connection.queue()`
 method once it is usable. For example:
 
+```javascript
     var q = connection.queue('my-queue', function (queue) {
-      puts('Queue ' + queue.name + ' is open');
+      console.log('Queue ' + queue.name + ' is open');
     });
+```
+
 
 Declaring a queue with an empty name will make the server generate a
 random name.
@@ -157,9 +167,12 @@ Returns a reference to a queue. The options are
 
 An easy subscription command. It works like this
 
+```javascript
     q.subscribe(function (message, headers, deliveryInfo) {
-      puts('Got a message with routing key ' + deliveryInfo.routingKey);
+      console.log('Got a message with routing key ' + deliveryInfo.routingKey);
     });
+    
+```
 
 It will automatically acknowledge receipt of each message.
 
@@ -200,6 +213,7 @@ Unsubscribe from a queue, given the consumer tag. The consumer tag is
 supplied to the *promise callback* of `Queue.subscribeRaw` or
 `Queue.subscribe`:
 
+```javascript
     connection.queue('foo', function(queue) {
       var ctag;
       queue.subscribe(function(msg) {...})
@@ -207,6 +221,7 @@ supplied to the *promise callback* of `Queue.subscribeRaw` or
       // ... and in some other callback
       queue.unsubscribe(ctag);
     });
+```
 
 Note that `Queue.unsubscribe` will not requeue messages that have not
 been acknowledged. You need to close the queue or connection for that
@@ -256,10 +271,11 @@ messages.
 Events: An exchange will call the callback given to the `connection.exchange()`
 method once it is usable. For example:
 
+```javascript
     var exc = connection.exchange('my-exchange', function (exchange) {
-      puts('Exchange ' + exchange.name + ' is open');
+      console.log('Exchange ' + exchange.name + ' is open');
     });
-
+```
 
 ### exchange.on('open', callback)
 
