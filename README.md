@@ -14,24 +14,25 @@ implements the 0.9.1 version of the AMQP protocol.
 An example of connecting to a server and listening on a queue.
 
 ```javascript
-    var amqp = require('amqp');
+var amqp = require('amqp');
 
-    var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
+var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 
-    // Wait for connection to become established.
-    connection.on('ready', function () {
-      // Create a queue and bind to all messages.
-      // Use the default 'amq.topic' exchange
-      var q = connection.queue('my-queue');
+// Wait for connection to become established.
+connection.on('ready', function () {
+  // Create a queue and bind to all messages.
+  // Use the default 'amq.topic' exchange
+  var q = connection.queue('my-queue', function(q){
       // Catch all messages
       q.bind('#');
-
+    
       // Receive messages
       q.subscribe(function (message) {
         // Print messages to stdout
         console.log(message);
       });
-    });
+  });
+});
 ```
 
 ## Connection
@@ -68,8 +69,8 @@ above, should be used (it could also be supplied as the path `/%2f`).
 This URL is supplied as the field `url` in the options; for example
 
 ```javascript
-    var conn =
-      amqp.createConnection({url: "amqp://guest:guest@localhost:5672"});
+var conn =
+  amqp.createConnection({url: "amqp://guest:guest@localhost:5672"});
 
 ```
 
@@ -88,9 +89,9 @@ connection.publish will publish. In the past, the default exchange was
 create a connection like:
 
 ```javascript
-    var conn =
-      amqp.createConnection({url: "amqp://guest:guest@localhost:5672"},
-                            {defaultExchangeName: "amq.topic"});
+var conn =
+  amqp.createConnection({url: "amqp://guest:guest@localhost:5672"},
+                        {defaultExchangeName: "amq.topic"});
 ```
 
 
@@ -131,9 +132,9 @@ Events: A queue will call the callback given to the `connection.queue()`
 method once it is usable. For example:
 
 ```javascript
-    var q = connection.queue('my-queue', function (queue) {
-      console.log('Queue ' + queue.name + ' is open');
-    });
+var q = connection.queue('my-queue', function (queue) {
+  console.log('Queue ' + queue.name + ' is open');
+});
 ```
 
 
@@ -168,9 +169,9 @@ Returns a reference to a queue. The options are
 An easy subscription command. It works like this
 
 ```javascript
-    q.subscribe(function (message, headers, deliveryInfo) {
-      console.log('Got a message with routing key ' + deliveryInfo.routingKey);
-    });
+q.subscribe(function (message, headers, deliveryInfo) {
+  console.log('Got a message with routing key ' + deliveryInfo.routingKey);
+});
     
 ```
 
@@ -214,13 +215,13 @@ supplied to the *promise callback* of `Queue.subscribeRaw` or
 `Queue.subscribe`:
 
 ```javascript
-    connection.queue('foo', function(queue) {
-      var ctag;
-      queue.subscribe(function(msg) {...})
-        .addCallback(function(ok) { ctag = ok.consumerTag; });
-      // ... and in some other callback
-      queue.unsubscribe(ctag);
-    });
+connection.queue('foo', function(queue) {
+  var ctag;
+  queue.subscribe(function(msg) {...})
+    .addCallback(function(ok) { ctag = ok.consumerTag; });
+  // ... and in some other callback
+  queue.unsubscribe(ctag);
+});
 ```
 
 Note that `Queue.unsubscribe` will not requeue messages that have not
@@ -272,9 +273,9 @@ Events: An exchange will call the callback given to the `connection.exchange()`
 method once it is usable. For example:
 
 ```javascript
-    var exc = connection.exchange('my-exchange', function (exchange) {
-      console.log('Exchange ' + exchange.name + ' is open');
-    });
+var exc = connection.exchange('my-exchange', function (exchange) {
+  console.log('Exchange ' + exchange.name + ' is open');
+});
 ```
 
 ### exchange.on('open', callback)
