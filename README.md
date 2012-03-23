@@ -13,26 +13,27 @@ implements the 0.9.1 version of the AMQP protocol.
 
 An example of connecting to a server and listening on a queue.
 
-    var sys = require('sys');
-    var amqp = require('amqp');
+```javascript
+var amqp = require('amqp');
 
-    var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
+var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 
-    // Wait for connection to become established.
-    connection.on('ready', function () {
-      // Create a queue and bind to all messages.
-      // Use the default 'amq.topic' exchange
-      var q = connection.queue('my-queue');
+// Wait for connection to become established.
+connection.on('ready', function () {
+  // Create a queue and bind to all messages.
+  // Use the default 'amq.topic' exchange
+  connection.queue('my-queue', function(q){
       // Catch all messages
       q.bind('#');
-
+    
       // Receive messages
       q.subscribe(function (message) {
         // Print messages to stdout
-        sys.p(message);
+        console.log(message);
       });
-    });
-
+  });
+});
+```
 
 ## Connection
 
@@ -67,8 +68,12 @@ above, should be used (it could also be supplied as the path `/%2f`).
 
 This URL is supplied as the field `url` in the options; for example
 
-    var conn =
-      amqp.createConnection({url: "amqp://guest:guest@localhost:5672"});
+```javascript
+var conn =
+  amqp.createConnection({url: "amqp://guest:guest@localhost:5672"});
+
+```
+
 
 Options provided as individual fields will override values given in
 the URL.
@@ -83,9 +88,12 @@ connection.publish will publish. In the past, the default exchange was
 `amq.topic`, which is not ideal.  To emulate this behaviour, one can
 create a connection like:
 
-    var conn =
-      amqp.createConnection({url: "amqp://guest:guest@localhost:5672"},
-                            {defaultExchangeName: "amq.topic"});
+```javascript
+var conn =
+  amqp.createConnection({url: "amqp://guest:guest@localhost:5672"},
+                        {defaultExchangeName: "amq.topic"});
+```
+
 
 After a connection is established the `'connect'` event is fired as it is
 with any `net.Connection` instance. AMQP requires a 7-way handshake which
@@ -123,9 +131,12 @@ So use `connection.end()` to terminate a connection gracefully.
 Events: A queue will call the callback given to the `connection.queue()`
 method once it is usable. For example:
 
-    var q = connection.queue('my-queue', function (queue) {
-      puts('Queue ' + queue.name + ' is open');
-    });
+```javascript
+var q = connection.queue('my-queue', function (queue) {
+  console.log('Queue ' + queue.name + ' is open');
+});
+```
+
 
 Declaring a queue with an empty name will make the server generate a
 random name.
@@ -157,9 +168,12 @@ Returns a reference to a queue. The options are
 
 An easy subscription command. It works like this
 
-    q.subscribe(function (message, headers, deliveryInfo) {
-      puts('Got a message with routing key ' + deliveryInfo.routingKey);
-    });
+```javascript
+q.subscribe(function (message, headers, deliveryInfo) {
+  console.log('Got a message with routing key ' + deliveryInfo.routingKey);
+});
+    
+```
 
 It will automatically acknowledge receipt of each message.
 
@@ -200,13 +214,15 @@ Unsubscribe from a queue, given the consumer tag. The consumer tag is
 supplied to the *promise callback* of `Queue.subscribeRaw` or
 `Queue.subscribe`:
 
-    connection.queue('foo', function(queue) {
-      var ctag;
-      queue.subscribe(function(msg) {...})
-        .addCallback(function(ok) { ctag = ok.consumerTag; });
-      // ... and in some other callback
-      queue.unsubscribe(ctag);
-    });
+```javascript
+connection.queue('foo', function(queue) {
+  var ctag;
+  queue.subscribe(function(msg) {...})
+    .addCallback(function(ok) { ctag = ok.consumerTag; });
+  // ... and in some other callback
+  queue.unsubscribe(ctag);
+});
+```
 
 Note that `Queue.unsubscribe` will not requeue messages that have not
 been acknowledged. You need to close the queue or connection for that
@@ -256,10 +272,11 @@ messages.
 Events: An exchange will call the callback given to the `connection.exchange()`
 method once it is usable. For example:
 
-    var exc = connection.exchange('my-exchange', function (exchange) {
-      puts('Exchange ' + exchange.name + ' is open');
-    });
-
+```javascript
+var exc = connection.exchange('my-exchange', function (exchange) {
+  console.log('Exchange ' + exchange.name + ' is open');
+});
+```
 
 ### exchange.on('open', callback)
 
