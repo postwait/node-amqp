@@ -766,13 +766,17 @@ function serializeFields (buffer, fields, args, strict) {
 }
 
 
-function Connection (connectionArgs, options) {
+function Connection (connectionArgs, options, readyCallback) {
   net.Stream.call(this);
 
   var self = this;
 
   this.setOptions(connectionArgs);
   this.setImplOptions(options);
+
+  if (typeof readyCallback === 'function') {
+    this._readyCallback = readyCallback;
+  }
 
   var state = 'handshake';
   var parser;
@@ -876,10 +880,10 @@ function urlOptions(connectionString) {
   return opts;
 }
 
-exports.createConnection = function (connectionArgs, options) {
-  var c = new Connection();
-  c.setOptions(connectionArgs);
-  c.setImplOptions(options);
+exports.createConnection = function (connectionArgs, options, readyCallback) {
+  var c = new Connection(connectionArgs, options, readyCallback);
+  // c.setOptions(connectionArgs);
+  // c.setImplOptions(options);
   c.reconnect();
   return c;
 };
@@ -970,6 +974,10 @@ Connection.prototype._onMethod = function (channel, method, args) {
     case methods.connectionOpenOk:
       // 7. Finally they respond with connectionOpenOk
       // Whew! That's why they call it the Advanced MQP.
+      if (this._readyCallback) {
+        this._readyCallback(this);
+        this._readyCallback = null;
+      }
       this.emit('ready');
       break;
 
