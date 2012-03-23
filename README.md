@@ -22,7 +22,7 @@ var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 connection.on('ready', function () {
   // Create a queue and bind to all messages.
   // Use the default 'amq.topic' exchange
-  var q = connection.queue('my-queue', function(q){
+connection.queue('my-queue', function(q){
       // Catch all messages
       q.bind('#');
     
