@@ -1704,8 +1704,10 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.queueBindOk:
         if (this._bindCallback) {
-            this._bindCallback(this);
+            // setting this._bindCallback to null before calling the callback allows for a subsequent bind within the callback
+            var cb = this._bindCallback;
             this._bindCallback = null;
+            cb(this);
       }
       break;
 
