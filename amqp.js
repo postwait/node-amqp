@@ -1543,7 +1543,7 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   // exchange.
 
     var exchange, routingKey, callback;
-    if(typeOf(arguments[arguments.length-1]) == 'function'){
+    if(typeof(arguments[arguments.length-1]) == 'function'){
         callback = arguments[arguments.length-1];
         delete arguments[arguments.length-1];
         arguments.length--;
