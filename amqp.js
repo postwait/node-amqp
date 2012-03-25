@@ -1535,7 +1535,7 @@ Queue.prototype.shift = function () {
 };
 
 
-Queue.prototype.bind = function (/* [exchange,] routingKey */) {
+Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) {
   var self = this;
 
   // The first argument, exchange is optional.
@@ -1543,11 +1543,16 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
   // exchange.
 
     var exchange, routingKey, callback;
-    if(typeOf(arguments[arguments.length-1]) == 'function'){
+    if(typeof(arguments[arguments.length-1]) == 'function'){
         callback = arguments[arguments.length-1];
+    }
+    // Remove callback from args so rest of bind functionality works as before
+    // Also, defend against cases where a non function callback has been passed as 3rd param
+    if (callback || arguments.length == 3) {
         delete arguments[arguments.length-1];
         arguments.length--;
     }
+    
   if (arguments.length == 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
@@ -1699,8 +1704,10 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.queueBindOk:
         if (this._bindCallback) {
-            this._bindCallback(this);
+            // setting this._bindCallback to null before calling the callback allows for a subsequent bind within the callback
+            var cb = this._bindCallback;
             this._bindCallback = null;
+            cb(this);
       }
       break;
 
