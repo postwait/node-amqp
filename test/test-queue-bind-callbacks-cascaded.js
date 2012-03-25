@@ -10,10 +10,10 @@ connection.addListener('ready', function () {
             puts("Queue ready");
 
             // main test for callback
-            queue.bind(exchange, 'node.'+testName+'.topic.bindCallback1', function(q) {
+            queue.bind(exchange, 'node.'+testName+'.topic.bindCallback.outer', function(q) {
                 puts("First queue bind callback called");
                 callbacksCalled++;
-                q.bind(exchange, 'node.'+testName+'.topic.bindCallback2', function() {
+                q.bind(exchange, 'node.'+testName+'.topic.bindCallback.inner', function() {
                     puts("Second queue bind callback called");
                     callbacksCalled++;
                 });
