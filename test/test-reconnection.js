@@ -10,7 +10,17 @@ if (process.argv[2]) {
 }
 
 var implOpts = {
-  defaultExchangeName: 'amq.topic'
+  reconnect: true,
+  reconnectBackoffStrategy: 'exponential',
+  // A 500ms backoff time with an exponential strategy should cause
+  // the following to occur:
+  // t = 0     ms server shutdown
+  // t = ~0    ms connection severed
+  // t = ~500  ms reconnection attempt fails
+  // t = ~1500 ms reconnection attempt fails
+  // t = ~2000 ms server restarted
+  // t = ~3500 ms reconnection attempt succeeds
+  reconnectBackoffTime: 500,
 };
 
 var cycleServer = function (stoppedCallback, startedCallback) {
@@ -24,7 +34,8 @@ var cycleServer = function (stoppedCallback, startedCallback) {
           setTimeout(startedCallback, 500);
         }
       });
-    }, 500);
+    // Leave the server down for 2000ms before restarting.
+    }, 2000);
   });
 }
 
@@ -58,6 +69,7 @@ var runTest = function () {
     }
     exit = true;
   }
+  var firstErrorTimestamp = null;
   connection.on('ready', function() {
     readyCount += 1;
     console.log('Connection ready (' + readyCount + ')');
@@ -97,6 +109,16 @@ var runTest = function () {
         });
       });
     } else if (readyCount === 2) {
+      // Ensure that the backoff timeline is approximately correct.  We
+      // expect a 500ms backoff, followed by a 1000ms backoff, followed
+      // by a 2000ms backoff, resulting in about 3500ms of disconnected
+      // time.
+      var disconnectionTime = (Date.now() - firstErrorTimestamp);
+      console.log('connection down for ' + disconnectionTime + ' ms');
+      assert(disconnectionTime >= 3500);
+      // Allow some grace period for processing and transit, but the tests
+      // are all done on localhost, so not *too* much.
+      assert(disconnectionTime <= 3700)
       // Ensure we get the rest of the messages from the queue.  This means
       // that the connection and queue were automatically reconnected with
       // no user interaction, and no messages were lost.
@@ -108,6 +130,9 @@ var runTest = function () {
   connection.on('error', function (error) {
     errorCount += 1;
     console.log('Connection error (' + errorCount + '): ' + error);
+    if (errorCount === 1) {
+      firstErrorTimestamp = Date.now();
+    }
   });
   connection.on('close', function () {
     closeCount += 1;

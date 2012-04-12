@@ -779,6 +779,7 @@ function Connection (connectionArgs, options, readyCallback) {
   }
 
   var parser;
+  var backoffTime = null;
 
   this._defaultExchange = null;
   this.channelCounter = 0;
@@ -858,10 +859,35 @@ function Connection (connectionArgs, options, readyCallback) {
     }
     
     // Begin reconnection attempts
-    self.reconnect();
+    if (self.implOptions.reconnect) {
+      // Don't thrash, use a backoff strategy.
+      if (backoffTime === null) {
+        // This is the first time we've failed since a successful connection,
+        // so use the configured backoff time without any modification.
+        backoffTime = self.implOptions.reconnectBackoffTime;
+      } else if (self.implOptions.reconnectBackoffStrategy === 'exponential') {
+        // If you've configured exponential backoff, we'll double the
+        // backoff time each subsequent attempt until success.
+        backoffTime *= 2;
+      } else if (self.implOptions.reconnectBackoffStrategy === 'linear') {
+        // Linear strategy is the default.  In this case, we will retry at a
+        // constant interval, so there's no need to change the backoff time
+        // between attempts.
+      } else {
+        // TODO should we warn people if they picked a nonexistent strategy?
+      }
+      // Reconnect at some future time.
+      setTimeout(function () {
+        self.reconnect();
+      }, backoffTime);
+    }
   });
   
   self.addListener('ready', function () {
+    // Reset the backoff time since we have successfully connected.
+    backoffTime = null;
+    
+    // Reconnect any channels which were open.
     for (var channel in self.channels) {
       if (channel != 0) {
         self.channels[channel].reconnect();
@@ -881,7 +907,7 @@ var defaultOptions = { host: 'localhost'
                      , password: 'guest'
                      , vhost: '/'
                      };
-var defaultImplOptions = { defaultExchangeName: '' };
+var defaultImplOptions = { defaultExchangeName: '' , reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectBackoffTime: 1000 };
 
 function urlOptions(connectionString) {
   var opts = {};
