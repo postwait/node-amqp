@@ -778,7 +778,6 @@ function Connection (connectionArgs, options, readyCallback) {
     this._readyCallback = readyCallback;
   }
 
-  var state = 'handshake';
   var parser;
 
   this._defaultExchange = null;
@@ -786,10 +785,12 @@ function Connection (connectionArgs, options, readyCallback) {
   this._sendBuffer = new Buffer(maxFrameBuffer);
 
   self.addListener('connect', function () {
-    // channel 0 is the control channel.
-    self.channels = {0:self};
-    self.queues = {};
-    self.exchanges = {};
+    // In the case where this is a reconnection, do not trample on the existing
+    // channels.
+    // For your reference, channel 0 is the control channel.
+    self.channels = self.channels || {0:self};
+    self.queues = self.queues || {};
+    self.exchanges = self.exchanges || {};
 
     parser = new AMQPParser('0-9-1', 'client');
 
@@ -824,13 +825,13 @@ function Connection (connectionArgs, options, readyCallback) {
       self.end();
       self.emit("error", e);
       self.emit("close");
+      
       parser = null;
     };
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
     self.write("AMQP" + String.fromCharCode(0,0,9,1));
-    state = 'handshake';
   });
 
   self.addListener('data', function (data) {
@@ -843,6 +844,30 @@ function Connection (connectionArgs, options, readyCallback) {
     // state.
     parser = null;
   });
+  
+  self.addListener('error', function (error) {
+    // In order to allow reconnects, we have to clear the internal state.
+    parser = null;
+    // In order to seamlessly reconnect, we have to notify the channels
+    // that they are no longer connected so that nobody attempts to send
+    // messages which would be doomed to fail.
+    for (var channel in self.channels) {
+      if (channel != 0) {
+        self.channels[channel].state = 'closed';
+      }
+    }
+    
+    // Begin reconnection attempts
+    self.reconnect();
+  });
+  
+  self.addListener('ready', function () {
+    for (var channel in self.channels) {
+      if (channel != 0) {
+        self.channels[channel].reconnect();
+      }
+    }
+  })
 }
 util.inherits(Connection, net.Stream);
 exports.Connection = Connection;
@@ -902,6 +927,13 @@ Connection.prototype.setImplOptions = function(options) {
 }
 
 Connection.prototype.reconnect = function () {
+  // Suspend activity on channels
+  for (var channel in this.channels) {
+    this.channels[channel].state = 'closed';
+  }
+  // Terminate socket activity
+  this.end();
+  // Connect socket
   this.connect(this.options.port, this.options.host);
 };
 
@@ -1308,9 +1340,13 @@ function Channel (connection, channel) {
   this.connection = connection;
   this._tasks = [];
 
-  this.connection._sendMethod(channel, methods.channelOpen, {reserved1: ""});
+  this.reconnect();
 }
 util.inherits(Channel, events.EventEmitter);
+
+Channel.prototype.reconnect = function () {
+  this.connection._sendMethod(this.channel, methods.channelOpen, {reserved1: ""});
+};
 
 
 Channel.prototype._taskPush = function (reply, cb) {
@@ -1380,6 +1416,7 @@ function Queue (connection, channel, name, options, callback) {
 
   this.name = name;
   this.consumerTagListeners = {};
+  this.consumerTagOptions = {};
   
   var self = this;
   
@@ -1408,6 +1445,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   if (typeof arguments[0] == 'object') {
     mixin(options, arguments[0]);
   }
+  this.consumerTagOptions[consumerTag] = options;
 
   if (options.prefetchCount) {
     self.connection._sendMethod(self.channel, methods.basicQos,
@@ -1442,6 +1480,7 @@ Queue.prototype.unsubscribe = function(consumerTag) {
   })
   .addCallback(function () {
     delete self.consumerTagListeners[consumerTag];
+    delete self.consumerTagOptions[consumerTag];
   });
 };
 
@@ -1466,17 +1505,11 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
 
   }
 
-  if (options.ack) {
-    self.connection._sendMethod(self.channel, methods.basicQos,
-        { reserved1: 0
-        , prefetchSize: 0
-        , prefetchCount: options.prefetchCount
-        , global: false
-        });
-  }
-
   // basic consume
   var rawOptions = { noAck: !options.ack };
+  if (options.ack) {
+    rawOptions['prefetchCount'] = options.prefetchCount;
+  }
   return this.subscribeRaw(rawOptions, function (m) {
     var isJSON = (m.contentType == 'text/json') || (m.contentType == 'application/json');
 
@@ -1702,6 +1735,11 @@ Queue.prototype._onMethod = function (channel, method, args) {
       }
       // TODO this is legacy interface, remove me
       this.emit('open', args.queue, args.messageCount, args.consumerCount);
+      
+      // If this is a reconnect, we must re-subscribe our queue listeners.
+      for (var consumerTag in this.consumerTagListeners) {
+        this.subscribeRaw(this.consumerTagOptions[consumerTag], this.consumerTagListeners[consumerTag]);
+      }
       break;
 
     case methods.basicConsumeOk:
