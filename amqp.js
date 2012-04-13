@@ -195,7 +195,7 @@ function AMQPParser (version, type) {
           }
           break;
         case 8:
-          debug("hearbeat");
+          debug("heartbeat");
           if (self.onHeartBeat) self.onHeartBeat();
           break;
         default:
@@ -789,6 +789,15 @@ function Connection (connectionArgs, options, readyCallback) {
       self.disconnectWasOnPurpose = false;
     }
     
+    if (self._inboundHeartbeatTimer !== null) {
+      clearTimeout(self._inboundHeartbeatTimer);
+      self._inboundHeartbeatTimer = null;
+    }
+    if (self._outboundHeartbeatTimer !== null) {
+      clearTimeout(self._outboundHeartbeatTimer);
+      self._outboundHeartbeatTimer = null;
+    }
+    
     if (!self.connectionAttemptScheduled) {
       // Kill the socket, if it hasn't been killed already.
       self.end();
@@ -883,7 +892,7 @@ function Connection (connectionArgs, options, readyCallback) {
       debug("heartbeat");
     };
 
-    parser.onError = function(e) {
+    parser.onError = function (e) {
       self.emit("error", e);
       self.emit("close");
     };
@@ -895,6 +904,7 @@ function Connection (connectionArgs, options, readyCallback) {
 
   self.addListener('data', function (data) {
     parser.execute(data);
+    self._inboundHeartbeatTimerReset();
   });
 
   // An "end" event can occur when the server or socket is terminated
@@ -922,6 +932,9 @@ function Connection (connectionArgs, options, readyCallback) {
     
     // Reset the disconnect flag; we're not disconnected anymore.
     self.disconnectWasOnPurpose = null;
+    
+    // Restart the heartbeat to the server
+    self._outboundHeartbeatTimerReset();
   })
 }
 util.inherits(Connection, net.Stream);
@@ -994,8 +1007,6 @@ Connection.prototype.reconnect = function () {
   }
   // Connect socket
   this.connect(this.options.port, this.options.host);
-  // Socket keep alive helps us detect dropped network connections
-  this.setKeepAlive(true);
 };
 
 Connection.prototype.end = function () {
@@ -1010,7 +1021,7 @@ Connection.prototype.end = function () {
 Connection.prototype._onMethod = function (channel, method, args) {
   debug(channel + " > " + method.name + " " + JSON.stringify(args));
 
-  // Channel 0 is the control channel. If not zero then deligate to
+  // Channel 0 is the control channel. If not zero then delegate to
   // one of the channel objects.
 
   if (channel > 0) {
@@ -1098,8 +1109,36 @@ Connection.prototype._onMethod = function (channel, method, args) {
   }
 };
 
-Connection.prototype.heartbeat = function() {
+Connection.prototype.heartbeat = function () {
   this.write(new Buffer([8,0,0,0,0,0,0,206]));
+};
+
+Connection.prototype._outboundHeartbeatTimerReset = function () {
+  if (this._outboundHeartbeatTimer !== null) {
+    clearTimeout(this._outboundHeartbeatTimer);
+    this._outboundHeartbeatTimer = null;
+  }
+  if (this.options.heartbeat) {
+    var self = this;
+    this._outboundHeartbeatTimer = setTimeout(function () {
+      self.heartbeat();
+      self._outboundHeartbeatTimerReset();
+    }, 1000 * this.options.heartbeat);
+  }
+};
+
+Connection.prototype._inboundHeartbeatTimerReset = function () {
+  if (this._inboundHeartbeatTimer !== null) {
+    clearTimeout(this._inboundHeartbeatTimer);
+    this._inboundHeartbeatTimer = null;
+  }
+  if (this.options.heartbeat) {
+    var self = this;
+    var gracePeriod = 2 * this.options.heartbeat;
+    this._inboundHeartbeatTimer = setTimeout(function () {
+      self.emit('error', new Error('no heartbeat or data in last ' + gracePeriod + ' seconds'));
+    }, gracePeriod * 1000);
+  }
 };
 
 Connection.prototype._sendMethod = function (channel, method, args) {
@@ -1137,6 +1176,8 @@ Connection.prototype._sendMethod = function (channel, method, args) {
   //debug("sending frame: " + c);
 
   this.write(c);
+  
+  this._outboundHeartbeatTimerReset();
 };
 
 
