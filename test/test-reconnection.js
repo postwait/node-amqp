@@ -18,24 +18,31 @@ var implOpts = {
   // t = ~0    ms connection severed
   // t = ~500  ms reconnection attempt fails
   // t = ~1500 ms reconnection attempt fails
-  // t = ~2000 ms server restarted
+  // t = ~1500 ms server restarted
   // t = ~3500 ms reconnection attempt succeeds
   reconnectBackoffTime: 500,
 };
 
 var cycleServer = function (stoppedCallback, startedCallback) {
+  // If you're running a cluster you can do this:
+  // 'killall -9 beam.smp'
+  // to test out hard server fails.  Note however that you probably do want a
+  // cluster because killing a single server this way causes even durable
+  // queues to be deleted, causing the bindings we create to be removed.
   exec('rabbitmqctl stop_app', function () {
     setTimeout(function () {
       if (stoppedCallback) {
         stoppedCallback();
       }
+      // Likewise you can bring up a hard server crash this way:
+      // 'rabbitmq-server -detached'
       exec('rabbitmqctl start_app', function () {
         if (startedCallback) {
           setTimeout(startedCallback, 500);
         }
       });
-    // Leave the server down for 2000ms before restarting.
-    }, 2000);
+    // Leave the server down for 1500ms before restarting.
+    }, 1500);
   });
 }
 
@@ -69,7 +76,7 @@ var runTest = function () {
     }
     exit = true;
   }
-  var firstErrorTimestamp = null;
+  var connectionDownTimestamp = null;
   connection.on('ready', function() {
     readyCount += 1;
     console.log('Connection ready (' + readyCount + ')');
@@ -113,7 +120,7 @@ var runTest = function () {
       // expect a 500ms backoff, followed by a 1000ms backoff, followed
       // by a 2000ms backoff, resulting in about 3500ms of disconnected
       // time.
-      var disconnectionTime = (Date.now() - firstErrorTimestamp);
+      var disconnectionTime = (Date.now() - connectionDownTimestamp);
       console.log('connection down for ' + disconnectionTime + ' ms');
       assert(disconnectionTime >= 3500);
       // Allow some grace period for processing and transit, but the tests
@@ -130,13 +137,16 @@ var runTest = function () {
   connection.on('error', function (error) {
     errorCount += 1;
     console.log('Connection error (' + errorCount + '): ' + error);
-    if (errorCount === 1) {
-      firstErrorTimestamp = Date.now();
+    if (connectionDownTimestamp === null) {
+      connectionDownTimestamp = Date.now();
     }
   });
   connection.on('close', function () {
     closeCount += 1;
     console.log('Connection close (' + closeCount + ')');
+    if (connectionDownTimestamp === null) {
+      connectionDownTimestamp = Date.now();
+    }
   });
   var waitForExitConditions = function () {
     if (!exit) {

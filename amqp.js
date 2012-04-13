@@ -780,6 +780,67 @@ function Connection (connectionArgs, options, readyCallback) {
 
   var parser;
   var backoffTime = null;
+  this.disconnectWasOnPurpose = false;
+  this.connectionAttemptScheduled = false;
+  
+  var backoff = function () {
+    // If nobody called "end" first this is not a purposeful disconnect.
+    if (self.disconnectWasOnPurpose === null) {
+      self.disconnectWasOnPurpose = false;
+    }
+    
+    if (!self.connectionAttemptScheduled) {
+      // Kill the socket, if it hasn't been killed already.
+      self.end();
+
+      // Reset parser state
+      parser = null;
+
+      // In order for our reconnection to be seamless, we have to notify the
+      // channels that they are no longer connected so that nobody attempts
+      // to send messages which would be doomed to fail.
+      for (var channel in self.channels) {
+        if (channel != 0) {
+          self.channels[channel].state = 'closed';
+        }
+      }
+      // Queues are channels (so we have already marked them as closed), but
+      // queues have special needs, since the subscriptions will no longer
+      // be known to the server when we reconnect.  Mark the subscriptions as
+      // closed so that we can resubscribe them once we are reconnected.
+      for (var queue in self.queues) {
+        for (var index in self.queues[queue].consumerTagOptions) {
+          self.queues[queue].consumerTagOptions[index]['state'] = 'closed';
+        }
+      }
+
+      // Begin reconnection attempts
+      if (!self.disconnectWasOnPurpose && self.implOptions.reconnect) {
+        // Don't thrash, use a backoff strategy.
+        if (backoffTime === null) {
+          // This is the first time we've failed since a successful connection,
+          // so use the configured backoff time without any modification.
+          backoffTime = self.implOptions.reconnectBackoffTime;
+        } else if (self.implOptions.reconnectBackoffStrategy === 'exponential') {
+          // If you've configured exponential backoff, we'll double the
+          // backoff time each subsequent attempt until success.
+          backoffTime *= 2;
+        } else if (self.implOptions.reconnectBackoffStrategy === 'linear') {
+          // Linear strategy is the default.  In this case, we will retry at a
+          // constant interval, so there's no need to change the backoff time
+          // between attempts.
+        } else {
+          // TODO should we warn people if they picked a nonexistent strategy?
+        }
+        // Reconnect at some future time.
+        self.connectionAttemptScheduled = true;
+        setTimeout(function () {
+          self.connectionAttemptScheduled = false;
+          self.reconnect();
+        }, backoffTime);
+      }
+    }
+  };
 
   this._defaultExchange = null;
   this.channelCounter = 0;
@@ -789,9 +850,9 @@ function Connection (connectionArgs, options, readyCallback) {
     // In the case where this is a reconnection, do not trample on the existing
     // channels.
     // For your reference, channel 0 is the control channel.
-    self.channels = self.channels || {0:self};
-    self.queues = self.queues || {};
-    self.exchanges = self.exchanges || {};
+    self.channels = (!self.disconnectWasOnPurpose ? self.channels : null) || {0:self};
+    self.queues = (!self.disconnectWasOnPurpose ? self.queues : null) || {};
+    self.exchanges = (!self.disconnectWasOnPurpose ? self.exchanges : null) || {};
 
     parser = new AMQPParser('0-9-1', 'client');
 
@@ -823,11 +884,8 @@ function Connection (connectionArgs, options, readyCallback) {
     };
 
     parser.onError = function(e) {
-      self.end();
       self.emit("error", e);
       self.emit("close");
-      
-      parser = null;
     };
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
@@ -839,60 +897,31 @@ function Connection (connectionArgs, options, readyCallback) {
     parser.execute(data);
   });
 
+  // An "end" event can occur when the server or socket is terminated
+  // abruptly.
   self.addListener('end', function () {
-    self.end();
-    // in order to allow reconnects, have to clear the
-    // state.
-    parser = null;
+    backoff();
   });
   
   self.addListener('error', function (error) {
-    // In order to allow reconnects, we have to clear the internal state.
-    parser = null;
-    // In order to seamlessly reconnect, we have to notify the channels
-    // that they are no longer connected so that nobody attempts to send
-    // messages which would be doomed to fail.
-    for (var channel in self.channels) {
-      if (channel != 0) {
-        self.channels[channel].state = 'closed';
-      }
-    }
-    
-    // Begin reconnection attempts
-    if (self.implOptions.reconnect) {
-      // Don't thrash, use a backoff strategy.
-      if (backoffTime === null) {
-        // This is the first time we've failed since a successful connection,
-        // so use the configured backoff time without any modification.
-        backoffTime = self.implOptions.reconnectBackoffTime;
-      } else if (self.implOptions.reconnectBackoffStrategy === 'exponential') {
-        // If you've configured exponential backoff, we'll double the
-        // backoff time each subsequent attempt until success.
-        backoffTime *= 2;
-      } else if (self.implOptions.reconnectBackoffStrategy === 'linear') {
-        // Linear strategy is the default.  In this case, we will retry at a
-        // constant interval, so there's no need to change the backoff time
-        // between attempts.
-      } else {
-        // TODO should we warn people if they picked a nonexistent strategy?
-      }
-      // Reconnect at some future time.
-      setTimeout(function () {
-        self.reconnect();
-      }, backoffTime);
-    }
+    backoff();
   });
   
   self.addListener('ready', function () {
     // Reset the backoff time since we have successfully connected.
     backoffTime = null;
     
-    // Reconnect any channels which were open.
-    for (var channel in self.channels) {
-      if (channel != 0) {
-        self.channels[channel].reconnect();
+    if (self.disconnectWasOnPurpose === false) {
+      // Reconnect any channels which were open.
+      for (var channel in self.channels) {
+        if (channel != 0) {
+          self.channels[channel].reconnect();
+        }
       }
     }
+    
+    // Reset the disconnect flag; we're not disconnected anymore.
+    self.disconnectWasOnPurpose = null;
   })
 }
 util.inherits(Connection, net.Stream);
@@ -959,8 +988,23 @@ Connection.prototype.reconnect = function () {
   }
   // Terminate socket activity
   this.end();
+  // We're definitely attempting a connection here.
+  if (this.disconnectWasOnPurpose === true) {
+    this.disconnectWasOnPurpose = null;
+  }
   // Connect socket
   this.connect(this.options.port, this.options.host);
+  // Socket keep alive helps us detect dropped network connections
+  this.setKeepAlive(true);
+};
+
+Connection.prototype.end = function () {
+  // If this is being called before any error or close event was thrown, then
+  // this is a purposeful disconnect.
+  if (this.disconnectWasOnPurpose === null) {
+    this.disconnectWasOnPurpose = true;
+  }
+  net.Socket.prototype.end.call(this);
 };
 
 Connection.prototype._onMethod = function (channel, method, args) {
@@ -1471,6 +1515,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   if (typeof arguments[0] == 'object') {
     mixin(options, arguments[0]);
   }
+  options['state'] = 'opening';
   this.consumerTagOptions[consumerTag] = options;
 
   if (options.prefetchCount) {
@@ -1493,6 +1538,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
         , noWait: false
         , "arguments": {}
         });
+    self.consumerTagOptions[consumerTag]['state'] = 'open';
   });
 };
 
@@ -1763,8 +1809,14 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.emit('open', args.queue, args.messageCount, args.consumerCount);
       
       // If this is a reconnect, we must re-subscribe our queue listeners.
-      for (var consumerTag in this.consumerTagListeners) {
-        this.subscribeRaw(this.consumerTagOptions[consumerTag], this.consumerTagListeners[consumerTag]);
+      var consumerTags = Object.keys(this.consumerTagListeners);
+      for (var index in consumerTags) {
+        if (this.consumerTagOptions[consumerTags[index]]['state'] === 'closed') {
+          this.subscribeRaw(this.consumerTagOptions[consumerTags[index]], this.consumerTagListeners[consumerTags[index]]);
+          // Having called subscribeRaw, we are now a new consumer with a new consumerTag.
+          delete this.consumerTagListeners[consumerTags[index]];
+          delete this.consumerTagOptions[consumerTags[index]];
+        }
       }
       break;
 
