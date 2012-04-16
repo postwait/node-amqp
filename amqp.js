@@ -166,7 +166,8 @@ function AMQPParser (version, type) {
   function frame(data) {
     var fb = frameBuffer;
     var needed = fb.length - fb.used;
-    data.copy(fb, fb.used, 0, data.length);
+    var sourceEnd = (fb.length > data.length) ? data.length : fb.length;
+    data.copy(fb, fb.used, 0, sourceEnd);
     fb.used += data.length;
     if (data.length > needed) {
       return frameEnd(data.slice(needed));
