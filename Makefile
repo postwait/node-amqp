@@ -9,7 +9,7 @@ PASS=echo PASS
 
 test:
 	@for i in test/test-*.js; do \
-	  echo -n "$$i: "; \
+	  /bin/echo -n "$$i: "; \
 	  $(NODE) $$i $(SERVER) > /dev/null && $(PASS) || $(FAIL); \
 	done
 
