@@ -1,7 +1,7 @@
 { "name" : "amqp"
 , "description" : "AMQP driver for node"
 , "keywords" : [ "amqp" ]
-, "version" : "0.1.2"
+, "version" : "0.1.3"
 , "preferGlobal" : true
 , "author" : { "name" : "Ryan Dahl" }
 , "contributors" :
@@ -14,6 +14,9 @@
   , { "name" : "Alen Mujezinovic" }
   , { "name" : "Michael Bridgen" }
   , { "name" : "Chris Bond" }
+  , { "name" : "Andrei Vereha" }
+  , { "name" : "Mike Bardzinski" }
+  , { "name" : "James Carr" }
   ]
 , "repository" :
   { "type" : "git"
