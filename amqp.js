@@ -912,9 +912,11 @@ function Connection (connectionArgs, options, readyCallback) {
   self.addListener('end', function () {
     backoff();
   });
-  
-  self.addListener('error', function (error) {
-    backoff();
+
+  self.addListener('close', function (becauseOfError) {
+    if (becauseOfError) {
+      backoff();
+    }
   });
   
   self.addListener('ready', function () {
