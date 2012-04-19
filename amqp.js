@@ -843,6 +843,11 @@ function Connection (connectionArgs, options, readyCallback) {
     // state.
     parser = null;
   });
+  
+  // in case of connection refused error
+  self.addListener('error', function(e){
+    self.end();
+  });
 }
 util.inherits(Connection, net.Stream);
 exports.Connection = Connection;
