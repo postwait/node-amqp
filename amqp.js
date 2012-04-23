@@ -780,15 +780,9 @@ function Connection (connectionArgs, options, readyCallback) {
 
   var parser;
   var backoffTime = null;
-  this.disconnectWasOnPurpose = false;
   this.connectionAttemptScheduled = false;
-  
+
   var backoff = function () {
-    // If nobody called "end" first this is not a purposeful disconnect.
-    if (self.disconnectWasOnPurpose === null) {
-      self.disconnectWasOnPurpose = false;
-    }
-    
     if (self._inboundHeartbeatTimer !== null) {
       clearTimeout(self._inboundHeartbeatTimer);
       self._inboundHeartbeatTimer = null;
@@ -797,8 +791,11 @@ function Connection (connectionArgs, options, readyCallback) {
       clearTimeout(self._outboundHeartbeatTimer);
       self._outboundHeartbeatTimer = null;
     }
-    
+
     if (!self.connectionAttemptScheduled) {
+      // Set to true, as we are presently in the process of scheduling one.
+      self.connectionAttemptScheduled = true;
+
       // Kill the socket, if it hasn't been killed already.
       self.end();
 
@@ -824,7 +821,7 @@ function Connection (connectionArgs, options, readyCallback) {
       }
 
       // Begin reconnection attempts
-      if (!self.disconnectWasOnPurpose && self.implOptions.reconnect) {
+      if (self.implOptions.reconnect) {
         // Don't thrash, use a backoff strategy.
         if (backoffTime === null) {
           // This is the first time we've failed since a successful connection,
@@ -841,9 +838,10 @@ function Connection (connectionArgs, options, readyCallback) {
         } else {
           // TODO should we warn people if they picked a nonexistent strategy?
         }
-        // Reconnect at some future time.
-        self.connectionAttemptScheduled = true;
+
         setTimeout(function () {
+          // Set to false, so that if we fail in the reconnect attempt, we can
+          // schedule another one.
           self.connectionAttemptScheduled = false;
           self.reconnect();
         }, backoffTime);
@@ -859,9 +857,9 @@ function Connection (connectionArgs, options, readyCallback) {
     // In the case where this is a reconnection, do not trample on the existing
     // channels.
     // For your reference, channel 0 is the control channel.
-    self.channels = (!self.disconnectWasOnPurpose ? self.channels : null) || {0:self};
-    self.queues = (!self.disconnectWasOnPurpose ? self.queues : null) || {};
-    self.exchanges = (!self.disconnectWasOnPurpose ? self.exchanges : null) || {};
+    self.channels = (self.implOptions.reconnect ? self.channels : undefined) || {0:self};
+    self.queues = (self.implOptions.reconnect ? self.queues : undefined) || {};
+    self.exchanges = (self.implOptions.reconnect ? self.exchanges : undefined) || {};
 
     parser = new AMQPParser('0-9-1', 'client');
 
@@ -907,23 +905,15 @@ function Connection (connectionArgs, options, readyCallback) {
     self._inboundHeartbeatTimerReset();
   });
 
-  // An "end" event can occur when the server or socket is terminated
-  // abruptly.
-  self.addListener('end', function () {
+  self.addListener('close', function () {
     backoff();
   });
 
-  self.addListener('close', function (becauseOfError) {
-    if (becauseOfError) {
-      backoff();
-    }
-  });
-  
   self.addListener('ready', function () {
     // Reset the backoff time since we have successfully connected.
     backoffTime = null;
-    
-    if (self.disconnectWasOnPurpose === false) {
+
+    if (self.implOptions.reconnect) {
       // Reconnect any channels which were open.
       for (var channel in self.channels) {
         if (channel != 0) {
@@ -931,10 +921,7 @@ function Connection (connectionArgs, options, readyCallback) {
         }
       }
     }
-    
-    // Reset the disconnect flag; we're not disconnected anymore.
-    self.disconnectWasOnPurpose = null;
-    
+
     // Restart the heartbeat to the server
     self._outboundHeartbeatTimerReset();
   })
@@ -951,7 +938,20 @@ var defaultOptions = { host: 'localhost'
                      , password: 'guest'
                      , vhost: '/'
                      };
-var defaultImplOptions = { defaultExchangeName: '' , reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectBackoffTime: 1000 };
+// If the "reconnect" option is true, then the driver will attempt to
+// reconnect using the configured strategy *any time* the connection
+// becomes unavailable.
+// If this is not appropriate for your application, do not set this option.
+// If you would like this option, you can set parameters controlling how
+// aggressively the reconnections will be attempted.
+// Valid strategies are "linear" and "exponential".
+// Backoff times are in milliseconds.  Under the "linear" strategy, the driver
+// will pause <reconnectBackoffTime> ms before the first attempt, and between
+// each subsequent attempt.  Under the "exponential" strategy, the driver will
+// pause <reconnectBackoffTime> ms before the first attempt, and will double
+// the previous pause between each subsequent attempt until a connection is
+// reestablished.
+var defaultImplOptions = { defaultExchangeName: '' , reconnect: false , reconnectBackoffStrategy: 'linear' , reconnectBackoffTime: 1000 };
 
 function urlOptions(connectionString) {
   var opts = {};
@@ -979,7 +979,7 @@ exports.createConnection = function (connectionArgs, options, readyCallback) {
   var c = new Connection(connectionArgs, options, readyCallback);
   // c.setOptions(connectionArgs);
   // c.setImplOptions(options);
-  c.reconnect();
+  c.connect();
   return c;
 };
 
@@ -990,11 +990,11 @@ Connection.prototype.setOptions = function (options) {
   this.options = o;
 };
 
-Connection.prototype.setImplOptions = function(options) {
+Connection.prototype.setImplOptions = function (options) {
   var o = {}
   mixin(o, defaultImplOptions, options || {});
   this.implOptions = o;
-}
+};
 
 Connection.prototype.reconnect = function () {
   // Suspend activity on channels
@@ -1003,21 +1003,12 @@ Connection.prototype.reconnect = function () {
   }
   // Terminate socket activity
   this.end();
-  // We're definitely attempting a connection here.
-  if (this.disconnectWasOnPurpose === true) {
-    this.disconnectWasOnPurpose = null;
-  }
-  // Connect socket
-  this.connect(this.options.port, this.options.host);
+  this.connect();
 };
 
-Connection.prototype.end = function () {
-  // If this is being called before any error or close event was thrown, then
-  // this is a purposeful disconnect.
-  if (this.disconnectWasOnPurpose === null) {
-    this.disconnectWasOnPurpose = true;
-  }
-  net.Socket.prototype.end.call(this);
+Connection.prototype.connect = function () {
+  // Connect socket
+  net.Socket.prototype.connect.call(this, this.options.port, this.options.host);
 };
 
 Connection.prototype._onMethod = function (channel, method, args) {

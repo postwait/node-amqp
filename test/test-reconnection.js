@@ -72,6 +72,7 @@ var runTest = function () {
     } else {
       console.log('All done!');
       // Exit gracefully.
+      connection.setImplOptions({'reconnect': false});
       connection.destroy();
     }
     exit = true;
