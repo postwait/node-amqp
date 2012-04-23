@@ -195,7 +195,7 @@ function AMQPParser (version, type) {
           }
           break;
         case 8:
-          debug("hearbeat");
+          debug("heartbeat");
           if (self.onHeartBeat) self.onHeartBeat();
           break;
         default:
@@ -778,18 +778,88 @@ function Connection (connectionArgs, options, readyCallback) {
     this._readyCallback = readyCallback;
   }
 
-  var state = 'handshake';
   var parser;
+  var backoffTime = null;
+  this.connectionAttemptScheduled = false;
+
+  var backoff = function () {
+    if (self._inboundHeartbeatTimer !== null) {
+      clearTimeout(self._inboundHeartbeatTimer);
+      self._inboundHeartbeatTimer = null;
+    }
+    if (self._outboundHeartbeatTimer !== null) {
+      clearTimeout(self._outboundHeartbeatTimer);
+      self._outboundHeartbeatTimer = null;
+    }
+
+    if (!self.connectionAttemptScheduled) {
+      // Set to true, as we are presently in the process of scheduling one.
+      self.connectionAttemptScheduled = true;
+
+      // Kill the socket, if it hasn't been killed already.
+      self.end();
+
+      // Reset parser state
+      parser = null;
+
+      // In order for our reconnection to be seamless, we have to notify the
+      // channels that they are no longer connected so that nobody attempts
+      // to send messages which would be doomed to fail.
+      for (var channel in self.channels) {
+        if (channel != 0) {
+          self.channels[channel].state = 'closed';
+        }
+      }
+      // Queues are channels (so we have already marked them as closed), but
+      // queues have special needs, since the subscriptions will no longer
+      // be known to the server when we reconnect.  Mark the subscriptions as
+      // closed so that we can resubscribe them once we are reconnected.
+      for (var queue in self.queues) {
+        for (var index in self.queues[queue].consumerTagOptions) {
+          self.queues[queue].consumerTagOptions[index]['state'] = 'closed';
+        }
+      }
+
+      // Begin reconnection attempts
+      if (self.implOptions.reconnect) {
+        // Don't thrash, use a backoff strategy.
+        if (backoffTime === null) {
+          // This is the first time we've failed since a successful connection,
+          // so use the configured backoff time without any modification.
+          backoffTime = self.implOptions.reconnectBackoffTime;
+        } else if (self.implOptions.reconnectBackoffStrategy === 'exponential') {
+          // If you've configured exponential backoff, we'll double the
+          // backoff time each subsequent attempt until success.
+          backoffTime *= 2;
+        } else if (self.implOptions.reconnectBackoffStrategy === 'linear') {
+          // Linear strategy is the default.  In this case, we will retry at a
+          // constant interval, so there's no need to change the backoff time
+          // between attempts.
+        } else {
+          // TODO should we warn people if they picked a nonexistent strategy?
+        }
+
+        setTimeout(function () {
+          // Set to false, so that if we fail in the reconnect attempt, we can
+          // schedule another one.
+          self.connectionAttemptScheduled = false;
+          self.reconnect();
+        }, backoffTime);
+      }
+    }
+  };
 
   this._defaultExchange = null;
   this.channelCounter = 0;
   this._sendBuffer = new Buffer(maxFrameBuffer);
 
   self.addListener('connect', function () {
-    // channel 0 is the control channel.
-    self.channels = {0:self};
-    self.queues = {};
-    self.exchanges = {};
+    // In the case where this is a reconnection, do not trample on the existing
+    // channels.
+    // For your reference, channel 0 is the control channel.
+    self.channels = (self.implOptions.reconnect ? self.channels : undefined) || {0:self};
+    self.queues = (self.implOptions.reconnect ? self.queues : undefined) || {};
+    self.exchanges = (self.implOptions.reconnect ? self.exchanges : undefined) || {};
 
     parser = new AMQPParser('0-9-1', 'client');
 
@@ -820,29 +890,41 @@ function Connection (connectionArgs, options, readyCallback) {
       debug("heartbeat");
     };
 
-    parser.onError = function(e) {
-      self.end();
+    parser.onError = function (e) {
       self.emit("error", e);
       self.emit("close");
-      parser = null;
     };
     //debug("connected...");
     // Time to start the AMQP 7-way connection initialization handshake!
     // 1. The client sends the server a version string
     self.write("AMQP" + String.fromCharCode(0,0,9,1));
-    state = 'handshake';
   });
 
   self.addListener('data', function (data) {
     parser.execute(data);
+    self._inboundHeartbeatTimerReset();
   });
 
-  self.addListener('end', function () {
-    self.end();
-    // in order to allow reconnects, have to clear the
-    // state.
-    parser = null;
+  self.addListener('close', function () {
+    backoff();
   });
+
+  self.addListener('ready', function () {
+    // Reset the backoff time since we have successfully connected.
+    backoffTime = null;
+
+    if (self.implOptions.reconnect) {
+      // Reconnect any channels which were open.
+      for (var channel in self.channels) {
+        if (channel != 0) {
+          self.channels[channel].reconnect();
+        }
+      }
+    }
+
+    // Restart the heartbeat to the server
+    self._outboundHeartbeatTimerReset();
+  })
 }
 util.inherits(Connection, net.Stream);
 exports.Connection = Connection;
@@ -856,7 +938,20 @@ var defaultOptions = { host: 'localhost'
                      , password: 'guest'
                      , vhost: '/'
                      };
-var defaultImplOptions = { defaultExchangeName: '' };
+// If the "reconnect" option is true, then the driver will attempt to
+// reconnect using the configured strategy *any time* the connection
+// becomes unavailable.
+// If this is not appropriate for your application, do not set this option.
+// If you would like this option, you can set parameters controlling how
+// aggressively the reconnections will be attempted.
+// Valid strategies are "linear" and "exponential".
+// Backoff times are in milliseconds.  Under the "linear" strategy, the driver
+// will pause <reconnectBackoffTime> ms before the first attempt, and between
+// each subsequent attempt.  Under the "exponential" strategy, the driver will
+// pause <reconnectBackoffTime> ms before the first attempt, and will double
+// the previous pause between each subsequent attempt until a connection is
+// reestablished.
+var defaultImplOptions = { defaultExchangeName: '' , reconnect: false , reconnectBackoffStrategy: 'linear' , reconnectBackoffTime: 1000 };
 
 function urlOptions(connectionString) {
   var opts = {};
@@ -884,7 +979,7 @@ exports.createConnection = function (connectionArgs, options, readyCallback) {
   var c = new Connection(connectionArgs, options, readyCallback);
   // c.setOptions(connectionArgs);
   // c.setImplOptions(options);
-  c.reconnect();
+  c.connect();
   return c;
 };
 
@@ -895,20 +990,31 @@ Connection.prototype.setOptions = function (options) {
   this.options = o;
 };
 
-Connection.prototype.setImplOptions = function(options) {
+Connection.prototype.setImplOptions = function (options) {
   var o = {}
   mixin(o, defaultImplOptions, options || {});
   this.implOptions = o;
-}
+};
 
 Connection.prototype.reconnect = function () {
-  this.connect(this.options.port, this.options.host);
+  // Suspend activity on channels
+  for (var channel in this.channels) {
+    this.channels[channel].state = 'closed';
+  }
+  // Terminate socket activity
+  this.end();
+  this.connect();
+};
+
+Connection.prototype.connect = function () {
+  // Connect socket
+  net.Socket.prototype.connect.call(this, this.options.port, this.options.host);
 };
 
 Connection.prototype._onMethod = function (channel, method, args) {
   debug(channel + " > " + method.name + " " + JSON.stringify(args));
 
-  // Channel 0 is the control channel. If not zero then deligate to
+  // Channel 0 is the control channel. If not zero then delegate to
   // one of the channel objects.
 
   if (channel > 0) {
@@ -996,8 +1102,36 @@ Connection.prototype._onMethod = function (channel, method, args) {
   }
 };
 
-Connection.prototype.heartbeat = function() {
+Connection.prototype.heartbeat = function () {
   this.write(new Buffer([8,0,0,0,0,0,0,206]));
+};
+
+Connection.prototype._outboundHeartbeatTimerReset = function () {
+  if (this._outboundHeartbeatTimer !== null) {
+    clearTimeout(this._outboundHeartbeatTimer);
+    this._outboundHeartbeatTimer = null;
+  }
+  if (this.options.heartbeat) {
+    var self = this;
+    this._outboundHeartbeatTimer = setTimeout(function () {
+      self.heartbeat();
+      self._outboundHeartbeatTimerReset();
+    }, 1000 * this.options.heartbeat);
+  }
+};
+
+Connection.prototype._inboundHeartbeatTimerReset = function () {
+  if (this._inboundHeartbeatTimer !== null) {
+    clearTimeout(this._inboundHeartbeatTimer);
+    this._inboundHeartbeatTimer = null;
+  }
+  if (this.options.heartbeat) {
+    var self = this;
+    var gracePeriod = 2 * this.options.heartbeat;
+    this._inboundHeartbeatTimer = setTimeout(function () {
+      self.emit('error', new Error('no heartbeat or data in last ' + gracePeriod + ' seconds'));
+    }, gracePeriod * 1000);
+  }
 };
 
 Connection.prototype._sendMethod = function (channel, method, args) {
@@ -1035,6 +1169,8 @@ Connection.prototype._sendMethod = function (channel, method, args) {
   //debug("sending frame: " + c);
 
   this.write(c);
+  
+  this._outboundHeartbeatTimerReset();
 };
 
 
@@ -1308,9 +1444,13 @@ function Channel (connection, channel) {
   this.connection = connection;
   this._tasks = [];
 
-  this.connection._sendMethod(channel, methods.channelOpen, {reserved1: ""});
+  this.reconnect();
 }
 util.inherits(Channel, events.EventEmitter);
+
+Channel.prototype.reconnect = function () {
+  this.connection._sendMethod(this.channel, methods.channelOpen, {reserved1: ""});
+};
 
 
 Channel.prototype._taskPush = function (reply, cb) {
@@ -1380,6 +1520,7 @@ function Queue (connection, channel, name, options, callback) {
 
   this.name = name;
   this.consumerTagListeners = {};
+  this.consumerTagOptions = {};
   
   var self = this;
   
@@ -1408,6 +1549,8 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   if (typeof arguments[0] == 'object') {
     mixin(options, arguments[0]);
   }
+  options['state'] = 'opening';
+  this.consumerTagOptions[consumerTag] = options;
 
   if (options.prefetchCount) {
     self.connection._sendMethod(self.channel, methods.basicQos,
@@ -1429,6 +1572,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
         , noWait: false
         , "arguments": {}
         });
+    self.consumerTagOptions[consumerTag]['state'] = 'open';
   });
 };
 
@@ -1442,6 +1586,7 @@ Queue.prototype.unsubscribe = function(consumerTag) {
   })
   .addCallback(function () {
     delete self.consumerTagListeners[consumerTag];
+    delete self.consumerTagOptions[consumerTag];
   });
 };
 
@@ -1466,17 +1611,11 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
 
   }
 
-  if (options.ack) {
-    self.connection._sendMethod(self.channel, methods.basicQos,
-        { reserved1: 0
-        , prefetchSize: 0
-        , prefetchCount: options.prefetchCount
-        , global: false
-        });
-  }
-
   // basic consume
   var rawOptions = { noAck: !options.ack };
+  if (options.ack) {
+    rawOptions['prefetchCount'] = options.prefetchCount;
+  }
   return this.subscribeRaw(rawOptions, function (m) {
     var isJSON = (m.contentType == 'text/json') || (m.contentType == 'application/json');
 
@@ -1702,6 +1841,17 @@ Queue.prototype._onMethod = function (channel, method, args) {
       }
       // TODO this is legacy interface, remove me
       this.emit('open', args.queue, args.messageCount, args.consumerCount);
+      
+      // If this is a reconnect, we must re-subscribe our queue listeners.
+      var consumerTags = Object.keys(this.consumerTagListeners);
+      for (var index in consumerTags) {
+        if (this.consumerTagOptions[consumerTags[index]]['state'] === 'closed') {
+          this.subscribeRaw(this.consumerTagOptions[consumerTags[index]], this.consumerTagListeners[consumerTags[index]]);
+          // Having called subscribeRaw, we are now a new consumer with a new consumerTag.
+          delete this.consumerTagListeners[consumerTags[index]];
+          delete this.consumerTagOptions[consumerTags[index]];
+        }
+      }
       break;
 
     case methods.basicConsumeOk:
