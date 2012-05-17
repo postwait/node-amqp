@@ -1551,15 +1551,24 @@ Queue.prototype.shift = function () {
 };
 
 
-Queue.prototype.bind = function (/* [exchange,] routingKey */) {
+Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) {
   var self = this;
 
   // The first argument, exchange is optional.
   // If not supplied the connection will use the 'amq.topic'
   // exchange.
 
-  var exchange, routingKey;
-
+    var exchange, routingKey, callback;
+    if(typeof(arguments[arguments.length-1]) == 'function'){
+        callback = arguments[arguments.length-1];
+    }
+    // Remove callback from args so rest of bind functionality works as before
+    // Also, defend against cases where a non function callback has been passed as 3rd param
+    if (callback || arguments.length == 3) {
+        delete arguments[arguments.length-1];
+        arguments.length--;
+    }
+    
   if (arguments.length == 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
@@ -1567,6 +1576,7 @@ Queue.prototype.bind = function (/* [exchange,] routingKey */) {
     exchange = 'amq.topic';
     routingKey = arguments[0];
   }
+  if(callback) this._bindCallback = callback;
 
 
   var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
@@ -1709,6 +1719,12 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
 
     case methods.queueBindOk:
+        if (this._bindCallback) {
+            // setting this._bindCallback to null before calling the callback allows for a subsequent bind within the callback
+            var cb = this._bindCallback;
+            this._bindCallback = null;
+            cb(this);
+      }
       break;
 
     case methods.basicQosOk:
