@@ -26,6 +26,7 @@
   { "url" : "http://github.com/postwait/node-amqp/issues"
   }
 , "main" : "./amqp"
+, "test" : "node test.js"
 , "engines" : { "node" : "0.4 || 0.5 || 0.6" }
 , "licenses" :
   [ { "type" : "MIT"
