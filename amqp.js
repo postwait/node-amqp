@@ -280,8 +280,8 @@ function parseLongString (buffer) {
 function parseSignedInteger (buffer) {
   var int = parseInt(buffer, 4);
   if (int & 0x80000000) {
-    int = -int;
     int |= 0xEFFFFFFF;
+    int = -int;
   }
   return int;
 }
