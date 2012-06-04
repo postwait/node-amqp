@@ -5,8 +5,11 @@ var events = require('events'),
     jspack = require('./jspack').jspack,
     Buffer = require('buffer').Buffer,
     Promise = require('./promise').Promise,
-    URL = require('url');
-
+    URL = require('url'),
+    AMQPTypes = require('./constants').AMQPTypes,
+    Indicators = require('./constants').Indicators,
+    FrameType = require('./constants').FrameType;
+    
 function mixin () {
   // copy reference to target object
   var target = arguments[0] || {}, i = 1, length = arguments.length, deep = false, source;
@@ -181,20 +184,20 @@ function AMQPParser (version, type) {
 
   function frameEnd(data) {
     if (data.length > 0) {
-      if (data[0] === 206) {
+      if (data[0] === Indicators.FRAME_END) {
         switch (frameType) {
-        case 1:
+        case FrameType.METHOD:
           self._parseMethodFrame(frameChannel, frameBuffer);
           break;
-        case 2:
+        case FrameType.HEADER:
           self._parseHeaderFrame(frameChannel, frameBuffer);
           break;
-        case 3:
+        case FrameType.BODY:
           if (self.onContent) {
             self.onContent(frameChannel, frameBuffer);
           }
           break;
-        case 8:
+        case FrameType.HEARTBEAT:
           debug("hearbeat");
           if (self.onHeartBeat) self.onHeartBeat();
           break;
@@ -290,21 +293,21 @@ function parseTable (buffer) {
   while (buffer.read < length) {
     var field = parseShortString(buffer);
     switch (buffer[buffer.read++]) {
-      case 'S'.charCodeAt(0):
+      case AMQPTypes.STRING:
         table[field] = parseLongString(buffer);
         break;
 
-      case 'I'.charCodeAt(0):
+      case AMQPTypes.INTEGER:
         table[field] = parseInt(buffer, 4);
         break;
 
-      case 'D'.charCodeAt(0):
+      case AMQPTypes.DECIMAL:
         var dec = parseInt(buffer, 1);
         var num = parseInt(buffer, 4);
         table[field] = num / (dec * 10);
         break;
 
-      case 'd'.charCodeAt(0):
+      case AMQPTypes._64BIT_FLOAT:
         var b = [];
         for (var i = 0; i < 8; ++i)
           b[i] = buffer[buffer.read++];
@@ -312,7 +315,7 @@ function parseTable (buffer) {
           table[field] = (new jspack(true)).Unpack('d', b);
           break;
 
-      case 'f'.charCodeAt(0):
+      case AMQPTypes._32BIT_FLOAT:
         var b = [];
         for (var i = 0; i < 4; ++i)
           b[i] = buffer[buffer.read++];
@@ -320,25 +323,25 @@ function parseTable (buffer) {
           table[field] = (new jspack(true)).Unpack('f', b);
           break;
 
-      case 'T'.charCodeAt(0):
+      case AMQPTypes.TIME:
         var int = parseInt(buffer, 8);
         table[field] = new Date();
         table[field].setTime(int * 1000);
         break;
 
-      case 'F'.charCodeAt(0):
+      case AMQPTypes.HASH:
         table[field] = parseTable(buffer);
         break;
 
-      case 'l'.charCodeAt(0):
+      case AMQPTypes.SIGNED_64BIT:
         table[field] = parseInt(buffer, 8);
         break;
 
-      case 't'.charCodeAt(0):
+      case AMQPTypes.BOOLEAN:
         table[field] = (parseInt(buffer, 1) > 0);
         break;
 
-      case 'x'.charCodeAt(0):
+      case AMQPTypes.BYTE_ARRAY:
         var len = parseInt(buffer, 4);
         var buf = new Buffer(len);
         buffer.copy(buf, 0, buffer.read, buffer.read + len);

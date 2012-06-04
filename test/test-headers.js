@@ -16,7 +16,8 @@ connection.on('ready', function () {
         exchange.publish("to.me", body, { headers: { 
             foo: 'bar', 
             bar: 'foo',
-            number: '123'
+            number: '123',
+            stuff: [{x:1}, {x:2}]
         } });
 
         setTimeout(function () {
@@ -32,6 +33,8 @@ connection.on('ready', function () {
         assert.equal('bar', m.headers['foo']);
         assert.equal('foo', m.headers['bar']);
         assert.equal('123', m.headers['number'].toString());
+        assert.equal(1, m.headers['stuff'][0].x);
+        assert.equal(2, m.headers['stuff'][1].x);
       })
     })
   });
