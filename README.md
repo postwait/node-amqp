@@ -22,10 +22,10 @@ var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 connection.on('ready', function () {
   // Create a queue and bind to all messages.
   // Use the default 'amq.topic' exchange
-  connection.queue('my-queue', function(q){
+  connection.queue('my-queue', function(q) {
       // Catch all messages
       q.bind('#');
-    
+
       // Receive messages
       q.subscribe(function (message) {
         // Print messages to stdout
@@ -172,7 +172,7 @@ An easy subscription command. It works like this
 q.subscribe(function (message, headers, deliveryInfo) {
   console.log('Got a message with routing key ' + deliveryInfo.routingKey);
 });
-    
+
 ```
 
 It will automatically acknowledge receipt of each message.
@@ -181,7 +181,7 @@ There are several options available.  Setting the options argument to
 `{ ack: true }` (which defaults to false) will make it so that the AMQP
 server only delivers a single message at a time. When you want the next
 message, call `q.shift()`. When `ack` is false then you will receive
-messages as fast as they come in. 
+messages as fast as they come in.
 
 You can also use the prefetchCount option to increase the window of how
 many messages the server will send you before you need to ack (quality of service).

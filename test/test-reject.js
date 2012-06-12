@@ -13,28 +13,28 @@ connection.addListener('ready', function () {
 				rejected_count = 0;
 
     q.bind(exchange, "*");
-  
+
     q.subscribe({ack: true}, function (json, headers, deliveryInfo, m) {
 			received_count++;
-			if (deliveryInfo.routingKey == 'accept'){
+			if (deliveryInfo.routingKey == 'accept') {
 				m.acknowledge();
 			} else {
-				if (++rejected_count < 3){	
+				if (++rejected_count < 3) {
 					m.reject(true);
 				} else {
 					m.reject();
-				}					
+				}
       }
 		})
     .addCallback(function () {
-     	exchange.publish('reject', origMessage1);
- 			exchange.publish('accept', origMessage2);
+      exchange.publish('reject', origMessage1);
+      exchange.publish('accept', origMessage2);
 
       setTimeout(function () {
         // wait one second to receive the message, then quit
         connection.end();
       }, 1000);
-    })
+    });
   });
 });
 

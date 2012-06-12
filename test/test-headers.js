@@ -9,12 +9,12 @@ connection.on('ready', function () {
   var exchange = connection.exchange('node-h-fanout', {type: 'fanout'});
 
   connection.queue('node-h-queue', function(q) {
-    q.bind(exchange, "*")
+    q.bind(exchange, "*");
     q.on('queueBindOk', function() {
       q.on('basicConsumeOk', function () {
         puts("publishing message");
-        exchange.publish("to.me", body, { headers: { 
-            foo: 'bar', 
+        exchange.publish("to.me", body, { headers: {
+            foo: 'bar',
             bar: 'foo',
             number: '123',
             stuff: [{x:1}, {x:2}]
@@ -28,15 +28,15 @@ connection.on('ready', function () {
       q.subscribeRaw(function (m) {
         puts("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
         //puts("--- headers: " + JSON.stringify(m.headers));
-        
+
         recvCount++;
         assert.equal('bar', m.headers['foo']);
         assert.equal('foo', m.headers['bar']);
         assert.equal('123', m.headers['number'].toString());
         assert.equal(1, m.headers['stuff'][0].x);
         assert.equal(2, m.headers['stuff'][1].x);
-      })
-    })
+      });
+    });
   });
 });
 

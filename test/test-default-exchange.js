@@ -8,7 +8,7 @@ connection.addListener('ready', function () {
 
   var q = connection.queue('node-default-exchange', function() {
     q.bind("#"); // bind to queue
-    
+
     q.on('queueBindOk', function() { // wait until queue is bound
       q.on('basicConsumeOk', function () { // wait until consumer is registered
         puts("publishing 2 msg messages");
@@ -20,7 +20,7 @@ connection.addListener('ready', function () {
           connection.end();
         }, 1000);
       });
-      
+
       q.subscribe({ routingKeyInPayload: true },
                   function (msg) { // register consumer
         recvCount++;
@@ -38,7 +38,7 @@ connection.addListener('ready', function () {
           default:
             throw new Error('unexpected routing key: ' + msg._routingKey);
         }
-      })
+      });
     });
   });
 

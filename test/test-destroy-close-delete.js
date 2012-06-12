@@ -2,7 +2,7 @@ require('./harness');
 var assert = require('assert');
 var cbcnt = 0;
 
-connection.on('ready', function(){
+connection.on('ready', function() {
     var exchange1 = connection.exchange('test-exchange-1');
     var exchange2 = connection.exchange('test-exchange-2');
 
@@ -13,7 +13,7 @@ connection.on('ready', function(){
 
         var messages = 0;
 
-        exchange1.on('close', function(){
+        exchange1.on('close', function() {
             cbcnt++;
             assert.equal('closed', exchange1.state);
             assert.equal(1, Object.keys(connection.exchanges).length);
@@ -23,7 +23,7 @@ connection.on('ready', function(){
             exchange2.close();
         });
 
-        exchange2.on('close', function(){
+        exchange2.on('close', function() {
             cbcnt++;
             assert.equal('closed', exchange2.state);
             assert.equal(2, Object.keys(connection.channels).length);
@@ -34,9 +34,9 @@ connection.on('ready', function(){
 
         queue.bind(exchange2, '');
 
-        queue.subscribe(function(message){
+        queue.subscribe(function(message) {
             messages++;
-        }).addCallback(function(){
+        }).addCallback(function() {
             exchange1.publish('','test1');
             exchange2.publish('','test2');
             exchange1.destroy();
