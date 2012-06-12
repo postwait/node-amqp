@@ -19,6 +19,7 @@ connection.addListener('ready', function () {
   var exchange = connection.exchange('clock', {type: 'fanout'});
 
   var q = connection.queue('my-events-receiver');
+  console.log(q);
 
   q.bind(exchange, "*").addCallback(function () {
     console.log("publishing message");

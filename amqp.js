@@ -23,8 +23,9 @@ function mixin () {
   }
 
   // Handle case when target is a string or something (possible in deep copy)
-  if ( typeof target !== "object" && !(typeof target === 'function') )
+  if ( typeof target !== "object" && !(typeof target === 'function') ) {
     target = {};
+  }
 
   // mixin process itself if only one argument is passed
   if ( length == i ) {
@@ -43,8 +44,7 @@ function mixin () {
           if (d.set) {
             target.__defineSetter__(k, d.set);
           }
-        }
-        else {
+        } else {
           // Prevent never-ending loop
           if (target === d.value) {
             return;
@@ -55,8 +55,7 @@ function mixin () {
               // Never move original objects, clone them
               source[k] || (d.value.length !== null ? [] : {})
             , d.value);
-          }
-          else {
+          } else {
             target[k] = d.value;
           }
         }
@@ -871,7 +870,7 @@ function urlOptions(connectionString) {
   }
   opts.ssl = ('amqps' === scheme);
   opts.host = url.hostname;
-  opts.port = url.port || defaultPorts[scheme]
+  opts.port = url.port || defaultPorts[scheme];
   if (url.auth) {
     var auth = url.auth.split(':');
     auth[0] && (opts.login = auth[0]);
@@ -1360,13 +1359,14 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
 };
 
 Channel.prototype._onChannelMethod = function(channel, method, args) {
-    switch (method) {
+  // Better off using an if here
+  switch (method) {
     case methods.channelCloseOk:
-        delete this.connection.channels[this.channel]
-        this.state = 'closed'
+      delete this.connection.channels[this.channel];
+      this.state = 'closed';
     default:
-        this._onMethod(channel, method, args);
-    }
+      this._onMethod(channel, method, args);
+  }
 };
 
 Channel.prototype.close = function() {
