@@ -286,73 +286,65 @@ function parseSignedInteger (buffer) {
   return int;
 }
 
+function parseValue (buffer) {
+  switch (buffer[buffer.read++]) {
+    case AMQPTypes.STRING:
+      return parseLongString(buffer);
+
+    case AMQPTypes.INTEGER:
+      return parseInt(buffer, 4);
+
+    case AMQPTypes.DECIMAL:
+      var dec = parseInt(buffer, 1);
+      var num = parseInt(buffer, 4);
+      return num / (dec * 10);
+
+    case AMQPTypes._64BIT_FLOAT:
+      var b = [];
+      for (var i = 0; i < 8; ++i)
+        b[i] = buffer[buffer.read++];
+
+      return (new jspack(true)).Unpack('d', b);
+
+    case AMQPTypes._32BIT_FLOAT:
+      var b = [];
+      for (var i = 0; i < 4; ++i)
+        b[i] = buffer[buffer.read++];
+
+      return (new jspack(true)).Unpack('f', b);
+
+    case AMQPTypes.TIME:
+      var int = parseInt(buffer, 8);
+      return (new Date()).setTime(int * 1000);
+
+    case AMQPTypes.HASH:
+      return parseTable(buffer);
+
+    case AMQPTypes.SIGNED_64BIT:
+      return parseInt(buffer, 8);
+
+    case AMQPTypes.BOOLEAN:
+      return (parseInt(buffer, 1) > 0);
+
+    case AMQPTypes.BYTE_ARRAY:
+      var len = parseInt(buffer, 4);
+      var buf = new Buffer(len);
+      buffer.copy(buf, 0, buffer.read, buffer.read + len);
+      buffer.read += len;
+      return buf;
+
+    default:
+      throw new Error("Unknown field value type " + buffer[buffer.read-1]);
+  }
+}
 
 function parseTable (buffer) {
   var length = buffer.read + parseInt(buffer, 4);
   var table = {};
   while (buffer.read < length) {
     var field = parseShortString(buffer);
-    switch (buffer[buffer.read++]) {
-      case AMQPTypes.STRING:
-        table[field] = parseLongString(buffer);
-        break;
-
-      case AMQPTypes.INTEGER:
-        table[field] = parseInt(buffer, 4);
-        break;
-
-      case AMQPTypes.DECIMAL:
-        var dec = parseInt(buffer, 1);
-        var num = parseInt(buffer, 4);
-        table[field] = num / (dec * 10);
-        break;
-
-      case AMQPTypes._64BIT_FLOAT:
-        var b = [];
-        for (var i = 0; i < 8; ++i)
-          b[i] = buffer[buffer.read++];
-
-          table[field] = (new jspack(true)).Unpack('d', b);
-          break;
-
-      case AMQPTypes._32BIT_FLOAT:
-        var b = [];
-        for (var i = 0; i < 4; ++i)
-          b[i] = buffer[buffer.read++];
-
-          table[field] = (new jspack(true)).Unpack('f', b);
-          break;
-
-      case AMQPTypes.TIME:
-        var int = parseInt(buffer, 8);
-        table[field] = new Date();
-        table[field].setTime(int * 1000);
-        break;
-
-      case AMQPTypes.HASH:
-        table[field] = parseTable(buffer);
-        break;
-
-      case AMQPTypes.SIGNED_64BIT:
-        table[field] = parseInt(buffer, 8);
-        break;
-
-      case AMQPTypes.BOOLEAN:
-        table[field] = (parseInt(buffer, 1) > 0);
-        break;
-
-      case AMQPTypes.BYTE_ARRAY:
-        var len = parseInt(buffer, 4);
-        var buf = new Buffer(len);
-        buffer.copy(buf, 0, buffer.read, buffer.read + len);
-        buffer.read += len;
-        table[field] = buf;
-        break;
-
-      default:
-        throw new Error("Unknown field value type " + buffer[buffer.read-1]);
-    }
-  }
+		table[field] = parseValue(buffer);
+	}
   return table;
 }
 
