@@ -333,6 +333,17 @@ function parseValue (buffer) {
       buffer.read += len;
       return buf;
 
+    case AMQPTypes.ARRAY:
+      var len = parseInt(buffer, 4);
+      var end = buffer.read + len;
+      var arr = new Array();
+
+      while (buffer.read < end) {
+        arr.push(parseValue(buffer));
+      }
+
+      return arr;
+
     default:
       throw new Error("Unknown field value type " + buffer[buffer.read-1]);
   }
@@ -341,10 +352,11 @@ function parseValue (buffer) {
 function parseTable (buffer) {
   var length = buffer.read + parseInt(buffer, 4);
   var table = {};
+
   while (buffer.read < length) {
-    var field = parseShortString(buffer);
-		table[field] = parseValue(buffer);
-	}
+    table[parseShortString(buffer)] = parseValue(buffer);
+  }
+  
   return table;
 }
 
@@ -602,6 +614,55 @@ function isFloat(value)
   return value === +value && value !== (value|0);
 }
 
+function serializeValue (b, value) {
+  switch (typeof(value)) {
+    case 'string':
+      b[b.used++] = 'S'.charCodeAt(0);
+      serializeLongString(b, value);
+      break;
+
+    case 'number':
+      if (!isFloat(value)) {
+        if (isBigInt(value)) {
+          // 64-bit uint
+          b[b.used++] = 'l'.charCodeAt(0);
+          serializeInt(b, 8, value);
+        } else {
+          //32-bit uint
+          b[b.used++] = 'I'.charCodeAt(0);
+          serializeInt(b, 4, value);
+        }
+      } else {
+        //64-bit float
+        b[b.used++] = 'd'.charCodeAt(0);
+        serializeFloat(b, 8, value);
+      }
+      break;
+
+    case 'boolean':
+      b[b.used++] = 't'.charCodeAt(0);
+      b[b.used++] = value;
+      break;
+
+    default:
+    if (value instanceof Date) {
+      b[b.used++] = 'T'.charCodeAt(0);
+      serializeDate(b, value);
+    } else if (value instanceof Buffer) {
+      b[b.used++] = 'x'.charCodeAt(0);
+      serializeBuffer(b, value);
+    } else if (util.isArray(value)) {
+      b[b.used++] = 'A'.charCodeAt(0);
+      serializeArray(b, value);
+    } else if (typeof(value) === 'object') {
+      b[b.used++] = 'F'.charCodeAt(0);
+      serializeTable(b, value);
+    } else {
+      this.throwError("unsupported type in amqp table: " + typeof(value));
+    }
+  }
+}
+
 function serializeTable (b, object) {
   if (typeof(object) != "object") {
     throw new Error("param must be an object");
@@ -611,70 +672,37 @@ function serializeTable (b, object) {
   // at the beginning of the packet (once we know how many entries there are).
   var lengthIndex = b.used;
   b.used += 4; // sizeof long
-
   var startIndex = b.used;
 
   for (var key in object) {
     if (!object.hasOwnProperty(key)) continue;
-
     serializeShortString(b, key);
-
-    var value = object[key];
-
-    switch (typeof(value)) {
-      case 'string':
-        b[b.used++] = 'S'.charCodeAt(0);
-        serializeLongString(b, value);
-        break;
-
-      case 'number':
-        if (!isFloat(value)) {
-          if (isBigInt(value)) {
-            // 64-bit uint
-            b[b.used++] = 'l'.charCodeAt(0);
-            serializeInt(b, 8, value);
-          } else {
-            //32-bit uint
-            b[b.used++] = 'I'.charCodeAt(0);
-            serializeInt(b, 4, value);
-          }
-        } else {
-          //64-bit float
-          b[b.used++] = 'd'.charCodeAt(0);
-          serializeFloat(b, 8, value);
-        }
-        break;
-
-      case 'boolean':
-        b[b.used++] = 't'.charCodeAt(0);
-        b[b.used++] = value;
-        break;
-
-      default:
-      if(value instanceof Date) {
-        b[b.used++] = 'T'.charCodeAt(0);
-        serializeDate(b, value);
-      } else if (value instanceof Buffer) {
-        b[b.used++] = 'x'.charCodeAt(0);
-        serializeBuffer(b, value);
-      } else {
-        if(typeof(value) === 'object') {
-          b[b.used++] = 'F'.charCodeAt(0);
-          serializeTable(b, value);
-        } else {
-          this.throwError("unsupported type in amqp table: " + typeof(value));
-        }
-      }
-    }
+    serializeValue(b, object[key]);
   }
 
   var endIndex = b.used;
-
   b.used = lengthIndex;
   serializeInt(b, 4, endIndex - startIndex);
   b.used = endIndex;
 }
 
+function serializeArray (b, arr) {
+  // Save our position so that we can go back and write the byte length of this array
+  // at the beginning of the packet (once we have serialized all elements).
+  var lengthIndex = b.used;
+  b.used += 4; // sizeof long
+  var startIndex = b.used;
+
+  len = arr.length;
+  for (var i = 0; i < len; i++) {
+    serializeValue(b, arr[i]);
+  }
+
+  var endIndex = b.used;
+  b.used = lengthIndex;
+  serializeInt(b, 4, endIndex - startIndex);
+  b.used = endIndex;
+}
 
 function serializeFields (buffer, fields, args, strict) {
   var bitField = 0;
@@ -1288,10 +1316,10 @@ Message.prototype.acknowledge = function (all) {
 // Reject an incoming message.
 // Set first arg to 'true' to requeue the message.
 Message.prototype.reject = function (requeue){
-	this.queue.connection._sendMethod(this.queue.channel, methods.basicReject,
-			{ deliveryTag: this.deliveryTag
-			, requeue: requeue ? true : false
-			});
+  this.queue.connection._sendMethod(this.queue.channel, methods.basicReject,
+      { deliveryTag: this.deliveryTag
+      , requeue: requeue ? true : false
+      });
 }
 
 // This class is not exposed to the user. Queue and Exchange are subclasses
@@ -1899,8 +1927,8 @@ Exchange.prototype.publish = function (routingKey, data, options) {
 
 // do any necessary cleanups eg. after queue destruction  
 Exchange.prototype.cleanup = function() {
-	if (this.binds == 0) // don't keep reference open if unused
-    	this.connection.exchangeClosed(this.name);
+  if (this.binds == 0) // don't keep reference open if unused
+      this.connection.exchangeClosed(this.name);
 };
 
 
