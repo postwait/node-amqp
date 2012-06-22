@@ -198,7 +198,7 @@ function AMQPParser (version, type) {
           }
           break;
         case FrameType.HEARTBEAT:
-          debug("hearbeat");
+          debug("heartbeat");
           if (self.onHeartBeat) self.onHeartBeat();
           break;
         default:
@@ -840,6 +840,7 @@ function Connection (connectionArgs, options, readyCallback) {
 
     parser.onHeartBeat = function () {
       self.emit("heartbeat");
+      self.heartbeat();
       debug("heartbeat");
     };
 
