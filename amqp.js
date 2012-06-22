@@ -1685,6 +1685,16 @@ Queue.prototype.destroy = function (options) {
   });
 };
 
+Queue.prototype.purge = function() {
+  var self = this;
+  return this._taskPush(methods.queuePurgeOk, function () {
+    self.connection._sendMethod(self.channel, methods.queuePurge,
+                                 { reserved1 : 0,
+                                 queue: self.name,
+                                 noWait: false})
+  });
+};
+
 
 Queue.prototype._onMethod = function (channel, method, args) {
   this.emit(method.name, args);
