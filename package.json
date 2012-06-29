@@ -26,7 +26,7 @@
   { "url" : "http://github.com/postwait/node-amqp/issues"
   }
 , "main" : "./amqp"
-, "engines" : { "node" : "0.4 || 0.5 || 0.6" }
+, "engines" : { "node" : "0.4 || 0.5 || 0.6 || 0.8" }
 , "licenses" :
   [ { "type" : "MIT"
     , "url" : "http://github.com/postwait/node-amqp/raw/master/LICENSE-MIT"
