@@ -1504,12 +1504,8 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   return this.subscribeRaw(rawOptions, function (m) {
     var contentType = m.contentType;
     
-    if (contentType) {
-      // normal message
-    } else { // complex header message
-      if (m.headers && m.headers.properties) {
-        contentType = m.headers.properties.content_type
-      }
+    if (contentType == null && m.headers && m.headers.properties) {
+       contentType = m.headers.properties.content_type;
     }
     
     var isJSON = (contentType == 'text/json') || (contentType == 'application/json');
