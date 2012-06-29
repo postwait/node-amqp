@@ -8,7 +8,7 @@ argv = require('optimist')
 	.demand('port').describe('port', 'Port').default('port', 5672)
 	.demand('vhost').describe('vhost', 'Virtual Host').default('vhost', '/')
 	.demand('login').describe('login', 'Login').default('login', 'guest')
-	.demand('password').describe('password', 'Password').default('password', 'starbuck')
+	.demand('password').describe('password', 'Password')
 	.argv
 
 amqp = require '../amqp'
@@ -61,7 +61,16 @@ exec "rabbitmqctl trace_on -p #{argv.vhost}", (error, stdout, stderr) ->
 		console.log error
 		process.exit 1
 
-	amqp_connection = amqp.createConnection()
+	{host, port, vhost, login, password} = argv
+
+	options = 
+		host:host
+		port:port
+		vhost:vhost
+		login:login
+		password:password
+
+	amqp_connection = amqp.createConnection options
 
 	amqp_connection.on 'ready', () -> 
 			default_exchange = amqp_connection.exchange()

@@ -2,7 +2,7 @@
 (function() {
   var amqp, argv, assert, check_results, count, default_exchange, exec, firehose_message, firehose_queue_name, message_s, publish_message, test_message, test_queue_name;
 
-  argv = require('optimist').usage('' + 'Test tracing/firehose message receipt.' + '\nA firehose message is generated both when a message is published and when it is consumed.' + '\nNOTE: this test will attempt to enable and then disable tracing for the vhost using rabbitmqctl.').demand('host').describe('host', 'Host')["default"]('host', 'localhost').demand('port').describe('port', 'Port')["default"]('port', 5672).demand('vhost').describe('vhost', 'Virtual Host')["default"]('vhost', '/').demand('login').describe('login', 'Login')["default"]('login', 'guest').demand('password').describe('password', 'Password')["default"]('password', 'starbuck').argv;
+  argv = require('optimist').usage('' + 'Test tracing/firehose message receipt.' + '\nA firehose message is generated both when a message is published and when it is consumed.' + '\nNOTE: this test will attempt to enable and then disable tracing for the vhost using rabbitmqctl.').demand('host').describe('host', 'Host')["default"]('host', 'localhost').demand('port').describe('port', 'Port')["default"]('port', 5672).demand('vhost').describe('vhost', 'Virtual Host')["default"]('vhost', '/').demand('login').describe('login', 'Login')["default"]('login', 'guest').demand('password').describe('password', 'Password').argv;
 
   amqp = require('../amqp');
 
@@ -56,12 +56,20 @@
   firehose_queue_name = 'test.firehose.firehose';
 
   exec("rabbitmqctl trace_on -p " + argv.vhost, function(error, stdout, stderr) {
-    var amqp_connection;
+    var amqp_connection, host, login, options, password, port, vhost;
     if (error != null) {
       console.log(error);
       process.exit(1);
     }
-    amqp_connection = amqp.createConnection();
+    host = argv.host, port = argv.port, vhost = argv.vhost, login = argv.login, password = argv.password;
+    options = {
+      host: host,
+      port: port,
+      vhost: vhost,
+      login: login,
+      password: password
+    };
+    amqp_connection = amqp.createConnection(options);
     return amqp_connection.on('ready', function() {
       default_exchange = amqp_connection.exchange();
       return amqp_connection.queue(test_queue_name, function(queue) {
