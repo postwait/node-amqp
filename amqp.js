@@ -1733,6 +1733,11 @@ Queue.prototype._onMethod = function (channel, method, args) {
     case methods.basicQosOk:
       break;
 
+    case methods.confirmSelectOk:
+      this._sequence = 1;
+      this.confirm = true;
+      break;
+
     case methods.channelClose:
       this.state = "closed";
       this.connection.queueClosed(this.name);
@@ -1788,6 +1793,9 @@ function Exchange (connection, channel, name, options, openCallback) {
   this.binds = 0; // keep track of queues bound
   this.options = options || { autoDelete: true};
   this._openCallback = openCallback;
+
+  this._sequence = null;
+  this._unAcked  = {};
 }
 util.inherits(Exchange, Channel);
 
@@ -1835,6 +1843,12 @@ Exchange.prototype._onMethod = function (channel, method, args) {
         this._openCallback(this);
         this._openCallback = null;
       }
+
+      if (this.options.confirm){
+        this.connection._sendMethod(channel, methods.confirmSelect,
+          { noWait: false });
+      }
+
       break;
 
     case methods.channelClose:
@@ -1849,6 +1863,20 @@ Exchange.prototype._onMethod = function (channel, method, args) {
     case methods.channelCloseOk:
       this.connection.exchangeClosed(this.name);
       this.emit('close');
+      break;
+
+    case methods.confirmSelectOk:
+      this._sequence = 1;
+      break;
+
+    case methods.basicAck:
+      this.emit('basic-ack', args);
+
+      if(this._unAcked[args.deliveryTag]){
+        this._unAcked[args.deliveryTag].emitAck()
+        delete this._unAcked[args.deliveryTag]
+      }
+      
       break;
 
     case methods.basicReturn:
@@ -1892,7 +1920,7 @@ Exchange.prototype.publish = function (routingKey, data, options) {
   options.immediate  = options.immediate ? true : false;
   options.reserved1  = 0;
 
-  return this._taskPush(null, function () {
+  task = this._taskPush(null, function () {
     self.connection._sendMethod(self.channel, methods.basicPublish, options);
     // This interface is probably not appropriate for streaming large files.
     // (Of course it's arguable about whether AMQP is the appropriate
@@ -1903,6 +1931,14 @@ Exchange.prototype.publish = function (routingKey, data, options) {
     // If you need to stream something large, chunk it yourself.
     self.connection._sendBody(self.channel, data, options);
   });
+
+  if (self.options.confirm){
+    task.sequence = self._sequence
+    self._unAcked[self._sequence] = task
+    self._sequence++
+  }
+
+  return task
 };
 
 // do any necessary cleanups eg. after queue destruction  
