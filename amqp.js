@@ -1920,7 +1920,7 @@ Exchange.prototype.publish = function (routingKey, data, options) {
   options.immediate  = options.immediate ? true : false;
   options.reserved1  = 0;
 
-  task = this._taskPush(null, function () {
+  var task = this._taskPush(null, function () {
     self.connection._sendMethod(self.channel, methods.basicPublish, options);
     // This interface is probably not appropriate for streaming large files.
     // (Of course it's arguable about whether AMQP is the appropriate
