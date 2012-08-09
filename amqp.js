@@ -1836,19 +1836,32 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       }
       break;
 
-    case methods.exchangeDeclareOk:
+     case methods.exchangeDeclareOk:
+
+      if (this.options.confirm){
+        this.connection._sendMethod(channel, methods.confirmSelect,
+          { noWait: false });
+      }else{
+
+        this.state = 'open';
+        this.emit('open');
+        if (this._openCallback) {
+          this._openCallback(this);
+          this._openCallback = null;
+        }
+      }
+
+      break;
+
+    case methods.confirmSelectOk:
+      this._sequence = 1;
+      
       this.state = 'open';
       this.emit('open');
       if (this._openCallback) {
         this._openCallback(this);
         this._openCallback = null;
       }
-
-      if (this.options.confirm){
-        this.connection._sendMethod(channel, methods.confirmSelect,
-          { noWait: false });
-      }
-
       break;
 
     case methods.channelClose:
@@ -1865,9 +1878,6 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.emit('close');
       break;
 
-    case methods.confirmSelectOk:
-      this._sequence = 1;
-      break;
 
     case methods.basicAck:
       this.emit('basic-ack', args);
