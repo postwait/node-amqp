@@ -1882,7 +1882,22 @@ Exchange.prototype._onMethod = function (channel, method, args) {
     case methods.basicAck:
       this.emit('basic-ack', args);
 
-      if(this._unAcked[args.deliveryTag]){
+      if(args.deliveryTag == 0 && args.multiple == true){
+        // we must ack everything
+        for(var tag in this._unAcked){
+          this._unAcked[tag].emitAck()
+          delete this._unAcked[tag]
+        }
+      }else if(args.deliveryTag != 0 && args.multiple == true){
+        // we must ack everything before the delivery tag
+        for(var tag in this._unAcked){
+          if(tag <= args.deliveryTag){
+            this._unAcked[tag].emitAck()
+            delete this._unAcked[tag]
+          }
+        }
+      }else if(this._unAcked[args.deliveryTag] && args.multiple == false){
+        // simple single ack
         this._unAcked[args.deliveryTag].emitAck()
         delete this._unAcked[args.deliveryTag]
       }
