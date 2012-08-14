@@ -1830,7 +1830,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
             , autoDelete: this.options.autoDelete ? true : false
             , internal:   this.options.internal   ? true : false
             , noWait:     false
-            , "arguments": {}
+            , "arguments":this.options.arguments || {}
             });
         this.state = 'declaring';
       }
