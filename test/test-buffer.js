@@ -19,7 +19,6 @@ connection.addListener('ready', function () {
         recvCount++;
         m.acknowledge();
 
-        //TODO: This switch should be an if statement
         switch (m.routingKey) {
           case 'message.bin1':
             assert.equal(util.inspect(body), util.inspect(data));
