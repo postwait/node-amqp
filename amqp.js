@@ -1692,17 +1692,28 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
   switch (method) {
     case methods.channelOpenOk:
-      this.connection._sendMethod(channel, methods.queueDeclare,
-          { reserved1: 0
-          , queue: this.name
-          , passive: this.options.passive ? true : false
-          , durable: this.options.durable ? true : false
-          , exclusive: this.options.exclusive ? true : false
-          , autoDelete: this.options.autoDelete ? true : false
-          , noWait: false
-          , "arguments": this.options.arguments || {}
-          });
-      this.state = "declare queue";
+      if (this.options.noDeclare) {
+        this.state = 'open';
+
+        if (this._openCallback) {
+         this._openCallback(this);
+         this._openCallback = null;
+        }
+
+        this.emit('open');
+      } else { 
+        this.connection._sendMethod(channel, methods.queueDeclare,
+            { reserved1: 0
+            , queue: this.name
+            , passive: this.options.passive ? true : false
+            , durable: this.options.durable ? true : false
+            , exclusive: this.options.exclusive ? true : false
+            , autoDelete: this.options.autoDelete ? true : false
+            , noWait: false
+            , "arguments": this.options.arguments || {}
+            });
+        this.state = "declare queue";
+      }
       break;
 
     case methods.queueDeclareOk:
@@ -1818,6 +1829,18 @@ Exchange.prototype._onMethod = function (channel, method, args) {
         // --
         this.emit('open');
        
+      // For if we want to delete a exchange, 
+      // we dont care if all of the options match.
+      } else if (this.options.noDeclare){
+
+        this.state = 'open';
+
+        if (this._openCallback) {
+         this._openCallback(this);
+         this._openCallback = null;
+        }
+
+        this.emit('open');
       } else {
         this.connection._sendMethod(channel, methods.exchangeDeclare,
             { reserved1:  0
