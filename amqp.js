@@ -1806,6 +1806,12 @@ Queue.prototype._onContent = function (channel, data) {
   }
 };
 
+Queue.prototype.flow = function(active) {
+    var self = this;
+    return this._taskPush(methods.channelFlowOk, function () {
+        self.connection._sendMethod(self.channel, methods.channelFlow, {'active': active });
+      })
+};
 
 
 
