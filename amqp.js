@@ -1527,19 +1527,20 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       deliveryInfo.exchange = m.exchange;
       deliveryInfo.routingKey = m.routingKey;
       deliveryInfo.consumerTag = m.consumerTag;
-      if(options.routingKeyInPayload) json._routingKey = m.routingKey;
-      if(options.deliveryTagInPayload) json._deliveryTag = m.deliveryTag;
+      if (options.routingKeyInPayload) {json._routingKey = m.routingKey;}
+      if (options.deliveryTagInPayload) {json._deliveryTag = m.deliveryTag;}
 
       var headers = {};
       for (var i in this.headers) {
-        if(this.headers.hasOwnProperty(i)) {
-          if(this.headers[i] instanceof Buffer)
+        if (this.headers.hasOwnProperty(i)) {
+          if (this.headers[i] instanceof Buffer) {
             headers[i] = this.headers[i].toString();
-          else
+          } else {
             headers[i] = this.headers[i];
+          }
         }
       }
-      if (messageListener) messageListener(json, headers, deliveryInfo, m);
+      if (messageListener) {messageListener(json, headers, deliveryInfo, m);}
       self.emit('message', json, headers, deliveryInfo, m);
     });
   });
@@ -1561,16 +1562,16 @@ Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) 
   // If not supplied the connection will use the 'amq.topic'
   // exchange.
 
-    var exchange, routingKey, callback;
-    if(typeof(arguments[arguments.length-1]) == 'function') {
-        callback = arguments[arguments.length-1];
-    }
-    // Remove callback from args so rest of bind functionality works as before
-    // Also, defend against cases where a non function callback has been passed as 3rd param
-    if (callback || arguments.length == 3) {
-        delete arguments[arguments.length-1];
-        arguments.length--;
-    }
+  var exchange, routingKey, callback;
+  if (typeof(arguments[arguments.length-1]) == 'function') {
+    callback = arguments[arguments.length-1];
+  }
+  // Remove callback from args so rest of bind functionality works as before
+  // Also, defend against cases where a non function callback has been passed as 3rd param
+  if (callback || arguments.length == 3) {
+    delete arguments[arguments.length-1];
+    arguments.length--;
+  }
 
   if (arguments.length == 2) {
     exchange = arguments[0];
@@ -1579,12 +1580,11 @@ Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) 
     exchange = 'amq.topic';
     routingKey = arguments[0];
   }
-  if(callback) this._bindCallback = callback;
-
+  if (callback) {this._bindCallback = callback;}
 
   var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
 
-  if(exchangeName in self.connection.exchanges) {
+  if (exchangeName in self.connection.exchanges) {
     this.exchange = self.connection.exchanges[exchangeName];
     this.exchange.binds++;
   }

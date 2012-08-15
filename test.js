@@ -18,26 +18,27 @@ connection.addListener('ready', function () {
 
   var exchange = connection.exchange('clock', {type: 'fanout'});
 
-  var q = connection.queue('my-events-receiver');
-  console.log(q);
-
-  q.bind(exchange, "*").addCallback(function () {
-    console.log("publishing message");
-    exchange.publish("message.json", {hello: 'world', foo: 'bar'});
-    exchange.publish("message.text", 'hello world', {contentType: 'text/plain'});
-  });
-
-  q.subscribe(function (m) {
-    console.log("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
-    console.log("--- contentType: " + m.contentType);
-
-    m.addListener('data', function (d) {
-      console.log(d);
+  var q = connection.queue('my-events-receiver', function(q) {
+    // Queue ready
+    q.bind(exchange, "*", function () {
+      console.log("publishing message");
+      exchange.publish("message.json", {hello: 'world', foo: 'bar'});
+      exchange.publish("message.text", 'hello world', {contentType: 'text/plain'});
     });
 
-    m.addListener('end', function () {
-      m.acknowledge();
-      console.log("--- END (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+    q.subscribeRaw(function (m) {
+
+      console.log("--- Message (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+      console.log("--- contentType: " + m.contentType);
+
+      m.addListener('data', function (d) {
+        console.log(d.toString());
+      });
+
+      m.addListener('end', function () {
+        m.acknowledge();
+        console.log("--- END (" + m.deliveryTag + ", '" + m.routingKey + "') ---");
+      });
     });
   });
 });
