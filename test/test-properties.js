@@ -26,7 +26,7 @@ connection.addListener('ready', function () {
   var q = connection.queue('node-json-queue', function() {
 
     q.bind(exchange, "*");
-  
+
     q.subscribe(function (json, headers, deliveryInfo) {
       var key = deliveryInfo.routingKey;
       recvCount++;
@@ -39,12 +39,12 @@ connection.addListener('ready', function () {
         props[p] = properties[p];
         exchange.publish(p, body, props);
       });
-  
+
       setTimeout(function () {
         // wait one second to receive the message, then quit
         connection.end();
       }, 1000);
-    })
+    });
   });
 });
 

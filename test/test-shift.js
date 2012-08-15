@@ -16,7 +16,7 @@ connection.addListener('ready', function () {
         e.publish('ackmessage.json1', { name: 'A' });
         e.publish('ackmessage.json2', { name: 'B' });
       });
-      
+
       q.subscribe({ ack: true }, function (json) {
         recvCount++;
         puts('Got message ' + JSON.stringify(json));
@@ -38,11 +38,10 @@ connection.addListener('ready', function () {
         } else {
           throw new Error('Too many message!');
         }
-      })
-    })
+      });
+    });
   });
 });
-
 
 process.addListener('exit', function () {
   assert.equal(2, recvCount);

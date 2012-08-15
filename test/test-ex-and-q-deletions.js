@@ -7,14 +7,14 @@ connection.addListener('ready', function () {
 
   var exchange1 = connection.exchange('node-conn-share1', {type: 'direct'});
   var exchange2 = connection.exchange('node-conn-share2', {type: 'direct'});
-  
+
   assert.equal(2, Object.keys(connection.exchanges).length);
 
   exchange2.destroy(); // checked at end
 
   var q1 = connection.queue('node-q1', function() {
     var q2 = connection.queue('node-q2', function() {
-      
+
       q1.bind(exchange1, "node-consumer-1");
       q1.on('queueBindOk', function() {
         q2.bind(exchange1, "node-consumer-2");
@@ -37,7 +37,7 @@ connection.addListener('ready', function () {
               connection.end();
             }, 1000);
           });
-          
+
           q1.subscribe(function (m, headers, deliveryInfo) {
             assert.equal('node-consumer-1', deliveryInfo.routingKey);
             recvCount++;
@@ -45,7 +45,7 @@ connection.addListener('ready', function () {
           q2.subscribe(function (m, headers, deliveryInfo) {
             assert.equal('node-consumer-2', deliveryInfo.routingKey);
             recvCount++;
-          })
+          });
         });
       });
     });

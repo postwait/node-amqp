@@ -9,7 +9,7 @@ var events = require('events'),
     AMQPTypes = require('./constants').AMQPTypes,
     Indicators = require('./constants').Indicators,
     FrameType = require('./constants').FrameType;
-    
+
 function mixin () {
   // copy reference to target object
   var target = arguments[0] || {}, i = 1, length = arguments.length, deep = false, source;
@@ -23,8 +23,9 @@ function mixin () {
   }
 
   // Handle case when target is a string or something (possible in deep copy)
-  if ( typeof target !== "object" && !(typeof target === 'function') )
+  if ( typeof target !== "object" && !(typeof target === 'function') ) {
     target = {};
+  }
 
   // mixin process itself if only one argument is passed
   if ( length == i ) {
@@ -34,17 +35,16 @@ function mixin () {
 
   for ( ; i < length; i++ ) {
     // Only deal with non-null/undefined values
-    if ( (source = arguments[i]) != null ) {
+    if ( (source = arguments[i]) !== null ) {
       // Extend the base object
-      Object.getOwnPropertyNames(source).forEach(function(k){
+      Object.getOwnPropertyNames(source).forEach(function(k) {
         var d = Object.getOwnPropertyDescriptor(source, k) || {value: source[k]};
         if (d.get) {
           target.__defineGetter__(k, d.get);
           if (d.set) {
             target.__defineSetter__(k, d.set);
           }
-        }
-        else {
+        } else {
           // Prevent never-ending loop
           if (target === d.value) {
             return;
@@ -53,10 +53,9 @@ function mixin () {
           if (deep && d.value && typeof d.value === "object") {
             target[k] = mixin(deep,
               // Never move original objects, clone them
-              source[k] || (d.value.length != null ? [] : {})
+              source[k] || (d.value.length !== null ? [] : {})
             , d.value);
-          }
-          else {
+          } else {
             target[k] = d.value;
           }
         }
@@ -93,18 +92,18 @@ var classes = {};
     classes[classInfo.index] = classInfo;
     for (var j = 0; j < classInfo.methods.length; j++) {
       var methodInfo = classInfo.methods[j];
-      
+
       var name = classInfo.name
         + methodInfo.name[0].toUpperCase()
         + methodInfo.name.slice(1);
       //debug(name);
-      
+
       var method = { name: name
                      , fields: methodInfo.fields
                      , methodIndex: methodInfo.index
                      , classIndex: classInfo.index
                    };
-      
+
       if (!methodTable[classInfo.index]) methodTable[classInfo.index] = {};
       methodTable[classInfo.index][methodInfo.index] = method;
       methods[name] = method;
@@ -356,7 +355,7 @@ function parseTable (buffer) {
   while (buffer.read < length) {
     table[parseShortString(buffer)] = parseValue(buffer);
   }
-  
+
   return table;
 }
 
@@ -489,7 +488,7 @@ function serializeFloat(b, size, value, bigEndian) {
     for (var i = 0; i < x.length; ++i)
       b[b.used++] = x[i];
     break;
-  
+
   case 8:
     var x = jp.Pack('d', [value]);
     for (var i = 0; i < x.length; ++i)
@@ -601,9 +600,9 @@ function isBigInt(value) {
   return value > 0xffffffff;
 }
 
-function getCode(dec) { 
+function getCode(dec) {
   var hexArray = "0123456789ABCDEF".split('');
-  
+
   var code1 = Math.floor(dec / 16);
   var code2 = dec - code1 * 16;
   return hexArray[code2];
@@ -867,7 +866,7 @@ function Connection (connectionArgs, options, readyCallback) {
     // state.
     parser = null;
   });
-  
+
   // in case of connection refused error
   self.addListener('error', function(e){
     self.end();
@@ -897,7 +896,7 @@ function urlOptions(connectionString) {
   }
   opts.ssl = ('amqps' === scheme);
   opts.host = url.hostname;
-  opts.port = url.port || defaultPorts[scheme]
+  opts.port = url.port || defaultPorts[scheme];
   if (url.auth) {
     var auth = url.auth.split(':');
     auth[0] && (opts.login = auth[0]);
@@ -925,10 +924,10 @@ Connection.prototype.setOptions = function (options) {
 };
 
 Connection.prototype.setImplOptions = function(options) {
-  var o = {}
+  var o = {};
   mixin(o, defaultImplOptions, options || {});
   this.implOptions = o;
-}
+};
 
 Connection.prototype.reconnect = function () {
   this.connect(this.options.port, this.options.host);
@@ -959,7 +958,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
     // 'connectionStart' method (contains various useless information)
     case methods.connectionStart:
       // We check that they're serving us AMQP 0-9
-      if (args.versionMajor != 0 && args.versionMinor != 9) {
+      if (args.versionMajor !== 0 && args.versionMinor != 9) {
         this.end();
         this.emit('error', new Error("Bad server version"));
         return;
@@ -1250,7 +1249,7 @@ Connection.prototype.exchange = function (name, options, openCallback) {
   if (name === undefined) name = this.implOptions.defaultExchangeName;
 
   if (!options) options = {};
-  if (name != '' && options.type === undefined) options.type = 'topic';
+  if (name !== '' && options.type === undefined) options.type = 'topic';
 
   this.channelCounter++;
   var channel = this.channelCounter;
@@ -1321,12 +1320,12 @@ Message.prototype.acknowledge = function (all) {
 
 // Reject an incoming message.
 // Set first arg to 'true' to requeue the message.
-Message.prototype.reject = function (requeue){
-  this.queue.connection._sendMethod(this.queue.channel, methods.basicReject,
-      { deliveryTag: this.deliveryTag
-      , requeue: requeue ? true : false
-      });
-}
+Message.prototype.reject = function (requeue) {
+	this.queue.connection._sendMethod(this.queue.channel, methods.basicReject,
+			{ deliveryTag: this.deliveryTag
+			, requeue: requeue ? true : false
+			});
+};
 
 // This class is not exposed to the user. Queue and Exchange are subclasses
 // of Channel. This just provides a task queue.
@@ -1386,39 +1385,40 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
 };
 
 Channel.prototype._onChannelMethod = function(channel, method, args) {
-    switch (method) {
+  // Better off using an if here
+  switch (method) {
     case methods.channelCloseOk:
-        delete this.connection.channels[this.channel]
-        this.state = 'closed'
+      delete this.connection.channels[this.channel];
+      this.state = 'closed';
     default:
-        this._onMethod(channel, method, args);
-    }
-}
+      this._onMethod(channel, method, args);
+  }
+};
 
-Channel.prototype.close = function() { 
+Channel.prototype.close = function() {
   this.state = 'closing';
     this.connection._sendMethod(this.channel, methods.channelClose,
                                 {'replyText': 'Goodbye from node',
                                  'replyCode': 200,
                                  'classId': 0,
                                  'methodId': 0});
-}
+};
 
 function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
 
   this.name = name;
   this.consumerTagListeners = {};
-  
+
   var self = this;
-  
+
   // route messages to subscribers based on consumerTag
   this.on('rawMessage', function(message) {
     if (message.consumerTag && self.consumerTagListeners[message.consumerTag]) {
       self.consumerTagListeners[message.consumerTag](message);
     }
   });
-  
+
   this.options = { autoDelete: true };
   if (options) mixin(this.options, options);
 
@@ -1508,11 +1508,11 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   var rawOptions = { noAck: !options.ack };
   return this.subscribeRaw(rawOptions, function (m) {
     var contentType = m.contentType;
-    
+
     if (contentType == null && m.headers && m.headers.properties) {
        contentType = m.headers.properties.content_type;
     }
-    
+
     var isJSON = (contentType == 'text/json') || (contentType == 'application/json');
 
     var b;
@@ -1559,19 +1559,20 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       deliveryInfo.exchange = m.exchange;
       deliveryInfo.routingKey = m.routingKey;
       deliveryInfo.consumerTag = m.consumerTag;
-      if(options.routingKeyInPayload) json._routingKey = m.routingKey;
-      if(options.deliveryTagInPayload) json._deliveryTag = m.deliveryTag;
+      if (options.routingKeyInPayload) {json._routingKey = m.routingKey;}
+      if (options.deliveryTagInPayload) {json._deliveryTag = m.deliveryTag;}
 
       var headers = {};
       for (var i in this.headers) {
-        if(this.headers.hasOwnProperty(i)) {
-          if(this.headers[i] instanceof Buffer)
+        if (this.headers.hasOwnProperty(i)) {
+          if (this.headers[i] instanceof Buffer) {
             headers[i] = this.headers[i].toString();
-          else
+          } else {
             headers[i] = this.headers[i];
+          }
         }
       }
-      if (messageListener) messageListener(json, headers, deliveryInfo, m);
+      if (messageListener) {messageListener(json, headers, deliveryInfo, m);}
       self.emit('message', json, headers, deliveryInfo, m);
     });
   });
@@ -1593,17 +1594,17 @@ Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) 
   // If not supplied the connection will use the 'amq.topic'
   // exchange.
 
-    var exchange, routingKey, callback;
-    if(typeof(arguments[arguments.length-1]) == 'function'){
-        callback = arguments[arguments.length-1];
-    }
-    // Remove callback from args so rest of bind functionality works as before
-    // Also, defend against cases where a non function callback has been passed as 3rd param
-    if (callback || arguments.length == 3) {
-        delete arguments[arguments.length-1];
-        arguments.length--;
-    }
-    
+  var exchange, routingKey, callback;
+  if (typeof(arguments[arguments.length-1]) == 'function') {
+    callback = arguments[arguments.length-1];
+  }
+  // Remove callback from args so rest of bind functionality works as before
+  // Also, defend against cases where a non function callback has been passed as 3rd param
+  if (callback || arguments.length == 3) {
+    delete arguments[arguments.length-1];
+    arguments.length--;
+  }
+
   if (arguments.length == 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
@@ -1611,12 +1612,11 @@ Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) 
     exchange = 'amq.topic';
     routingKey = arguments[0];
   }
-  if(callback) this._bindCallback = callback;
-
+  if (callback) {this._bindCallback = callback;}
 
   var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
 
-  if(exchangeName in self.connection.exchanges) {
+  if (exchangeName in self.connection.exchanges) {
     this.exchange = self.connection.exchanges[exchangeName];
     this.exchange.binds++;
   }
@@ -1783,12 +1783,12 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.emit('error', e);
       this.emit('close');
       break;
-    
+
     case methods.channelCloseOk:
       this.connection.queueClosed(this.name);
       this.emit('close')
       break;
-    
+
     case methods.basicDeliver:
       this.currentMessage = new Message(this, args);
       break;
@@ -1857,7 +1857,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
         }
         // --
         this.emit('open');
-       
+
       } else {
         this.connection._sendMethod(channel, methods.exchangeDeclare,
             { reserved1:  0
@@ -1953,7 +1953,7 @@ Exchange.prototype.publish = function (routingKey, data, options) {
   });
 };
 
-// do any necessary cleanups eg. after queue destruction  
+// do any necessary cleanups eg. after queue destruction
 Exchange.prototype.cleanup = function() {
   if (this.binds == 0) // don't keep reference open if unused
       this.connection.exchangeClosed(this.name);

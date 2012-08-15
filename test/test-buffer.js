@@ -1,7 +1,7 @@
 require('./harness');
 
 var recvCount = 0;
-var body = new Buffer([1,99,253,255,0,1,5,6])
+var body = new Buffer([1,99,253,255,0,1,5,6]);
 
 connection.addListener('ready', function () {
   puts("connected to " + connection.serverProperties.product);
@@ -11,13 +11,14 @@ connection.addListener('ready', function () {
   var q = connection.queue('node-binary-queue', function() {
 
     q.bind(exchange, "*");
-  
+
     q.subscribeRaw(function (m) {
       var data;
       m.addListener('data', function (d) { data = d; });
       m.addListener('end', function () {
         recvCount++;
         m.acknowledge();
+
         switch (m.routingKey) {
           case 'message.bin1':
             assert.equal(util.inspect(body), util.inspect(data));
@@ -31,12 +32,12 @@ connection.addListener('ready', function () {
     .addCallback(function () {
       puts("publishing 1 raw message");
       exchange.publish('message.bin1', body);
-  
+
       setTimeout(function () {
         // wait one second to receive the message, then quit
         connection.end();
       }, 1000);
-    })
+    });
   });
 });
 

@@ -13,9 +13,9 @@ connection.addListener('ready', function () {
     puts('queue opened.');
     assert.equal(0, args.messageCount);
     assert.equal(0, args.consumerCount);
-    
+
     q.bind(e, "#");
-    
+
     q.on('queueBindOk', function () {
       puts('bound');
       // publish message, but don't consume it.
