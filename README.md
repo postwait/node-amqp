@@ -20,7 +20,6 @@ var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 
 // Wait for connection to become established.
 connection.on('ready', function () {
-  // Create a queue and bind to all messages.
   // Use the default 'amq.topic' exchange
   connection.queue('my-queue', function(q){
       // Catch all messages
@@ -166,6 +165,7 @@ Returns a reference to a queue. The options are
 - `noDeclare`: boolean, default false.
     If set, the queue will not be declared, this will allow a queue to be
     deleted if you dont know its previous options.
+- `arguments`: a map of additional arguments to pass in when creating a queue.
 
 ### queue.subscribe([options,] listener)
 
