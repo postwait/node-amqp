@@ -163,6 +163,9 @@ Returns a reference to a queue. The options are
     using it. Last consumer can be cancelled either explicitly or because
     its channel is closed. If there was no consumer ever on the queue, it
     won't be deleted.
+- `noDeclare`: boolean, default false.
+    If set, the queue will not be declared, this will allow a queue to be
+    deleted if you dont know its previous options.
 
 ### queue.subscribe([options,] listener)
 
@@ -310,6 +313,9 @@ object for the second. The options are
 - `autoDelete`: boolean, default true.
     If set, the exchange is deleted when there are no longer queues
     bound to it.
+- `noDeclare`: boolean, default false.
+    If set, the exchange will not be declared, this will allow the exchange
+    to be deleted if you dont know its previous options.
 
 An exchange will emit the `'open'` event when it is finally declared.
 
