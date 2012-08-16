@@ -1444,6 +1444,7 @@ Queue.prototype.unsubscribe = function(consumerTag) {
                                   noWait: false });
   })
   .addCallback(function () {
+    self.close()
     delete self.consumerTagListeners[consumerTag];
   });
 };
