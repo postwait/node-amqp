@@ -974,7 +974,7 @@ var defaultOptions = { host: 'localhost'
 // pause <reconnectBackoffTime> ms before the first attempt, and will double
 // the previous pause between each subsequent attempt until a connection is
 // reestablished.
-var defaultImplOptions = { defaultExchangeName: '' , reconnect: false , reconnectBackoffStrategy: 'linear' , reconnectBackoffTime: 1000 };
+var defaultImplOptions = { defaultExchangeName: '' , reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectBackoffTime: 1000 };
 
 function urlOptions(connectionString) {
   var opts = {};
