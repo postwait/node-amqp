@@ -1,3 +1,4 @@
+[![build status](https://secure.travis-ci.org/postwait/node-amqp.png)](http://travis-ci.org/postwait/node-amqp)
 # node-amqp
 
 IMPORTANT: This module only works with node v0.4.0 and later.
