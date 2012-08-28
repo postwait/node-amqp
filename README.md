@@ -247,7 +247,17 @@ the unnamed exchange (see `defaultExchangeName` above).
 
 If the `exchange` argument is left out `'amq.topic'` will be used.
 
-This method will emit `'queueBindOk'` when ready.
+This method will emit `'queueBindOk'` when complete.
+
+
+### queue.unbind([exchange,] routing)
+
+This method unbinds a queue from an exchange.
+
+If the exchange argument is left out `'amq.topic'` will be used.
+
+Ths method will emit `'queueUnbindOk'` when complete.
+
 
 ### queue.bind_headers([exchange,] routing)
 
