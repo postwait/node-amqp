@@ -854,6 +854,11 @@ function Connection (connectionArgs, options, readyCallback) {
           // If you've configured exponential backoff, we'll double the
           // backoff time each subsequent attempt until success.
           backoffTime *= 2;
+          // limit the maxium timeout, to avoid potentially unlimited stalls
+          if(backoffTime > self.implOptions.reconnectExponentialLimit){
+            backoffTime = reconnectExponentialLimit;
+          }
+
         } else if (self.implOptions.reconnectBackoffStrategy === 'linear') {
           // Linear strategy is the default.  In this case, we will retry at a
           // constant interval, so there's no need to change the backoff time
@@ -974,7 +979,7 @@ var defaultOptions = { host: 'localhost'
 // pause <reconnectBackoffTime> ms before the first attempt, and will double
 // the previous pause between each subsequent attempt until a connection is
 // reestablished.
-var defaultImplOptions = { defaultExchangeName: '' , reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectBackoffTime: 1000 };
+var defaultImplOptions = { defaultExchangeName: '' , reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectExponentialLimit: 120, reconnectBackoffTime: 1000 };
 
 function urlOptions(connectionString) {
   var opts = {};
