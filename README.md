@@ -166,6 +166,8 @@ Returns a reference to a queue. The options are
     If set, the queue will not be declared, this will allow a queue to be
     deleted if you dont know its previous options.
 - `arguments`: a map of additional arguments to pass in when creating a queue.
+- `closeChannelOnUnsubscribe` : a boolean when true the channel will close on 
+    unsubscrube, default false.
 
 ### queue.subscribe([options,] listener)
 
@@ -326,11 +328,15 @@ object for the second. The options are
 - `noDeclare`: boolean, default false.
     If set, the exchange will not be declared, this will allow the exchange
     to be deleted if you dont know its previous options.
+- `confirm`: boolean, default false.
+    If set, the exchange will be in confirm mode, and you will get a 
+    'ack'|'error' event emitted on a publish, or the callback on the publish
+    will be called.
 
 An exchange will emit the `'open'` event when it is finally declared.
 
 
-### exchange.publish(routingKey, message, options)
+### exchange.publish(routingKey, message, options, callback)
 
 Publishes a message to the exchange. The `routingKey` argument is a string
 which helps routing in `topic` and `direct` exchanges. The `message` can be
@@ -356,6 +362,10 @@ is converted to JSON.
 - `deliveryMode`: Non-persistent (1) or persistent (2)
 - `priority`: The message priority, 0 to 9.
 - `replyTo`: Usually used to name a reply queue for a request message.
+
+`callback` is a function that will get called if the exchange is in confirm mode,
+the value sent will be true or false, this is the presense of a error so true, means
+an error occured and false, means the publish was successfull
 
 ### exchange.destroy(ifUnused = true)
 
