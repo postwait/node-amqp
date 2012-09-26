@@ -1088,6 +1088,10 @@ Connection.prototype._onMethod = function (channel, method, args) {
 
     // 4. The server responds with a connectionTune request
     case methods.connectionTune:
+      if (args.frameMax) {
+          debug("tweaking maxFrameBuffer to " + args.frameMax);
+          maxFrameBuffer = args.frameMax;
+      }
       // 5. We respond with connectionTuneOk
       this._sendMethod(0, methods.connectionTuneOk,
           { channelMax: 0
@@ -1277,67 +1281,51 @@ function sendHeader (connection, channel, size, properties) {
 
 
 Connection.prototype._sendBody = function (channel, body, properties) {
+  var r = this._bodyToBuffer(body);
+  var props = r[0], buffer = r[1];
+
+  properties = mixin(props, properties);
+
+  sendHeader(this, channel, buffer.length, properties);
+
+  var pos = 0, len = buffer.length;
+  while (len > 0) {
+    var sz = len < maxFrameBuffer ? len : maxFrameBuffer;
+
+    var b = new Buffer(7 + sz + 1);
+    b.used = 0;
+    b[b.used++] = 3; // constants.frameBody
+    serializeInt(b, 2, channel);
+    serializeInt(b, 4, sz);
+    buffer.copy(b, b.used, pos, pos+sz);
+    b.used += sz;
+    b[b.used++] = 206; // constants.frameEnd;
+    this.write(b);
+
+    len -= sz;
+    pos += sz;
+  }
+  return;
+}
+
+Connection.prototype._bodyToBuffer = function (body) {
   // Handles 3 cases
   // - body is utf8 string
   // - body is instance of Buffer
   // - body is an object and its JSON representation is sent
   // Does not handle the case for streaming bodies.
+  // Returns buffer.
   if (typeof(body) == 'string') {
-    var length = Buffer.byteLength(body);
-    //debug('send message length ' + length);
-
-    sendHeader(this, channel, length, properties);
-
-    //debug('header sent');
-
-    var b = new Buffer(7+length+1);
-    b.used = 0;
-    b[b.used++] = 3; // constants.frameBody
-    serializeInt(b, 2, channel);
-    serializeInt(b, 4, length);
-
-    b.write(body, b.used, 'utf8');
-    b.used += length;
-
-    b[b.used++] = 206; // constants.frameEnd;
-    return this.write(b);
-
-    //debug('body sent: ' + JSON.stringify(b));
-
+    return [null, new Buffer(body, 'utf8')];
   } else if (body instanceof Buffer) {
-    sendHeader(this, channel, body.length, properties);
-
-    var b = new Buffer(7);
-    b.used = 0;
-    b[b.used++] = 3; // constants.frameBody
-    serializeInt(b, 2, channel);
-    serializeInt(b, 4, body.length);
-    this.write(b);
-    this.write(body);
-
-    return this.write(new Buffer([206])); // frameEnd
+    return [null, body];
   } else {
     var jsonBody = JSON.stringify(body);
-    var length = Buffer.byteLength(jsonBody);
 
     debug('sending json: ' + jsonBody);
 
-    properties = mixin({contentType: 'application/json' }, properties);
-
-    sendHeader(this, channel, length, properties);
-
-    var b = new Buffer(7+length+1);
-    b.used = 0;
-
-    b[b.used++] = 3; // constants.frameBody
-    serializeInt(b, 2, channel);
-    serializeInt(b, 4, length);
-
-    b.write(jsonBody, b.used, 'utf8');
-    b.used += length;
-
-    b[b.used++] = 206; // constants.frameEnd;
-    return this.write(b);
+    var props = {contentType: 'application/json'};
+    return [props, new Buffer(jsonBody, 'utf8')];
   }
 };
 
