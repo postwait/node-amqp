@@ -856,7 +856,7 @@ function Connection (connectionArgs, options, readyCallback) {
           backoffTime *= 2;
           // limit the maxium timeout, to avoid potentially unlimited stalls
           if(backoffTime > self.implOptions.reconnectExponentialLimit){
-            backoffTime = reconnectExponentialLimit;
+            backoffTime = self.implOptions.reconnectExponentialLimit;
           }
 
         } else if (self.implOptions.reconnectBackoffStrategy === 'linear') {
@@ -933,7 +933,7 @@ function Connection (connectionArgs, options, readyCallback) {
     self._inboundHeartbeatTimerReset();
   });
 
-  self.addListener('close', function () {
+  self.addListener('error', function () {
     backoff();
   });
 
@@ -979,7 +979,7 @@ var defaultOptions = { host: 'localhost'
 // pause <reconnectBackoffTime> ms before the first attempt, and will double
 // the previous pause between each subsequent attempt until a connection is
 // reestablished.
-var defaultImplOptions = { defaultExchangeName: '' , reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectExponentialLimit: 120, reconnectBackoffTime: 1000 };
+var defaultImplOptions = { defaultExchangeName: '', reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectExponentialLimit: 120000, reconnectBackoffTime: 1000 };
 
 function urlOptions(connectionString) {
   var opts = {};
@@ -1549,7 +1549,6 @@ function Queue (connection, channel, name, options, callback) {
   this.name = name;
   this.consumerTagListeners = {};
   this.consumerTagOptions = {};
-  
   var self = this;
   
   // route messages to subscribers based on consumerTag
@@ -1559,7 +1558,7 @@ function Queue (connection, channel, name, options, callback) {
     }
   });
   
-  this.options = { autoDelete: true };
+  this.options = { autoDelete: true, closeChannelOnUnsubscribe: false };
   if (options) mixin(this.options, options);
 
   this._openCallback = callback;
@@ -1613,7 +1612,9 @@ Queue.prototype.unsubscribe = function(consumerTag) {
                                   noWait: false });
   })
   .addCallback(function () {
-    self.close()
+    if(self.options.closeChannelOnUnsubscribe){
+      self.close();
+    }
     delete self.consumerTagListeners[consumerTag];
     delete self.consumerTagOptions[consumerTag];
   });
@@ -1838,7 +1839,6 @@ Queue.prototype.destroy = function (options) {
   var self = this;
 
   options = options || {};
-
   return this._taskPush(methods.queueDeleteOk, function () {
     self.connection.queueClosed(self.name);
     if('exchange' in self) {
@@ -2156,7 +2156,10 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 // - userId
 // - appId
 // - clusterId
-Exchange.prototype.publish = function (routingKey, data, options) {
+// 
+// the callback is optional and is only used when confirm is turned on for the exchange
+
+Exchange.prototype.publish = function (routingKey, data, options, callback) {
   var self = this;
 
   options = options || {};
@@ -2182,6 +2185,11 @@ Exchange.prototype.publish = function (routingKey, data, options) {
     task.sequence = self._sequence
     self._unAcked[self._sequence] = task
     self._sequence++
+
+    if(callback != null){ 
+      task.once('ack',   function(){task.removeAllListeners();callback(false)}); 
+      this.once('error', function(){task.removeAllListeners();callback(true)});
+    }
   }
 
   return task
