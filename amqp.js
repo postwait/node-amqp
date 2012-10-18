@@ -2000,6 +2000,8 @@ function Exchange (connection, channel, name, options, openCallback) {
   Channel.call(this, connection, channel);
   this.name = name;
   this.binds = 0; // keep track of queues bound
+  this.exchangeBinds = 0; // keep track of exchanges bound
+  this.sourceExchanges = {};
   this.options = options || { autoDelete: true};
   this._openCallback = openCallback;
 
@@ -2129,6 +2131,23 @@ Exchange.prototype._onMethod = function (channel, method, args) {
       this.emit('basic-return', args);
       break;
 
+    case methods.exchangeBindOk:
+        if (this._bindCallback) {
+            // setting this._bindCallback to null before calling the callback allows for a subsequent bind within the callback
+            var cb = this._bindCallback;
+            this._bindCallback = null;
+            cb(this);
+      }
+      break;
+
+    case methods.exchangeUnbindOk:
+      if (this._unbindCallback) {
+            var cb = this._unbindCallback;
+            this._unbindCallback = null;
+            cb(this);
+      }
+      break;
+
     default:
       throw new Error("Uncaught method '" + method.name + "' with args " +
           JSON.stringify(args));
@@ -2213,4 +2232,76 @@ Exchange.prototype.destroy = function (ifUnused) {
         , noWait: false
         });
   });
+};
+
+// E2E Unbind
+// support RabbitMQ's exchange-to-exchange binding extension
+// http://www.rabbitmq.com/e2e.html
+Exchange.prototype.unbind = function (/* exchange, routingKey [, bindCallback] */) {
+  var self = this;
+
+  // Both arguments are required. The binding to the destination 
+  // exchange/routingKey will be unbound. 
+
+  var exchange    = arguments[0]
+    , routingKey  = arguments[1]
+    , callback    = arguments[2]
+  ;
+
+  if(callback) this._unbindCallback = callback;
+
+  return this._taskPush(methods.exchangeUnbindOk, function () {
+    var source = exchange instanceof Exchange ? exchange.name : exchange;
+    var destination = self.name;
+
+    if(source in self.connection.exchanges) {
+      delete self.sourceExchanges[source];
+      self.connection.exchanges[source].exchangeBinds--;
+    }
+
+    self.connection._sendMethod(self.channel, methods.exchangeUnbind,
+        { reserved1: 0
+        , destination: destination
+        , source: source
+        , routingKey: routingKey
+        , noWait: false
+        , "arguments": {}
+        });
+  });
+};
+
+// E2E Bind
+// support RabbitMQ's exchange-to-exchange binding extension
+// http://www.rabbitmq.com/e2e.html
+Exchange.prototype.bind = function (/* exchange, routingKey [, bindCallback] */) {
+  var self = this;
+
+  // Two arguments are required. The binding to the destination 
+  // exchange/routingKey will be established. 
+
+  var exchange    = arguments[0]
+    , routingKey  = arguments[1]
+    , callback    = arguments[2]
+  ;
+    
+  if(callback) this._bindCallback = callback;
+
+
+  var source = exchange instanceof Exchange ? exchange.name : exchange;
+  var destination = self.name;
+
+  if(source in self.connection.exchanges) {
+    self.sourceExchanges[source] = self.connection.exchanges[source];
+    self.connection.exchanges[source].exchangeBinds++;
+  }
+
+  self.connection._sendMethod(self.channel, methods.exchangeBind,
+      { reserved1: 0
+      , destination: destination
+      , source: source
+      , routingKey: routingKey
+      , noWait: false
+      , "arguments": {}
+      });
+
 };
