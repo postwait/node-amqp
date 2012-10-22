@@ -929,7 +929,9 @@ function Connection (connectionArgs, options, readyCallback) {
   });
 
   self.addListener('data', function (data) {
-    parser.execute(data);
+    if(parser != null){
+      parser.execute(data);
+    }
     self._inboundHeartbeatTimerReset();
   });
 
