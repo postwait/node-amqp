@@ -1037,8 +1037,21 @@ Connection.prototype.reconnect = function () {
 };
 
 Connection.prototype.connect = function () {
+  // If you pass a array of hosts, lets choose a random host, or then next one.
+  connectToHost = this.options.host;
+
+  if(Array.isArray(this.options.host) == true){
+    if(this.hosti == null){
+      this.hosti = Math.random()*this.options.host.length >> 0;
+    }else{
+      this.hosti = (this.hosti+1) % this.options.host.length;
+    }
+    connectToHost = this.options.host[this.hosti]
+  }
+
   // Connect socket
-  net.Socket.prototype.connect.call(this, this.options.port, this.options.host);
+  net.Socket.prototype.connect.call(this, this.options.port, connectToHost);
+
 };
 
 Connection.prototype._onMethod = function (channel, method, args) {
