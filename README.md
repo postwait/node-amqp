@@ -200,6 +200,13 @@ thus adopting the parent connection's values (which default to false).
 Setting these to true provide backward compability for older
 applications.
 
+The 'exclusive' option will subscribe to the queue in exclusive mode. Only one
+subscriber is allowed at a time, and subsequent attempts to subscribe to the
+same queue will result in an exception. This option differes from the exclusive
+option passed when creating in a queue in that the queue itself is not exclusive,
+only the consumers. This means that long lived durable queues can be used
+as exclusive queues.
+
 This method will emit `'basicQosOk'` when ready.
 
 
