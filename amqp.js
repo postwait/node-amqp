@@ -1038,7 +1038,7 @@ Connection.prototype.reconnect = function () {
 
 Connection.prototype.connect = function () {
   // If you pass a array of hosts, lets choose a random host, or then next one.
-  connectToHost = this.options.host;
+  var connectToHost = this.options.host;
 
   if(Array.isArray(this.options.host) == true){
     if(this.hosti == null){
