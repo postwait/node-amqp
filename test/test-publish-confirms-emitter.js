@@ -5,7 +5,7 @@ var timeout = null;
 connection.addListener('ready', function () {
   connection.exchange('node-publish-confirms', {type: 'fanout', confirm: true},
                       function(exchange) {
-    publish = exchange.publish("", "hello", { mandatory: true, immediate: true });
+    publish = exchange.publish("", "hello", { mandatory: true });
 
     publish.addListener('ack', function(){clearTimeout(timeout); connection.end();});
 
