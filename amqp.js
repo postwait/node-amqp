@@ -116,7 +116,8 @@ var classes = {};
 
 var maxFrameBuffer = 131072; // 128k, same as rabbitmq (which was
                              // copying qpid)
-
+var emptyFrameSize = 8;      // This is from the javaclient
+var maxFrameSize = maxFrameBuffer - emptyFrameSize;
 // An interruptible AMQP parser.
 //
 // type is either 'server' or 'client'
@@ -929,7 +930,9 @@ function Connection (connectionArgs, options, readyCallback) {
   });
 
   self.addListener('data', function (data) {
-    parser.execute(data);
+    if(parser != null){
+      parser.execute(data);
+    }
     self._inboundHeartbeatTimerReset();
   });
 
@@ -1035,8 +1038,21 @@ Connection.prototype.reconnect = function () {
 };
 
 Connection.prototype.connect = function () {
+  // If you pass a array of hosts, lets choose a random host, or then next one.
+  var connectToHost = this.options.host;
+
+  if(Array.isArray(this.options.host) == true){
+    if(this.hosti == null){
+      this.hosti = Math.random()*this.options.host.length >> 0;
+    }else{
+      this.hosti = (this.hosti+1) % this.options.host.length;
+    }
+    connectToHost = this.options.host[this.hosti]
+  }
+
   // Connect socket
-  net.Socket.prototype.connect.call(this, this.options.port, this.options.host);
+  net.Socket.prototype.connect.call(this, this.options.port, connectToHost);
+
 };
 
 Connection.prototype._onMethod = function (channel, method, args) {
@@ -1281,63 +1297,48 @@ Connection.prototype._sendBody = function (channel, body, properties) {
   // - body is utf8 string
   // - body is instance of Buffer
   // - body is an object and its JSON representation is sent
+
   // Does not handle the case for streaming bodies.
+
+  // In order to support long frame types we switch our strings into buffers for proper handling
   if (typeof(body) == 'string') {
-    var length = Buffer.byteLength(body);
-    //debug('send message length ' + length);
+    body = new Buffer(body, 'utf8');
+  }
 
-    sendHeader(this, channel, length, properties);
-
-    //debug('header sent');
-
-    var b = new Buffer(7+length+1);
-    b.used = 0;
-    b[b.used++] = 3; // constants.frameBody
-    serializeInt(b, 2, channel);
-    serializeInt(b, 4, length);
-
-    b.write(body, b.used, 'utf8');
-    b.used += length;
-
-    b[b.used++] = 206; // constants.frameEnd;
-    return this.write(b);
-
-    //debug('body sent: ' + JSON.stringify(b));
-
-  } else if (body instanceof Buffer) {
+  if (typeof(body) == 'object' && !(body instanceof Buffer)){
+    properties = mixin({contentType: 'application/json' }, properties);  
+    body = new Buffer(JSON.stringify(body), 'utf8');
+  }
+  
+  if (body instanceof Buffer) {
     sendHeader(this, channel, body.length, properties);
 
-    var b = new Buffer(7);
-    b.used = 0;
-    b[b.used++] = 3; // constants.frameBody
-    serializeInt(b, 2, channel);
-    serializeInt(b, 4, body.length);
-    this.write(b);
-    this.write(body);
+    debug('body sent: ' + JSON.stringify(b));
 
-    return this.write(new Buffer([206])); // frameEnd
-  } else {
-    var jsonBody = JSON.stringify(body);
-    var length = Buffer.byteLength(jsonBody);
+    for (var offset = 0; offset < body.length; offset += maxFrameSize){
 
-    debug('sending json: ' + jsonBody);
+      var remaining = body.length - offset;
+      var fragmentLength = (remaining < maxFrameSize) ? remaining : maxFrameSize;
 
-    properties = mixin({contentType: 'application/json' }, properties);
+      // debug("sending " + offset + " through " + (offset+fragmentLength) + " of " + body.length)
 
-    sendHeader(this, channel, length, properties);
+      var b = new Buffer(7);
+      b.used = 0;
+      b[b.used++] = 3; // constants.frameBody
+      serializeInt(b, 2, channel);
+      serializeInt(b, 4, fragmentLength);
 
-    var b = new Buffer(7+length+1);
-    b.used = 0;
+      this.write(b);
+      this.write(body.slice(offset,offset+fragmentLength));
 
-    b[b.used++] = 3; // constants.frameBody
-    serializeInt(b, 2, channel);
-    serializeInt(b, 4, length);
+      this.write(new Buffer([206])); // frameEnd
+  
+    }
+    return true;
 
-    b.write(jsonBody, b.used, 'utf8');
-    b.used += length;
-
-    b[b.used++] = 206; // constants.frameEnd;
-    return this.write(b);
+  }else{
+    debug('invalid body sent to _sendBody');
+    return false;
   }
 };
 
@@ -2186,9 +2187,11 @@ Exchange.prototype.publish = function (routingKey, data, options, callback) {
     self._unAcked[self._sequence] = task
     self._sequence++
 
-    if(callback != null){ 
-      task.once('ack',   function(){task.removeAllListeners();callback(false)}); 
-      this.once('error', function(){task.removeAllListeners();callback(true)});
+    if(callback != null){
+      var errorCallback = function(){task.removeAllListeners();callback(true)};
+      var exchange = this;
+      task.once('ack',   function(){exchange.removeListener('error', errorCallback); task.removeAllListeners();callback(false)}); 
+      this.once('error', errorCallback);
     }
   }
 

@@ -17,6 +17,7 @@
   , { "name" : "Andrei Vereha" }
   , { "name" : "Mike Bardzinski" }
   , { "name" : "James Carr" }
+  , { "name" : "David Barshow" }
   ]
 , "repository" :
   { "type" : "git"
