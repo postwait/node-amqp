@@ -1002,6 +1002,9 @@ function urlOptions(connectionString) {
   }
   if (url.pathname) {
     opts.vhost = unescape(url.pathname.substr(1));
+    if(opts.vhost[0] != '/') {
+        opts.vhost = '/' + opts.vhost;
+    }
   }
   return opts;
 }
