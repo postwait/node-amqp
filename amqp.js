@@ -2075,6 +2075,15 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
       break;
 
+    case methods.exchangeBindOk:
+      if (this._bindCallback) {
+        // setting this._bindCallback to null before calling the callback allows for a subsequent bind within the callback
+        var cb = this._bindCallback;
+        this._bindCallback = null;
+        cb(this);
+      }
+      break;
+
     case methods.confirmSelectOk:
       this._sequence = 1;
       
@@ -2138,6 +2147,44 @@ Exchange.prototype._onMethod = function (channel, method, args) {
   this._tasksFlush();
 };
 
+Exchange.prototype.bind = function (exchange, routingKey, callback) {
+  var self = this;
+
+  if(callback) this._bindCallback = callback;
+
+  var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+
+  if(exchangeName in self.connection.exchanges) {
+    this.exchange = self.connection.exchanges[exchangeName];
+    this.exchange.binds++;
+  }
+
+  self.connection._sendMethod(self.channel, methods.exchangeBind,
+      { reserved1: 0
+      , destination: self.name
+      , source: exchangeName
+      , routingKey: routingKey
+      , noWait: false
+      , "arguments": {}
+      });
+
+};
+
+Exchange.prototype.unbind = function (exchange, routingKey) {
+  var self = this;
+
+  return this._taskPush(methods.exchangeUnbindOk, function () {
+    var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+    self.connection._sendMethod(self.channel, methods.exchangeUnbind,
+        { reserved1: 0
+        , destination: self.name
+        , source: exchangeName
+        , routingKey: routingKey
+        , noWait: false
+        , "arguments": {}
+        });
+  });
+};
 
 // exchange.publish('routing.key', 'body');
 //
