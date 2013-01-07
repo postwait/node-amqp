@@ -1639,11 +1639,16 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       options.deliveryTagInPayload = arguments[0].deliveryTagInPayload;
     if (arguments[0].prefetchCount != undefined)
       options.prefetchCount = arguments[0].prefetchCount;
+    if (arguments[0].exclusive)
+        options.exclusive = arguments[0].exclusive;
 
   }
 
   // basic consume
-  var rawOptions = { noAck: !options.ack };
+  var rawOptions = {
+      noAck: !options.ack,
+      exclusive: options.exclusive
+  };
   if (options.ack) {
     rawOptions['prefetchCount'] = options.prefetchCount;
   }
