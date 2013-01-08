@@ -1397,11 +1397,10 @@ Connection.prototype.exchange = function (name, options, openCallback) {
 };
 
 // Publishes a message to the default exchange.
-Connection.prototype.publish = function (routingKey, body, options) {
+Connection.prototype.publish = function (routingKey, body, options, callback) {
   if (!this._defaultExchange) this._defaultExchange = this.exchange();
-    return this._defaultExchange.publish(routingKey, body, options);
+  return this._defaultExchange.publish(routingKey, body, options, callback);
 };
-
 
 
 // Properties:
