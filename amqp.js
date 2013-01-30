@@ -1494,6 +1494,10 @@ function Channel (connection, channel) {
 }
 util.inherits(Channel, events.EventEmitter);
 
+Channel.prototype.closeOK = function() {
+    this.connection._sendMethod(this.channel, methods.channelCloseOk, {reserved1: ""});
+}
+
 Channel.prototype.reconnect = function () {
   this.connection._sendMethod(this.channel, methods.channelOpen, {reserved1: ""});
 };
@@ -1968,6 +1972,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
 
     case methods.channelClose:
       this.state = "closed";
+      this.closeOK();
       this.connection.queueClosed(this.name);
       var e = new Error(args.replyText);
       e.code = args.replyCode;
@@ -2114,6 +2119,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
     case methods.channelClose:
       this.state = "closed";
+      this.closeOK();
       this.connection.exchangeClosed(this.name);
       var e = new Error(args.replyText);
       e.code = args.replyCode;
