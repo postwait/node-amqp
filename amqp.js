@@ -985,6 +985,8 @@ var defaultOptions = { host: 'localhost'
 var defaultImplOptions = { defaultExchangeName: '', reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectExponentialLimit: 120000, reconnectBackoffTime: 1000 };
 
 function urlOptions(connectionString) {
+  if (Array.isArray(connectionString)) return connectionString;
+
   var opts = {};
   var url = URL.parse(connectionString);
   var scheme = url.protocol.substring(0, url.protocol.lastIndexOf(':'));
@@ -1040,18 +1042,21 @@ Connection.prototype.reconnect = function () {
 Connection.prototype.connect = function () {
   // If you pass a array of hosts, lets choose a random host, or then next one.
   var connectToHost = this.options.host;
+  var connectToPort = this.options.port;
 
-  if(Array.isArray(this.options.host) == true){
-    if(this.hosti == null){
-      this.hosti = Math.random()*this.options.host.length >> 0;
-    }else{
-      this.hosti = (this.hosti+1) % this.options.host.length;
+  if (Array.isArray(this.options.url)) {
+    if(this.urli == null) {
+      this.urli = Math.random() * this.options.url.length >> 0;
+    }else {
+      this.urli = (this.urli + 1) % this.options.url.length;
     }
-    connectToHost = this.options.host[this.hosti]
+    parsedUrl = urlOptions(this.options.url[this.urli]);
+    connectToHost = parsedUrl.host;
+    connectToPort = parsedUrl.port;
   }
 
   // Connect socket
-  net.Socket.prototype.connect.call(this, this.options.port, connectToHost);
+  net.Socket.prototype.connect.call(this, connectToPort, connectToHost);
   // Apparently, it is not possible to determine if an authentication error
   // has occurred, but when the connection closes then we can HINT that a
   // possible authentication error has occured.  Although this may be a bug

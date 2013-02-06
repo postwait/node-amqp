@@ -9,7 +9,7 @@ if (process.argv[2]) {
   if (server[1]) options.port = parseInt(server[1]);
 }
 
-options.host = [options.host,"nohost"];
+options.url = ['amqp://localhost:5672', 'amqp://localhost:5673'];
 
 var implOpts = {
   defaultExchangeName: 'amq.topic'
@@ -26,8 +26,3 @@ connection = amqp.createConnection(options, implOpts);
 connection.on('ready', function() {
     connection.destroy();
 });
-
-
-
-
-
