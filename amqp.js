@@ -2231,16 +2231,18 @@ Exchange.prototype.publish = function (routingKey, data, options, callback) {
     self.connection._sendBody(self.channel, data, options);
   });
 
-  if (self.options.confirm){
+  if (self.options.confirm) {
     task.sequence = self._sequence
     self._unAcked[self._sequence] = task
     self._sequence++
 
-    if(callback != null){
-      var errorCallback = function(){task.removeAllListeners();callback(true)};
-      var exchange = this;
-      task.once('ack',   function(){exchange.removeListener('error', errorCallback); task.removeAllListeners();callback(false)}); 
-      this.once('error', errorCallback);
+    if (callback != null) {
+      var errorCallback = function(){task.removeAllListeners(); self.hasErrorListener=false; callback(true)};
+      task.once('ack',   function(){self.removeListener('error', errorCallback); self.hasErrorListener=false; task.removeAllListeners(); callback(false)});
+      if (!this.hasErrorListener) {
+        this.once('error', errorCallback);
+        this.hasErrorListener = true;
+      }
     }
   }
 
