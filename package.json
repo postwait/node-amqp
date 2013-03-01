@@ -19,6 +19,7 @@
   , { "name" : "James Carr" }
   , { "name" : "David Barshow" }
   , { "name" : "Jason Pincin" }
+  , { "name" : "Ethan Mick" }
   ]
 , "repository" :
   { "type" : "git"

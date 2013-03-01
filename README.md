@@ -406,3 +406,7 @@ This is the reverse of the exchange.bind method above, and will stop messages
 from srcExchange/routingKey from being sent to the destination exchange. 
 
 This method will emit `'exchangeUnbindOk'` when complete.
+
+### Running Tests
+test.js is ancient and no longer updated (hopefully it will be removed at some point in the future).
+To run the tests, install couchdb and have it in admin-party mode running on localhost then run `make test`.
