@@ -1167,7 +1167,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
 };
 
 Connection.prototype.heartbeat = function () {
-  this.write(new Buffer([8,0,0,0,0,0,0,206]));
+  if(this.writable) this.write(new Buffer([8,0,0,0,0,0,0,206]));
 };
 
 Connection.prototype._outboundHeartbeatTimerReset = function () {
@@ -1175,7 +1175,7 @@ Connection.prototype._outboundHeartbeatTimerReset = function () {
     clearTimeout(this._outboundHeartbeatTimer);
     this._outboundHeartbeatTimer = null;
   }
-  if (this.options.heartbeat) {
+  if (this.writable && this.options.heartbeat) {
     var self = this;
     this._outboundHeartbeatTimer = setTimeout(function () {
       self.heartbeat();
@@ -1193,7 +1193,8 @@ Connection.prototype._inboundHeartbeatTimerReset = function () {
     var self = this;
     var gracePeriod = 2 * this.options.heartbeat;
     this._inboundHeartbeatTimer = setTimeout(function () {
-      self.emit('error', new Error('no heartbeat or data in last ' + gracePeriod + ' seconds'));
+      if(self.readable)
+        self.emit('error', new Error('no heartbeat or data in last ' + gracePeriod + ' seconds'));
     }, gracePeriod * 1000);
   }
 };
