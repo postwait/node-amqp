@@ -1250,7 +1250,7 @@ Connection.prototype._sendMethod = function (channel, method, args) {
 // - priority (0-9)
 // - correlationId
 // - replyTo
-// - experation
+// - expiration
 // - messageId
 // - timestamp
 // - userId
@@ -2206,7 +2206,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 // - priority (0-9)
 // - correlationId
 // - replyTo
-// - experation
+// - expiration
 // - messageId
 // - timestamp
 // - userId

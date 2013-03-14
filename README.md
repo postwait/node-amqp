@@ -369,7 +369,14 @@ is converted to JSON.
 - `headers`: default `{}`. Arbitrary application-specific message headers.
 - `deliveryMode`: Non-persistent (1) or persistent (2)
 - `priority`: The message priority, 0 to 9.
+- `correlationId`: default null. Application correlation identifier
 - `replyTo`: Usually used to name a reply queue for a request message.
+- `expiration`: default null. Message expiration specification
+- `messageId`: default null. Application message identifier
+- `timestamp`: default null. Message timestamp
+- `type`: default null. Message type name
+- `userId`: default null. Creating user id
+- `appId`: default null. Creating application id
 
 `callback` is a function that will get called if the exchange is in confirm mode,
 the value sent will be true or false, this is the presense of a error so true, means
