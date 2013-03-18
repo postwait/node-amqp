@@ -840,8 +840,9 @@ function Connection (connectionArgs, options, readyCallback) {
       // be known to the server when we reconnect.  Mark the subscriptions as
       // closed so that we can resubscribe them once we are reconnected.
       for (var queue in self.queues) {
-        for (var index in self.queues[queue].consumerTagOptions) {
-          self.queues[queue].consumerTagOptions[index]['state'] = 'closed';
+        var consumerTagOptions = self.queues[queue].consumerTagOptions;
+        for (var index = 0; index < consumerTagOptions.length; index++) {
+          consumerTagOptions[index]['state'] = 'closed';
         }
       }
 
