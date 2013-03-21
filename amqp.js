@@ -1033,6 +1033,13 @@ Connection.prototype.reconnect = function () {
   for (var channel in this.channels) {
     this.channels[channel].state = 'closed';
   }
+  // Mark the queues subscriptions as closed so that
+  // we can resubscribe them once we are reconnected.
+  for (var queue in this.queues) {
+    for (var index in this.queues[queue].consumerTagOptions) {
+      this.queues[queue].consumerTagOptions[index]['state'] = 'closed';
+    }
+  }
   // Terminate socket activity
   this.end();
   this.connect();
@@ -1929,13 +1936,23 @@ Queue.prototype._onMethod = function (channel, method, args) {
     case methods.queueDeclareOk:
       this.state = 'open';
       this.name = args.queue;
-      this.connection.queues[this.name] = this;
+      if (!this.options.passive) {
+        // If the queue is passive, we don't want to store it as we will close it immediately.
+        // (otherwise we will lose reference of the active queue and its consumers, if any)
+        this.connection.queues[this.name] = this;
+      }
       if (this._openCallback) {
         this._openCallback(this);
         this._openCallback = null;
       }
       // TODO this is legacy interface, remove me
       this.emit('open', args.queue, args.messageCount, args.consumerCount);
+      
+      // If the queue is passive, we close the channel immediately
+      if (this.options.passive) {
+        this.close();
+        break;
+      }
       
       // If this is a reconnect, we must re-subscribe our queue listeners.
       var consumerTags = Object.keys(this.consumerTagListeners);
@@ -1983,7 +2000,10 @@ Queue.prototype._onMethod = function (channel, method, args) {
       break;
     
     case methods.channelCloseOk:
-      this.connection.queueClosed(this.name);
+      // We delete the reference of the queue only if it was an active one.
+      if (!this.options.passive) {
+        this.connection.queueClosed(this.name);
+      }
       this.emit('close')
       break;
     
