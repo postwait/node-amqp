@@ -116,8 +116,7 @@ var classes = {};
 
 var maxFrameBuffer = 131072; // 128k, same as rabbitmq (which was
                              // copying qpid)
-var emptyFrameSize = 8;      // This is from the javaclient
-var maxFrameSize = maxFrameBuffer - emptyFrameSize;
+
 // An interruptible AMQP parser.
 //
 // type is either 'server' or 'client'
@@ -239,7 +238,6 @@ AMQPParser.prototype.execute = function (data) {
 
 // parse Network Byte Order integers. size can be 1,2,4,8
 function parseInt (buffer, size) {
-  var int = 0;
   switch (size) {
     case 1:
       return buffer[buffer.read++];
@@ -338,7 +336,7 @@ function parseValue (buffer) {
     case AMQPTypes.ARRAY:
       var len = parseInt(buffer, 4);
       var end = buffer.read + len;
-      var arr = new Array();
+      var arr = [];
 
       while (buffer.read < end) {
         arr.push(parseValue(buffer));
@@ -695,7 +693,7 @@ function serializeArray (b, arr) {
   b.used += 4; // sizeof long
   var startIndex = b.used;
 
-  len = arr.length;
+  var len = arr.length;
   for (var i = 0; i < len; i++) {
     serializeValue(b, arr[i]);
   }
@@ -956,7 +954,7 @@ function Connection (connectionArgs, options, readyCallback) {
 
     // Restart the heartbeat to the server
     self._outboundHeartbeatTimerReset();
-  })
+  });
 }
 util.inherits(Connection, net.Stream);
 exports.Connection = Connection;
@@ -995,7 +993,7 @@ function urlOptions(connectionString) {
   }
   opts.ssl = ('amqps' === scheme);
   opts.host = url.hostname;
-  opts.port = url.port || defaultPorts[scheme]
+  opts.port = url.port || defaultPorts[scheme];
   if (url.auth) {
     var auth = url.auth.split(':');
     auth[0] && (opts.login = auth[0]);
@@ -1023,7 +1021,7 @@ Connection.prototype.setOptions = function (options) {
 };
 
 Connection.prototype.setImplOptions = function (options) {
-  var o = {}
+  var o = {};
   mixin(o, defaultImplOptions, options || {});
   this.implOptions = o;
 };
@@ -1048,7 +1046,7 @@ Connection.prototype.connect = function () {
     }else{
       this.hosti = (this.hosti+1) % this.options.host.length;
     }
-    connectToHost = this.options.host[this.hosti]
+    connectToHost = this.options.host[this.hosti];
   }
 
   // Connect socket
@@ -1339,7 +1337,7 @@ Connection.prototype._sendBody = function (channel, body, properties) {
     pos += sz;
   }
   return;
-}
+};
 
 Connection.prototype._bodyToBuffer = function (body) {
   // Handles 3 cases
@@ -1481,7 +1479,7 @@ Message.prototype.reject = function (requeue){
       { deliveryTag: this.deliveryTag
       , requeue: requeue ? true : false
       });
-}
+};
 
 // This class is not exposed to the user. Queue and Exchange are subclasses
 // of Channel. This just provides a task queue.
@@ -1498,7 +1496,7 @@ util.inherits(Channel, events.EventEmitter);
 
 Channel.prototype.closeOK = function() {
     this.connection._sendMethod(this.channel, methods.channelCloseOk, {reserved1: ""});
-}
+};
 
 Channel.prototype.reconnect = function () {
   this.connection._sendMethod(this.channel, methods.channelOpen, {reserved1: ""});
@@ -1551,12 +1549,12 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
 Channel.prototype._onChannelMethod = function(channel, method, args) {
     switch (method) {
     case methods.channelCloseOk:
-        delete this.connection.channels[this.channel]
-        this.state = 'closed'
+        delete this.connection.channels[this.channel];
+        this.state = 'closed';
     default:
         this._onMethod(channel, method, args);
     }
-}
+};
 
 Channel.prototype.close = function() { 
   this.state = 'closing';
@@ -1565,7 +1563,7 @@ Channel.prototype.close = function() {
                                  'replyCode': 200,
                                  'classId': 0,
                                  'methodId': 0});
-}
+};
 
 function Queue (connection, channel, name, options, callback) {
   Channel.call(this, connection, channel);
@@ -1687,7 +1685,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
     var b;
 
     if (isJSON) {
-      b = ""
+      b = "";
     } else {
       b = new Buffer(m.size);
       b.used = 0;
@@ -1891,7 +1889,7 @@ Queue.prototype.purge = function() {
     self.connection._sendMethod(self.channel, methods.queuePurge,
                                  { reserved1 : 0,
                                  queue: self.name,
-                                 noWait: false})
+                                 noWait: false});
   });
 };
 
@@ -1984,7 +1982,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
     
     case methods.channelCloseOk:
       this.connection.queueClosed(this.name);
-      this.emit('close')
+      this.emit('close');
       break;
     
     case methods.basicDeliver:
