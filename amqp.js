@@ -1929,7 +1929,7 @@ Queue.prototype._onMethod = function (channel, method, args) {
       this.name = args.queue;
       this.connection.queues[this.name] = this;
       if (this._openCallback) {
-        this._openCallback(this);
+        this._openCallback(this, args.messageCount, args.consumerCount);
         this._openCallback = null;
       }
       // TODO this is legacy interface, remove me
