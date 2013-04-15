@@ -1601,7 +1601,7 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   options['state'] = 'opening';
   this.consumerTagOptions[consumerTag] = options;
 
-  if (options.prefetchCount) {
+  if (options.prefetchCount != undefined) {
     self.connection._sendMethod(self.channel, methods.basicQos,
         { reserved1: 0
         , prefetchSize: 0
