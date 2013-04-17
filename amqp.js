@@ -805,7 +805,7 @@ function Connection (connectionArgs, options, readyCallback) {
   var backoffTime = null;
   this.connectionAttemptScheduled = false;
 
-  var backoff = function () {
+  var backoff = function (e) {
     if (self._inboundHeartbeatTimer !== null) {
       clearTimeout(self._inboundHeartbeatTimer);
       self._inboundHeartbeatTimer = null;
@@ -873,6 +873,9 @@ function Connection (connectionArgs, options, readyCallback) {
           self.connectionAttemptScheduled = false;
           self.reconnect();
         }, backoffTime);
+      } else {
+        self.removeListener('error', backoff);
+        self.emit('error', e);
       }
     }
   };
@@ -935,9 +938,7 @@ function Connection (connectionArgs, options, readyCallback) {
     self._inboundHeartbeatTimerReset();
   });
 
-  self.addListener('error', function () {
-    backoff();
-  });
+  self.addListener('error', backoff);
 
   self.addListener('ready', function () {
     // Reset the backoff time since we have successfully connected.
