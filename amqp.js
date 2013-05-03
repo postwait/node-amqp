@@ -231,7 +231,7 @@ AMQPParser.prototype.throwError = function (error) {
 AMQPParser.prototype.execute = function (data) {
   // This function only deals with dismantling and buffering the frames.
   // It delegates to other functions for parsing the frame-body.
-  debug('execute: ' + data.toString());
+  debug('execute: ' + data.toString('hex'));
   this.parse = this.parse(data);
 };
 
@@ -731,7 +731,7 @@ function serializeFields (buffer, fields, args, strict) {
         bitIndex++;
 
         if (!fields[i+1] || fields[i+1].domain != 'bit') {
-          debug('SET bit field ' + field.name + ' 0x' + bitField.toString(16));
+          //debug('SET bit field ' + field.name + ' 0x' + bitField.toString(16));
           buffer[buffer.used++] = bitField;
           bitField = 0;
           bitIndex = 0;
