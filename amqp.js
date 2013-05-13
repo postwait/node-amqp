@@ -24,7 +24,7 @@ function mixin () {
   }
 
   // Handle case when target is a string or something (possible in deep copy)
-  if ( typeof target !== "object" && !(typeof target === 'function') )
+  if ( typeof target !== "object" && typeof target !== 'function' )
     target = {};
 
   // mixin process itself if only one argument is passed
@@ -288,6 +288,7 @@ function parseSignedInteger (buffer) {
 }
 
 function parseValue (buffer) {
+  var b, i, len;
   switch (buffer[buffer.read++]) {
     case AMQPTypes.STRING:
       return parseLongString(buffer);
@@ -301,15 +302,15 @@ function parseValue (buffer) {
       return num / (dec * 10);
 
     case AMQPTypes._64BIT_FLOAT:
-      var b = [];
-      for (var i = 0; i < 8; ++i)
+      b = [];
+      for (i = 0; i < 8; ++i)
         b[i] = buffer[buffer.read++];
 
       return (new jspack(true)).Unpack('d', b);
 
     case AMQPTypes._32BIT_FLOAT:
-      var b = [];
-      for (var i = 0; i < 4; ++i)
+      b = [];
+      for (i = 0; i < 4; ++i)
         b[i] = buffer[buffer.read++];
 
       return (new jspack(true)).Unpack('f', b);
@@ -328,14 +329,14 @@ function parseValue (buffer) {
       return (parseInt(buffer, 1) > 0);
 
     case AMQPTypes.BYTE_ARRAY:
-      var len = parseInt(buffer, 4);
+       len = parseInt(buffer, 4);
       var buf = new Buffer(len);
       buffer.copy(buf, 0, buffer.read, buffer.read + len);
       buffer.read += len;
       return buf;
 
     case AMQPTypes.ARRAY:
-      var len = parseInt(buffer, 4);
+      len = parseInt(buffer, 4);
       var end = buffer.read + len;
       var arr = [];
 
@@ -483,17 +484,17 @@ AMQPParser.prototype._parseHeaderFrame = function (channel, buffer) {
 
 function serializeFloat(b, size, value, bigEndian) {
   var jp = new jspack(bigEndian);
-
+  var i, x;
   switch(size) {
   case 4:
-    var x = jp.Pack('f', [value]);
-    for (var i = 0; i < x.length; ++i)
+    x = jp.Pack('f', [value]);
+    for (i = 0; i < x.length; ++i)
       b[b.used++] = x[i];
     break;
   
   case 8:
-    var x = jp.Pack('d', [value]);
-    for (var i = 0; i < x.length; ++i)
+    x = jp.Pack('d', [value]);
+    for (i = 0; i < x.length; ++i)
       b[b.used++] = x[i];
     break;
 
@@ -578,7 +579,7 @@ function serializeLongString (b, string) {
     serializeTable(b, string);
   } else {
     // data is Buffer
-    var byteLength = string.length;
+    byteLength = string.length;
     serializeInt(b, 4, byteLength);
     b.write(string, b.used); // memcpy
     b.used += byteLength;
@@ -1553,6 +1554,7 @@ Channel.prototype._onChannelMethod = function(channel, method, args) {
     case methods.channelCloseOk:
         delete this.connection.channels[this.channel];
         this.state = 'closed';
+        /*falls through*/
     default:
         this._onMethod(channel, method, args);
     }
@@ -1732,7 +1734,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       if(options.deliveryTagInPayload) json._deliveryTag = m.deliveryTag;
 
       var headers = {};
-      for (var i in this.headers) {
+      for (i in this.headers) {
         if(this.headers.hasOwnProperty(i)) {
           if(this.headers[i] instanceof Buffer)
             headers[i] = this.headers[i].toString();
@@ -2052,6 +2054,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
   this.emit(method.name, args);
   if (this._handleTaskReply.apply(this, arguments)) return true;
 
+  var tag, cb;
   switch (method) {
     case methods.channelOpenOk:
       // Pre-baked exchanges don't need to be declared
@@ -2150,7 +2153,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
         }
       }else if(args.deliveryTag !== 0 && args.multiple){
         // we must ack everything before the delivery tag
-        for(var tag in this._unAcked){
+        for(tag in this._unAcked){
           if(tag <= args.deliveryTag){
             this._unAcked[tag].emitAck();
             delete this._unAcked[tag];
@@ -2171,7 +2174,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
     case methods.exchangeBindOk:
         if (this._bindCallback) {
             // setting this._bindCallback to null before calling the callback allows for a subsequent bind within the callback
-            var cb = this._bindCallback;
+            cb = this._bindCallback;
             this._bindCallback = null;
             cb(this);
       }
@@ -2179,7 +2182,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
     case methods.exchangeUnbindOk:
       if (this._unbindCallback) {
-            var cb = this._unbindCallback;
+            cb = this._unbindCallback;
             this._unbindCallback = null;
             cb(this);
       }
