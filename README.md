@@ -81,7 +81,12 @@ the URL.
 The second options are specific to the node AMQP implementation. It has
 the default values:
 
-    { defaultExchangeName: '' }
+    { defaultExchangeName: ''
+    , reconnect: true
+    , reconnectBackoffStrategy: 'linear'
+    , reconnectExponentialLimit: 120000
+    , reconnectBackoffTime: 1000
+    }
 
 The defaultExchangeName is the default exchange to which
 connection.publish will publish. In the past, the default exchange was
@@ -94,6 +99,18 @@ var conn =
                         {defaultExchangeName: "amq.topic"});
 ```
 
+ If the "reconnect" option is true, then the driver will attempt to reconnect using the
+ configured strategy *any time* the connection becomes unavailable.  If this is not
+ appropriate for your application, set this option to false.
+
+ If you would like this option, you can set parameters controlling how aggressively the
+ reconnections will be attempted.  Valid strategies are "linear" and "exponential".
+
+ Backoff times are in milliseconds.  Under the "linear" strategy, the driver will pause
+ 'reconnectBackoffTime' ms before the first attempt, and between each subsequent attempt.
+ Under the "exponential" strategy, the driver will pause 'reconnectBackoffTime' ms before
+ the first attempt, and will double the previous pause between each subsequent attempt
+ until a connection is reestablished.
 
 After a connection is established the `'connect'` event is fired as it is
 with any `net.Connection` instance. AMQP requires a 7-way handshake which
@@ -106,7 +123,7 @@ versions of this library placed the routingKey and deliveryTag for incoming
 messages into the JSON payload received. This module was changed to
 leave inbound JSON payloads pristine.  Some applications may need the
 old behaviour. If the key 'routingKeyInPayload' is set to true in the
-connection options, the messages resulting from a subscribe call will
+connection `options`, the messages resulting from a subscribe call will
 include a 'routingKey' key in the JSON payload.  If the key
 'devliryTagInPayload' is set to true in the connection options, the
 deliveryTag of the incoming message will be placed in the JSON payload.
