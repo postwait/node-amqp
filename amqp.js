@@ -832,7 +832,7 @@ function Connection (connectionArgs, options, readyCallback) {
       // channels that they are no longer connected so that nobody attempts
       // to send messages which would be doomed to fail.
       for (var channel in self.channels) {
-        if (channel !== 0) {
+        if (channel !== '0') {
           self.channels[channel].state = 'closed';
         }
       }
@@ -949,7 +949,7 @@ function Connection (connectionArgs, options, readyCallback) {
     if (self.implOptions.reconnect) {
       // Reconnect any channels which were open.
       for (var channel in self.channels) {
-        if (channel !== 0) {
+        if (channel !== '0') {
           self.channels[channel].reconnect();
         }
       }
