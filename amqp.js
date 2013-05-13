@@ -661,7 +661,7 @@ function serializeValue (b, value) {
       b[b.used++] = 'F'.charCodeAt(0);
       serializeTable(b, value);
     } else {
-      this.throwError("unsupported type in amqp table: " + typeof(value));
+      throw new Error("unsupported type in amqp table: " + typeof(value));
     }
   }
 }
@@ -1003,7 +1003,7 @@ function urlOptions(connectionString) {
     auth[1] && (opts.password = auth[1]);
   }
   if (url.pathname) {
-    opts.vhost = unescape(url.pathname.substr(1));
+    opts.vhost = decodeURI(url.pathname.substr(1));
   }
   return opts;
 }
@@ -1060,6 +1060,7 @@ Connection.prototype.connect = function () {
   // in the spec, handling it as a possible error is considerably better than
   // failing silently.
   function possibleAuthErrorHandler() {
+    /*jshint validthis: true */
     this.removeListener('end', possibleAuthErrorHandler);
     this.emit('error', {
       message: 'Connection ended: possibly due to an authentication failure.'
