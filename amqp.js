@@ -1,3 +1,4 @@
+/*jshint bitwise: false, sub: true */
 var events = require('events'),
     util = require('util'),
     net = require('net'),
@@ -27,7 +28,7 @@ function mixin () {
     target = {};
 
   // mixin process itself if only one argument is passed
-  if ( length == i ) {
+  if ( length === i ) {
     target = GLOBAL;
     --i;
   }
@@ -132,10 +133,10 @@ var maxFrameBuffer = 131072; // 128k, same as rabbitmq (which was
 // of emitting the callbacks. Since this is an internal class, that should
 // be fine.
 function AMQPParser (version, type) {
-  this.isClient = (type == 'client');
+  this.isClient = (type === 'client');
   this.state = this.isClient ? 'frameHeader' : 'protocolHeader';
 
-  if (version != '0-9-1') this.throwError("Unsupported protocol version");
+  if (version !== '0-9-1') this.throwError("Unsupported protocol version");
 
   var frameHeader = new Buffer(7);
   frameHeader.used = 0;
@@ -175,7 +176,7 @@ function AMQPParser (version, type) {
     if (data.length > needed) {
       return frameEnd(data.slice(needed));
     }
-    else if (data.length == needed) {
+    else if (data.length === needed) {
       return frameEnd;
     }
     else {
@@ -380,7 +381,7 @@ function parseFields (buffer, fields) {
 
         value = (buffer[buffer.read] & (1 << bitIndex)) ? true : false;
 
-        if (fields[i+1] && fields[i+1].domain == 'bit') {
+        if (fields[i+1] && fields[i+1].domain === 'bit') {
           bitIndex++;
         } else {
           bitIndex = 0;
@@ -548,7 +549,7 @@ function serializeInt (b, size, int) {
 
 
 function serializeShortString (b, string) {
-  if (typeof(string) != "string") {
+  if (typeof(string) !== "string") {
     throw new Error("param must be a string");
   }
   var byteLength = Buffer.byteLength(string, 'utf8');
@@ -567,12 +568,13 @@ function serializeShortString (b, string) {
 function serializeLongString (b, string) {
   // we accept string, object, or buffer for this parameter.
   // in the case of string we serialize it to utf8.
-  if (typeof(string) == 'string') {
-    var byteLength = Buffer.byteLength(string, 'utf8');
+  var byteLength;
+  if (typeof(string) === 'string') {
+     byteLength = Buffer.byteLength(string, 'utf8');
     serializeInt(b, 4, byteLength);
     b.write(string, b.used, 'utf8');
     b.used += byteLength;
-  } else if (typeof(string) == 'object') {
+  } else if (typeof(string) === 'object') {
     serializeTable(b, string);
   } else {
     // data is Buffer
@@ -664,7 +666,7 @@ function serializeValue (b, value) {
 }
 
 function serializeTable (b, object) {
-  if (typeof(object) != "object") {
+  if (typeof(object) !== "object") {
     throw new Error("param must be an object");
   }
 
@@ -723,14 +725,14 @@ function serializeFields (buffer, fields, args, strict) {
 
     switch (domain) {
       case 'bit':
-        if (typeof(param) != "boolean") {
+        if (typeof(param) !== "boolean") {
           throw new Error("Unmatched field " + JSON.stringify(field));
         }
 
         if (param) bitField |= (1 << bitIndex);
         bitIndex++;
 
-        if (!fields[i+1] || fields[i+1].domain != 'bit') {
+        if (!fields[i+1] || fields[i+1].domain !== 'bit') {
           //debug('SET bit field ' + field.name + ' 0x' + bitField.toString(16));
           buffer[buffer.used++] = bitField;
           bitField = 0;
@@ -739,21 +741,21 @@ function serializeFields (buffer, fields, args, strict) {
         break;
 
       case 'octet':
-        if (typeof(param) != "number" || param > 0xFF) {
+        if (typeof(param) !== "number" || param > 0xFF) {
           throw new Error("Unmatched field " + JSON.stringify(field));
         }
         buffer[buffer.used++] = param;
         break;
 
       case 'short':
-        if (typeof(param) != "number" || param > 0xFFFF) {
+        if (typeof(param) !== "number" || param > 0xFFFF) {
           throw new Error("Unmatched field " + JSON.stringify(field));
         }
         serializeInt(buffer, 2, param);
         break;
 
       case 'long':
-        if (typeof(param) != "number" || param > 0xFFFFFFFF) {
+        if (typeof(param) !== "number" || param > 0xFFFFFFFF) {
           throw new Error("Unmatched field " + JSON.stringify(field));
         }
         serializeInt(buffer, 4, param);
@@ -765,7 +767,7 @@ function serializeFields (buffer, fields, args, strict) {
         break;
 
       case 'shortstr':
-        if (typeof(param) != "string" || param.length > 0xFF) {
+        if (typeof(param) !== "string" || param.length > 0xFF) {
           throw new Error("Unmatched field " + JSON.stringify(field));
         }
         serializeShortString(buffer, param);
@@ -776,7 +778,7 @@ function serializeFields (buffer, fields, args, strict) {
         break;
 
       case 'table':
-        if (typeof(param) != "object") {
+        if (typeof(param) !== "object") {
           throw new Error("Unmatched field " + JSON.stringify(field));
         }
         serializeTable(buffer, param);
@@ -987,7 +989,7 @@ function urlOptions(connectionString) {
   var opts = {};
   var url = URL.parse(connectionString);
   var scheme = url.protocol.substring(0, url.protocol.lastIndexOf(':'));
-  if (scheme != 'amqp' && scheme != 'amqps') {
+  if (scheme !== 'amqp' && scheme !== 'amqps') {
     throw new Error('Connection URI must use amqp or amqps scheme. ' +
                     'For example, "amqp://bus.megacorp.internal:5766".');
   }
@@ -1346,7 +1348,7 @@ Connection.prototype._bodyToBuffer = function (body) {
   // - body is an object and its JSON representation is sent
   // Does not handle the case for streaming bodies.
   // Returns buffer.
-  if (typeof(body) == 'string') {
+  if (typeof(body) === 'string') {
     return [null, new Buffer(body, 'utf8')];
   } else if (body instanceof Buffer) {
     return [null, body];
@@ -1368,7 +1370,7 @@ Connection.prototype._bodyToBuffer = function (body) {
 // - autoDelete (boolean, default true)
 Connection.prototype.queue = function (name /* options, openCallback */) {
   var options, callback;
-  if (typeof arguments[1] == 'object') {
+  if (typeof arguments[1] === 'object') {
     options = arguments[1];
     callback = arguments[2];
   } else {
@@ -1515,7 +1517,7 @@ Channel.prototype._taskPush = function (reply, cb) {
 };
 
 Channel.prototype._tasksFlush = function () {
-  if (this.state != 'open') return;
+  if (this.state !== 'open') return;
 
   for (var i = 0; i < this._tasks.length; i++) {
     var task = this._tasks[i];
@@ -1534,7 +1536,7 @@ Channel.prototype._handleTaskReply = function (channel, method, args) {
   var task, i;
 
   for (i = 0; i < this._tasks.length; i++) {
-    if (this._tasks[i].reply == method) {
+    if (this._tasks[i].reply === method) {
       task = this._tasks[i];
       this._tasks.splice(i, 1);
       task.promise.emitSuccess(args);
@@ -1595,13 +1597,13 @@ Queue.prototype.subscribeRaw = function (/* options, messageListener */) {
   this.consumerTagListeners[consumerTag] = messageListener;
 
   var options = { };
-  if (typeof arguments[0] == 'object') {
+  if (typeof arguments[0] === 'object') {
     mixin(options, arguments[0]);
   }
   options['state'] = 'opening';
   this.consumerTagOptions[consumerTag] = options;
 
-  if (options.prefetchCount != undefined) {
+  if (options.prefetchCount !== undefined) {
     self.connection._sendMethod(self.channel, methods.basicQos,
         { reserved1: 0
         , prefetchSize: 0
@@ -1652,7 +1654,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
                   prefetchCount: 1,
                   routingKeyInPayload: self.connection.options.routingKeyInPayload,
                   deliveryTagInPayload: self.connection.options.deliveryTagInPayload };
-  if (typeof arguments[0] == 'object') {
+  if (typeof arguments[0] === 'object') {
     if (arguments[0].ack) options.ack = true;
     if (arguments[0].routingKeyInPayload)
       options.routingKeyInPayload = arguments[0].routingKeyInPayload;
@@ -1680,7 +1682,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
        contentType = m.headers.properties.content_type;
     }
     
-    var isJSON = (contentType == 'text/json') || (contentType == 'application/json');
+    var isJSON = (contentType === 'text/json') || (contentType === 'application/json');
 
     var b;
 
@@ -1761,17 +1763,17 @@ Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) 
   // exchange.
 
     var exchange, routingKey, callback;
-    if(typeof(arguments[arguments.length-1]) == 'function'){
+    if(typeof(arguments[arguments.length-1]) === 'function'){
         callback = arguments[arguments.length-1];
     }
     // Remove callback from args so rest of bind functionality works as before
     // Also, defend against cases where a non function callback has been passed as 3rd param
-    if (callback || arguments.length == 3) {
+    if (callback || arguments.length === 3) {
         delete arguments[arguments.length-1];
         arguments.length--;
     }
     
-  if (arguments.length == 2) {
+  if (arguments.length === 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
   } else {
@@ -1808,7 +1810,7 @@ Queue.prototype.unbind = function (/* [exchange,] routingKey */) {
 
   var exchange, routingKey;
 
-  if (arguments.length == 2) {
+  if (arguments.length === 2) {
     exchange = arguments[0];
     routingKey = arguments[1];
   } else {
@@ -1839,7 +1841,7 @@ Queue.prototype.bind_headers = function (/* [exchange,] matchingPairs */) {
 
   var exchange, matchingPairs;
 
-  if (arguments.length == 2) {
+  if (arguments.length === 2) {
     exchange = arguments[0];
     matchingPairs = arguments[1];
   } else {
@@ -2016,7 +2018,7 @@ Queue.prototype._onContentHeader = function (channel, classInfo, weight, propert
 Queue.prototype._onContent = function (channel, data) {
   this.currentMessage.read += data.length;
   this.currentMessage.emit('data', data);
-  if (this.currentMessage.read == this.currentMessage.size) {
+  if (this.currentMessage.read === this.currentMessage.size) {
     this.currentMessage.emit('end');
   }
 };
