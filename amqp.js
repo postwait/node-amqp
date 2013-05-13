@@ -2014,7 +2014,7 @@ Queue.prototype._onContentHeader = function (channel, classInfo, weight, propert
 };
 
 Queue.prototype._onContent = function (channel, data) {
-  this.currentMessage.read += data.length
+  this.currentMessage.read += data.length;
   this.currentMessage.emit('data', data);
   if (this.currentMessage.read == this.currentMessage.size) {
     this.currentMessage.emit('end');
@@ -2024,8 +2024,8 @@ Queue.prototype._onContent = function (channel, data) {
 Queue.prototype.flow = function(active) {
     var self = this;
     return this._taskPush(methods.channelFlowOk, function () {
-        self.connection._sendMethod(self.channel, methods.channelFlow, {'active': active });
-      })
+      self.connection._sendMethod(self.channel, methods.channelFlow, { 'active': active });
+    });
 };
 
 
@@ -2142,22 +2142,22 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
       if(args.deliveryTag == 0 && args.multiple == true){
         // we must ack everything
-        for(var tag in this._unAcked){
-          this._unAcked[tag].emitAck()
-          delete this._unAcked[tag]
+        for(tag in this._unAcked){
+          this._unAcked[tag].emitAck();
+          delete this._unAcked[tag];
         }
       }else if(args.deliveryTag != 0 && args.multiple == true){
         // we must ack everything before the delivery tag
         for(var tag in this._unAcked){
           if(tag <= args.deliveryTag){
-            this._unAcked[tag].emitAck()
-            delete this._unAcked[tag]
+            this._unAcked[tag].emitAck();
+            delete this._unAcked[tag];
           }
         }
       }else if(this._unAcked[args.deliveryTag] && args.multiple == false){
         // simple single ack
-        this._unAcked[args.deliveryTag].emitAck()
-        delete this._unAcked[args.deliveryTag]
+        this._unAcked[args.deliveryTag].emitAck();
+        delete this._unAcked[args.deliveryTag];
       }
       
       break;
@@ -2236,19 +2236,19 @@ Exchange.prototype.publish = function (routingKey, data, options, callback) {
   });
 
   if (self.options.confirm){
-    task.sequence = self._sequence
-    self._unAcked[self._sequence] = task
-    self._sequence++
+    task.sequence = self._sequence;
+    self._unAcked[self._sequence] = task;
+    self._sequence++;
 
     if(callback != null){
-      var errorCallback = function(){task.removeAllListeners();callback(true)};
+      var errorCallback = function () { task.removeAllListeners(); callback(true); };
       var exchange = this;
-      task.once('ack',   function(){exchange.removeListener('error', errorCallback); task.removeAllListeners();callback(false)}); 
+      task.once('ack', function () { exchange.removeListener('error', errorCallback); task.removeAllListeners(); callback(false); });
       this.once('error', errorCallback);
     }
   }
 
-  return task
+  return task;
 };
 
 // do any necessary cleanups eg. after queue destruction  
