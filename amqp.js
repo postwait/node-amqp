@@ -34,7 +34,7 @@ function mixin () {
 
   for ( ; i < length; i++ ) {
     // Only deal with non-null/undefined values
-    if ( (source = arguments[i]) != null ) {
+    if ( !!(source = arguments[i]) ) {
       // Extend the base object
       Object.getOwnPropertyNames(source).forEach(function(k){
         var d = Object.getOwnPropertyDescriptor(source, k) || {value: source[k]};
@@ -53,7 +53,7 @@ function mixin () {
           if (deep && d.value && typeof d.value === "object") {
             target[k] = mixin(deep,
               // Never move original objects, clone them
-              source[k] || (d.value.length != null ? [] : {})
+              source[k] || (typeof d.value.length === 'number' ? [] : {})
             , d.value);
           }
           else {
@@ -829,7 +829,7 @@ function Connection (connectionArgs, options, readyCallback) {
       // channels that they are no longer connected so that nobody attempts
       // to send messages which would be doomed to fail.
       for (var channel in self.channels) {
-        if (channel != 0) {
+        if (channel !== 0) {
           self.channels[channel].state = 'closed';
         }
       }
@@ -929,7 +929,7 @@ function Connection (connectionArgs, options, readyCallback) {
   });
 
   self.addListener('data', function (data) {
-    if(parser != null){
+    if(parser){
       parser.execute(data);
     }
     self._inboundHeartbeatTimerReset();
@@ -946,7 +946,7 @@ function Connection (connectionArgs, options, readyCallback) {
     if (self.implOptions.reconnect) {
       // Reconnect any channels which were open.
       for (var channel in self.channels) {
-        if (channel != 0) {
+        if (channel !== 0) {
           self.channels[channel].reconnect();
         }
       }
@@ -1040,8 +1040,8 @@ Connection.prototype.connect = function () {
   // If you pass a array of hosts, lets choose a random host, or then next one.
   var connectToHost = this.options.host;
 
-  if(Array.isArray(this.options.host) == true){
-    if(this.hosti == null){
+  if(Array.isArray(this.options.host)){
+    if(this.hosti === undefined){
       this.hosti = Math.random()*this.options.host.length >> 0;
     }else{
       this.hosti = (this.hosti+1) % this.options.host.length;
@@ -1094,7 +1094,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
     // 'connectionStart' method (contains various useless information)
     case methods.connectionStart:
       // We check that they're serving us AMQP 0-9
-      if (args.versionMajor != 0 && args.versionMinor != 9) {
+      if (args.versionMajor !== 0 && args.versionMinor !== 9) {
         this.end();
         this.emit('error', new Error("Bad server version"));
         return;
@@ -1401,10 +1401,10 @@ Connection.prototype.exchangeClosed = function (name) {
 // - durable (boolean)
 // - autoDelete (boolean, default true)
 Connection.prototype.exchange = function (name, options, openCallback) {
-  if (name === undefined) name = this.implOptions.defaultExchangeName;
+  if (!name) name = this.implOptions.defaultExchangeName;
 
   if (!options) options = {};
-  if (name != '' && options.type === undefined) options.type = 'topic';
+  if (name && !options.type) options.type = 'topic';
 
   this.channelCounter++;
   var channel = this.channelCounter;
@@ -1658,7 +1658,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
       options.routingKeyInPayload = arguments[0].routingKeyInPayload;
     if (arguments[0].deliveryTagInPayload)
       options.deliveryTagInPayload = arguments[0].deliveryTagInPayload;
-    if (arguments[0].prefetchCount != undefined)
+    if (arguments[0].prefetchCount !== undefined)
       options.prefetchCount = arguments[0].prefetchCount;
     if (arguments[0].exclusive)
         options.exclusive = arguments[0].exclusive;
@@ -1676,7 +1676,7 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
   return this.subscribeRaw(rawOptions, function (m) {
     var contentType = m.contentType;
     
-    if (contentType == null && m.headers && m.headers.properties) {
+    if (!contentType && m.headers && m.headers.properties) {
        contentType = m.headers.properties.content_type;
     }
     
@@ -2140,13 +2140,13 @@ Exchange.prototype._onMethod = function (channel, method, args) {
     case methods.basicAck:
       this.emit('basic-ack', args);
 
-      if(args.deliveryTag == 0 && args.multiple == true){
+      if(args.deliveryTag === 0 && args.multiple){
         // we must ack everything
         for(tag in this._unAcked){
           this._unAcked[tag].emitAck();
           delete this._unAcked[tag];
         }
-      }else if(args.deliveryTag != 0 && args.multiple == true){
+      }else if(args.deliveryTag !== 0 && args.multiple){
         // we must ack everything before the delivery tag
         for(var tag in this._unAcked){
           if(tag <= args.deliveryTag){
@@ -2154,7 +2154,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
             delete this._unAcked[tag];
           }
         }
-      }else if(this._unAcked[args.deliveryTag] && args.multiple == false){
+      }else if(this._unAcked[args.deliveryTag] && !args.multiple){
         // simple single ack
         this._unAcked[args.deliveryTag].emitAck();
         delete this._unAcked[args.deliveryTag];
@@ -2240,7 +2240,7 @@ Exchange.prototype.publish = function (routingKey, data, options, callback) {
     self._unAcked[self._sequence] = task;
     self._sequence++;
 
-    if(callback != null){
+    if(callback){
       var errorCallback = function () { task.removeAllListeners(); callback(true); };
       var exchange = this;
       task.once('ack', function () { exchange.removeListener('error', errorCallback); task.removeAllListeners(); callback(false); });
@@ -2253,7 +2253,7 @@ Exchange.prototype.publish = function (routingKey, data, options, callback) {
 
 // do any necessary cleanups eg. after queue destruction  
 Exchange.prototype.cleanup = function() {
-  if (this.binds == 0) // don't keep reference open if unused
+  if (this.binds === 0) // don't keep reference open if unused
       this.connection.exchangeClosed(this.name);
 };
 
