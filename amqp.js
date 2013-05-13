@@ -968,20 +968,13 @@ var defaultOptions = { host: 'localhost'
                      , password: 'guest'
                      , vhost: '/'
                      };
-// If the "reconnect" option is true, then the driver will attempt to
-// reconnect using the configured strategy *any time* the connection
-// becomes unavailable.
-// If this is not appropriate for your application, do not set this option.
-// If you would like this option, you can set parameters controlling how
-// aggressively the reconnections will be attempted.
-// Valid strategies are "linear" and "exponential".
-// Backoff times are in milliseconds.  Under the "linear" strategy, the driver
-// will pause <reconnectBackoffTime> ms before the first attempt, and between
-// each subsequent attempt.  Under the "exponential" strategy, the driver will
-// pause <reconnectBackoffTime> ms before the first attempt, and will double
-// the previous pause between each subsequent attempt until a connection is
-// reestablished.
-var defaultImplOptions = { defaultExchangeName: '', reconnect: true , reconnectBackoffStrategy: 'linear' , reconnectExponentialLimit: 120000, reconnectBackoffTime: 1000 };
+
+var defaultImplOptions = { defaultExchangeName: ''
+                         , reconnect: true
+                         , reconnectBackoffStrategy: 'linear'
+                         , reconnectExponentialLimit: 120000
+                         , reconnectBackoffTime: 1000
+                         };
 
 function urlOptions(connectionString) {
   var opts = {};
