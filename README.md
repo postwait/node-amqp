@@ -347,7 +347,7 @@ object for the second. The options are
 - `confirm`: boolean, default false.
     If set when connecting to a exchange the channel will send acks 
     for publishes. Published tasks will emit 'ack' when it is acked.
-- `autoDelete`: boolean, default true.
+- `autoDelete`: boolean, default false.
     If set, the exchange is deleted when there are no longer queues
     bound to it.
 - `noDeclare`: boolean, default false.
