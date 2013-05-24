@@ -930,7 +930,12 @@ function Connection (connectionArgs, options, readyCallback) {
 
   self.addListener('data', function (data) {
     if(parser != null){
-      parser.execute(data);
+      try {
+        parser.execute(data);
+      } catch (exception) {
+        self.emit('error', exception);
+        return;
+      }
     }
     self._inboundHeartbeatTimerReset();
   });
