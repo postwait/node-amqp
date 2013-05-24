@@ -2214,7 +2214,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 Exchange.prototype.publish = function (routingKey, data, options, callback) {
   var self = this;
 
-  options = options || {};
+  options = mixin({}, options || {});
   options.routingKey = routingKey;
   options.exchange   = self.name;
   options.mandatory  = options.mandatory ? true : false;
