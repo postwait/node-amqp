@@ -407,7 +407,11 @@ function parseFields (buffer, fields) {
 
       case 'timestamp':
       case 'longlong':
-        value = parseInt(buffer, 8);
+        //value = parseInt(buffer, 8);
+        value = new Buffer(8);
+        for (var j = 0; j < 8; j++) {
+            value[j] = buffer[buffer.read++];
+        }
         break;
 
       case 'shortstr':
@@ -766,7 +770,10 @@ function serializeFields (buffer, fields, args, strict) {
 
       case 'timestamp':
       case 'longlong':
-        serializeInt(buffer, 8, param);
+        //serializeInt(buffer, 8, param);
+        for (var j = 0; j < 8; j++) {
+            buffer[buffer.used++] = param[j];
+        }
         break;
 
       case 'shortstr':
