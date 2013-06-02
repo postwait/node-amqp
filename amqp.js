@@ -1050,12 +1050,16 @@ Connection.prototype.reconnect = function () {
 };
 
 Connection.prototype.connect = function () {
-  // If you pass a array of hosts, lets choose a random host, or then next one.
+  // If you pass a array of hosts, lets choose a random host or the preferred host number, or then next one.
   var connectToHost = this.options.host;
 
   if(Array.isArray(this.options.host) == true){
     if(this.hosti == null){
-      this.hosti = Math.random()*this.options.host.length >> 0;
+      if(this.options.hostPreference !== undefined && typeof this.options.hostPreference == 'number') {
+        this.hosti = (this.options.hostPreference<this.options.host.length)?this.options.hostPreference:this.options.host.length-1; 
+      }else{   
+        this.hosti = Math.random()*this.options.host.length >> 0;
+      }
     }else{
       this.hosti = (this.hosti+1) % this.options.host.length;
     }
