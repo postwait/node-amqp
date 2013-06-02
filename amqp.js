@@ -2347,3 +2347,39 @@ Exchange.prototype.bind = function (/* exchange, routingKey [, bindCallback] */)
       });
 
 };
+
+// E2E Bind
+// support RabbitMQ's exchange-to-exchange binding extension
+// http://www.rabbitmq.com/e2e.html
+Exchange.prototype.bind_headers = function (/* exchange, routing [, bindCallback] */) {
+    var self = this;
+
+    // Two arguments are required. The binding to the destination
+    // exchange/routingKey will be established.
+
+    var exchange    = arguments[0]
+        , routing  = arguments[1]
+        , callback    = arguments[2]
+        ;
+
+    if(callback) this._bindCallback = callback;
+
+
+    var source = exchange instanceof Exchange ? exchange.name : exchange;
+    var destination = self.name;
+
+    if(source in self.connection.exchanges) {
+        self.sourceExchanges[source] = self.connection.exchanges[source];
+        self.connection.exchanges[source].exchangeBinds++;
+    }
+
+    self.connection._sendMethod(self.channel, methods.exchangeBind,
+        { reserved1: 0
+            , destination: destination
+            , source: source
+            , routingKey: ''
+            , noWait: false
+            , "arguments": routing
+        });
+
+};
