@@ -430,3 +430,8 @@ This is the reverse of the exchange.bind method above, and will stop messages
 from srcExchange/routingKey from being sent to the destination exchange. 
 
 This method will emit `'exchangeUnbindOk'` when complete.
+
+### exchange.bind_headers(exchange, routing [, bindCallback])
+
+This method is to be used on an "headers"-type exchange. The routing
+argument must contain the routing keys and the `x-match` value (`all` or `any`).
