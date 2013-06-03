@@ -117,8 +117,8 @@ var classes = {};
 
 // parser
 
-var maxFrameBuffer = 131072; // 128k, same as rabbitmq (which was
-                             // copying qpid)
+var maxFrameBuffer = 5242880; // Custom max frame buffer
+                        
 
 // An interruptible AMQP parser.
 //
