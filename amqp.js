@@ -1079,11 +1079,15 @@ Connection.prototype.connect = function () {
       message: 'Connection ended: possibly due to an authentication failure.'
     });
   }
-  // add this handler with #on not #once (so it can be removed by #removeListener)
-  this.on('end', possibleAuthErrorHandler);
-  this.once('ready', function () {
-    this.removeListener('end', possibleAuthErrorHandler);
-  });
+  // ensure we only add this handler once, and not once per reconnect
+  if (!this._hasPossibleAuthErrorHandler) {
+    // add this handler with #on not #once (so it can be removed by #removeListener)
+    this.on('end', possibleAuthErrorHandler);
+    this.on('ready', function () {
+      this.removeListener('end', possibleAuthErrorHandler);
+    });
+    this._hasPossibleAuthErrorHandler = true;
+  }
 };
 
 Connection.prototype._onMethod = function (channel, method, args) {
