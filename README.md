@@ -260,10 +260,12 @@ to happen. You may also receive messages after calling `unsubscribe`;
 you will **not** receive messages from the queue after the unsubscribe
 promise callback has been invoked, however.
 
-### queue.shift()
+### queue.shift([reject[, requeue]])
 
 For use with `subscribe({ack: true}, fn)`. Acknowledges the last
-message.
+message if no arguments are provided or if `reject` is false. If
+`reject` is true then the message will be rejected and put back onto
+the queue if `requeue` is true, otherwise it will be discarded.
 
 
 ### queue.bind([exchange,] routing)
