@@ -986,6 +986,7 @@ var defaultOptions = { host: 'localhost'
                      , port: defaultPorts['amqp']
                      , login: 'guest'
                      , password: 'guest'
+                     , authMechanism: 'AMQPLAIN'
                      , vhost: '/'
                      };
 
@@ -1124,7 +1125,7 @@ Connection.prototype._onMethod = function (channel, method, args) {
             , platform: 'node-' + process.version
             , product: 'node-amqp'
             }
-          , mechanism: 'AMQPLAIN'
+          , mechanism: this.options.authMechanism
           , response:
             { LOGIN: this.options.login
             , PASSWORD: this.options.password

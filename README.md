@@ -54,12 +54,15 @@ objects as parameters.  The first options object has these defaults:
     , port: 5672
     , login: 'guest'
     , password: 'guest'
+    , authMechanism: 'AMQPLAIN'
     , vhost: '/'
     }
 
-All of these can be passed in a single URL of the form
+These can be passed in a single URL of the form
 
     amqp[s]://[user:password@]hostname[:port][/vhost]
+
+AMQPLAIN is assumed for the auth mechanism.
 
 Note that the vhost must be URL-encoded and appear as the only segment
 of the path, i.e., the only unencoded slash is that leading; leaving
