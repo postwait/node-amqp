@@ -56,9 +56,31 @@ objects as parameters.  The first options object has these defaults:
     , password: 'guest'
     , authMechanism: 'AMQPLAIN'
     , vhost: '/'
+    , ssl: { enabled : false
+           }
     }
 
-These can be passed in a single URL of the form
+An example `options` object for creting an SSL connection has these properties:
+
+    { host: 'localhost'
+    , port: 5671
+    , login: 'guest'
+    , password: 'guest'
+    , authMechanism: 'AMQPLAIN'
+    , vhost: '/'
+    , ssl: { enabled : true
+           , keyFile : '/path/to/key/file'
+           , certFile : '/path/to/cert/file'
+           , caFile : '/path/to/cacert/file'
+           , rejectUnauthorized : true
+           }
+    }
+
+The key, certificate, and certificate authority files must be in pem format.
+If `port` is not specified, the default AMQPS port 5671 is used.
+If `rejectUnauthorized` is not specified, it defaults to true.
+
+Options can also be passed in a single URL of the form
 
     amqp[s]://[user:password@]hostname[:port][/vhost]
 

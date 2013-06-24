@@ -1,6 +1,8 @@
 var events = require('events'),
     util = require('util'),
     net = require('net'),
+    tls = require('tls'),
+    fs = require('fs'),
     protocol,
     jspack = require('./jspack').jspack,
     Buffer = require('buffer').Buffer,
@@ -10,6 +12,63 @@ var events = require('events'),
     Indicators = require('./constants').Indicators,
     FrameType = require('./constants').FrameType;
     
+//Helper method to proxy getter's, setters, and functions from one object to another
+function proxyMethod(obj, method) {
+  var arguments = Array.prototype.slice.call(arguments, 2);
+  return obj[method].apply(obj, arguments);
+}
+function proxyGetter(obj, property) {
+  return obj[property];
+}
+function proxySetter(obj, property, value) {
+  obj[property] = value;
+}
+function objectProxy(a, b) {
+  // if ('object' !== typeof b) { return;}
+  var bproto = Object.getPrototypeOf(b);
+  for ( var i in bproto) {
+
+    if ('undefined' !== typeof a[i]) {
+      continue;
+    }
+    var btype = typeof b[i];
+    var g = bproto.__lookupGetter__(i), s = bproto.__lookupSetter__(i);
+
+    if (g || s) {
+      if (g) {
+        a.__defineGetter__(i, proxyGetter.bind(b, b, i));
+      }
+      if (s) {
+        a.__defineSetter__(i, proxySetter.bind(b, b, i));
+      }
+    } else if ('function' === btype) {
+      a[i] = proxyMethod.bind(b, b, i);
+    }
+  }
+
+  for ( var i in b) {
+    var btype = typeof b[i];
+
+    if ('undefined' !== typeof a[i]) {
+      continue;
+    }
+
+    var g = b.__lookupGetter__(i), s = b.__lookupSetter__(i);
+
+    if (g || s) {
+      if (g) {
+        a.__defineGetter__(i, proxyGetter.bind(b, b, i));
+      }
+      if (s) {
+        a.__defineSetter__(i, proxySetter.bind(b, b, i));
+      }
+    } else if ('function' === btype) {
+      a[i] = proxyMethod.bind(b, b, i);
+    }
+  }
+  return a;
+}
+
 function mixin () {
   // copy reference to target object
   var target = arguments[0] || {}, i = 1, length = arguments.length, deep = false, source;
@@ -802,22 +861,167 @@ function serializeFields (buffer, fields, args, strict) {
 
 
 function Connection (connectionArgs, options, readyCallback) {
-  net.Stream.call(this);
-
-  var self = this;
-
   this.setOptions(connectionArgs);
   this.setImplOptions(options);
-
+  
   if (typeof readyCallback === 'function') {
     this._readyCallback = readyCallback;
   }
-
-  var parser;
-  var backoffTime = null;
+  
   this.connectionAttemptScheduled = false;
+  this._defaultExchange = null;
+  this.channelCounter = 0;
+  this._sendBuffer = new Buffer(maxFrameBuffer);
+}
+exports.Connection = Connection;
 
-  var backoff = function (e) {
+var defaultPorts = { 'amqp': 5672, 'amqps': 5671 };
+
+var defaultOptions = { host: 'localhost'
+                     , port: defaultPorts['amqp']
+                     , login: 'guest'
+                     , password: 'guest'
+                     , authMechanism: 'AMQPLAIN'
+                     , ssl: { 
+                              enabled : false
+                            }
+                     , vhost: '/'
+                     };
+
+var defaultSslOptions = { port: defaultPorts['amqps']
+                        };
+
+var defaultImplOptions = { defaultExchangeName: ''
+                         , reconnect: true
+                         , reconnectBackoffStrategy: 'linear'
+                         , reconnectExponentialLimit: 120000
+                         , reconnectBackoffTime: 1000
+                         };
+
+function urlOptions(connectionString) {
+  var opts = {};
+  opts.ssl = {};
+  var url = URL.parse(connectionString);
+  var scheme = url.protocol.substring(0, url.protocol.lastIndexOf(':'));
+  if (scheme != 'amqp' && scheme != 'amqps') {
+    throw new Error('Connection URI must use amqp or amqps scheme. ' +
+                    'For example, "amqp://bus.megacorp.internal:5766".');
+  }
+  opts.ssl.enabled = ('amqps' === scheme);
+  opts.host = url.hostname;
+  opts.port = url.port || defaultPorts[scheme];
+  if (url.auth) {
+    var auth = url.auth.split(':');
+    auth[0] && (opts.login = auth[0]);
+    auth[1] && (opts.password = auth[1]);
+  }
+  if (url.pathname) {
+    opts.vhost = unescape(url.pathname.substr(1));
+  }
+  return opts;
+}
+
+exports.createConnection = function (options, implOptions, readyCallback) {
+  var c = new Connection(options, implOptions, readyCallback);
+  // c.setOptions(options);
+  // c.setImplOptions(implOptions);
+  c.connect();
+  return c;
+};
+
+Connection.prototype.setOptions = function (options) {
+  var o  = {};
+  var urlo = (options && options.url) ? urlOptions(options.url) : {};
+  var sslo = (options && options.ssl && options.ssl.enabled) ? defaultSslOptions : {};
+  mixin(o, defaultOptions, sslo, urlo, options || {});
+  this.options = o;
+};
+
+Connection.prototype.setImplOptions = function (options) {
+  var o = {};
+  mixin(o, defaultImplOptions, options || {});
+  this.implOptions = o;
+};
+
+Connection.prototype.reconnect = function () {
+  // Suspend activity on channels
+  for (var channel in this.channels) {
+    this.channels[channel].state = 'closed';
+  }
+  // Terminate socket activity
+  this.end();
+  this.connect();
+};
+
+Connection.prototype.connect = function () {
+  // If you pass a array of hosts, lets choose a random host or the preferred host number, or then next one.
+  var connectToHost = this.options.host;
+
+  if(Array.isArray(this.options.host) == true){
+    if(this.hosti == null){
+      if(this.options.hostPreference !== undefined && typeof this.options.hostPreference == 'number') {
+        this.hosti = (this.options.hostPreference<this.options.host.length)?this.options.hostPreference:this.options.host.length-1; 
+      }else{   
+        this.hosti = Math.random()*this.options.host.length >> 0;
+      }
+    }else{
+      this.hosti = (this.hosti+1) % this.options.host.length;
+    }
+    connectToHost = this.options.host[this.hosti];
+  }
+
+  // Connect socket
+  
+
+  if (this.options.ssl.enabled) {
+    if (DEBUG) {
+      debug('making ssl connection');
+    }
+    var sslConnectionOptions = {};
+    if (this.options.ssl.keyfile) {
+      sslConnectionOptions.key = fs.readFileSync(this.options.ssl.keyfile)
+    }
+    if (this.options.ssl.certfile) {
+      sslConnectionOptions.cert = fs.readFileSync(this.options.ssl.certfile)
+    }
+    if (this.options.ssl.cacertfile) {
+      sslConnectionOptions.ca = fs.readFileSync(this.options.ssl.cacertfile)
+    }
+    sslConnectionOptions.rejectUnauthorized = true;
+    this.conn = tls.connect(this.options.port, connectToHost, sslConnectionOptions);
+  } else {
+    if (DEBUG) {
+      debug('making non-ssl connection');
+    }
+    this.conn = net.connect(this.options.port, connectToHost);
+  }
+  objectProxy(this, this.conn);
+  this.addAllListeners();
+
+  // Apparently, it is not possible to determine if an authentication error
+  // has occurred, but when the connection closes then we can HINT that a
+  // possible authentication error has occured.  Although this may be a bug
+  // in the spec, handling it as a possible error is considerably better than
+  // failing silently.
+  function possibleAuthErrorHandler() {
+    this.removeListener('end', possibleAuthErrorHandler);
+    this.emit('error', {
+      message: 'Connection ended: possibly due to an authentication failure.'
+    });
+  }
+  // add this handler with #on not #once (so it can be removed by #removeListener)
+  this.on('end', possibleAuthErrorHandler);
+  this.once('ready', function () {
+    this.removeListener('end', possibleAuthErrorHandler);
+  });
+};
+
+Connection.prototype.addAllListeners = function() {
+  var self = this;
+  var connectEvent = this.options.ssl.enabled ? 'secureConnect' : 'connect';
+
+  var backoffTime = null;
+  var backoff = function(e) {
     if (self._inboundHeartbeatTimer !== null) {
       clearTimeout(self._inboundHeartbeatTimer);
       self._inboundHeartbeatTimer = null;
@@ -835,7 +1039,7 @@ function Connection (connectionArgs, options, readyCallback) {
       self.end();
 
       // Reset parser state
-      parser = null;
+      self.parser = null;
 
       // In order for our reconnection to be seamless, we have to notify the
       // channels that they are no longer connected so that nobody attempts
@@ -891,12 +1095,7 @@ function Connection (connectionArgs, options, readyCallback) {
       }
     }
   };
-
-  this._defaultExchange = null;
-  this.channelCounter = 0;
-  this._sendBuffer = new Buffer(maxFrameBuffer);
-
-  self.addListener('connect', function () {
+  self.addListener(connectEvent, function() {
     // In the case where this is a reconnection, do not trample on the existing
     // channels.
     // For your reference, channel 0 is the control channel.
@@ -904,13 +1103,13 @@ function Connection (connectionArgs, options, readyCallback) {
     self.queues = (self.implOptions.reconnect ? self.queues : undefined) || {};
     self.exchanges = (self.implOptions.reconnect ? self.exchanges : undefined) || {};
 
-    parser = new AMQPParser('0-9-1', 'client');
+    self.parser = new AMQPParser('0-9-1', 'client');
 
-    parser.onMethod = function (channel, method, args) {
+    self.parser.onMethod = function (channel, method, args) {
       self._onMethod(channel, method, args);
     };
 
-    parser.onContent = function (channel, data) {
+    self.parser.onContent = function (channel, data) {
       if (DEBUG) { debug(channel + " > content " + data.length); }
       if (self.channels[channel] && self.channels[channel]._onContent) {
         self.channels[channel]._onContent(channel, data);
@@ -919,7 +1118,7 @@ function Connection (connectionArgs, options, readyCallback) {
       }
     };
 
-    parser.onContentHeader = function (channel, classInfo, weight, properties, size) {
+    self.parser.onContentHeader = function (channel, classInfo, weight, properties, size) {
       if (DEBUG) {
         debug(channel + " > content header " + JSON.stringify([classInfo.name, weight, properties, size]));
       }
@@ -930,12 +1129,12 @@ function Connection (connectionArgs, options, readyCallback) {
       }
     };
 
-    parser.onHeartBeat = function () {
+    self.parser.onHeartBeat = function () {
       self.emit("heartbeat");
       if (DEBUG) { debug("heartbeat"); }
     };
 
-    parser.onError = function (e) {
+    self.parser.onError = function (e) {
       self.emit("error", e);
       self.emit("close");
     };
@@ -946,9 +1145,9 @@ function Connection (connectionArgs, options, readyCallback) {
   });
 
   self.addListener('data', function (data) {
-    if(parser != null){
+    if(self.parser != null){
       try {
-        parser.execute(data);
+        self.parser.execute(data);
       } catch (exception) {
         self.emit('error', exception);
         return;
@@ -976,116 +1175,6 @@ function Connection (connectionArgs, options, readyCallback) {
     self._outboundHeartbeatTimerReset();
   });
 }
-util.inherits(Connection, net.Stream);
-exports.Connection = Connection;
-
-
-var defaultPorts = { 'amqp': 5672, 'amqps': 5671 };
-
-var defaultOptions = { host: 'localhost'
-                     , port: defaultPorts['amqp']
-                     , login: 'guest'
-                     , password: 'guest'
-                     , authMechanism: 'AMQPLAIN'
-                     , vhost: '/'
-                     };
-
-var defaultImplOptions = { defaultExchangeName: ''
-                         , reconnect: true
-                         , reconnectBackoffStrategy: 'linear'
-                         , reconnectExponentialLimit: 120000
-                         , reconnectBackoffTime: 1000
-                         };
-
-function urlOptions(connectionString) {
-  var opts = {};
-  var url = URL.parse(connectionString);
-  var scheme = url.protocol.substring(0, url.protocol.lastIndexOf(':'));
-  if (scheme != 'amqp' && scheme != 'amqps') {
-    throw new Error('Connection URI must use amqp or amqps scheme. ' +
-                    'For example, "amqp://bus.megacorp.internal:5766".');
-  }
-  opts.ssl = ('amqps' === scheme);
-  opts.host = url.hostname;
-  opts.port = url.port || defaultPorts[scheme];
-  if (url.auth) {
-    var auth = url.auth.split(':');
-    auth[0] && (opts.login = auth[0]);
-    auth[1] && (opts.password = auth[1]);
-  }
-  if (url.pathname) {
-    opts.vhost = unescape(url.pathname.substr(1));
-  }
-  return opts;
-}
-
-exports.createConnection = function (connectionArgs, options, readyCallback) {
-  var c = new Connection(connectionArgs, options, readyCallback);
-  // c.setOptions(connectionArgs);
-  // c.setImplOptions(options);
-  c.connect();
-  return c;
-};
-
-Connection.prototype.setOptions = function (options) {
-  var o  = {};
-  var urlo = (options && options.url) ? urlOptions(options.url) : {};
-  mixin(o, defaultOptions, urlo, options || {});
-  this.options = o;
-};
-
-Connection.prototype.setImplOptions = function (options) {
-  var o = {};
-  mixin(o, defaultImplOptions, options || {});
-  this.implOptions = o;
-};
-
-Connection.prototype.reconnect = function () {
-  // Suspend activity on channels
-  for (var channel in this.channels) {
-    this.channels[channel].state = 'closed';
-  }
-  // Terminate socket activity
-  this.end();
-  this.connect();
-};
-
-Connection.prototype.connect = function () {
-  // If you pass a array of hosts, lets choose a random host or the preferred host number, or then next one.
-  var connectToHost = this.options.host;
-
-  if(Array.isArray(this.options.host) == true){
-    if(this.hosti == null){
-      if(this.options.hostPreference !== undefined && typeof this.options.hostPreference == 'number') {
-        this.hosti = (this.options.hostPreference<this.options.host.length)?this.options.hostPreference:this.options.host.length-1; 
-      }else{   
-        this.hosti = Math.random()*this.options.host.length >> 0;
-      }
-    }else{
-      this.hosti = (this.hosti+1) % this.options.host.length;
-    }
-    connectToHost = this.options.host[this.hosti];
-  }
-
-  // Connect socket
-  net.Socket.prototype.connect.call(this, this.options.port, connectToHost);
-  // Apparently, it is not possible to determine if an authentication error
-  // has occurred, but when the connection closes then we can HINT that a
-  // possible authentication error has occured.  Although this may be a bug
-  // in the spec, handling it as a possible error is considerably better than
-  // failing silently.
-  function possibleAuthErrorHandler() {
-    this.removeListener('end', possibleAuthErrorHandler);
-    this.emit('error', {
-      message: 'Connection ended: possibly due to an authentication failure.'
-    });
-  }
-  // add this handler with #on not #once (so it can be removed by #removeListener)
-  this.on('end', possibleAuthErrorHandler);
-  this.once('ready', function () {
-    this.removeListener('end', possibleAuthErrorHandler);
-  });
-};
 
 Connection.prototype._onMethod = function (channel, method, args) {
   if (DEBUG) { debug(channel + " > " + method.name + " " + JSON.stringify(args)); }
@@ -1764,13 +1853,9 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
 Queue.prototype.subscribeJSON = Queue.prototype.subscribe;
 
 /* Acknowledges the last message */
-Queue.prototype.shift = function (reject, requeue) {
+Queue.prototype.shift = function () {
   if (this._lastMessage) {
-    if (reject) {
-      this._lastMessage.reject(requeue ? true : false);
-    } else {
-      this._lastMessage.acknowledge();
-    }
+    this._lastMessage.acknowledge();
   }
 };
 
