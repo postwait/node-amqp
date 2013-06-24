@@ -882,13 +882,14 @@ var defaultOptions = { host: 'localhost'
                      , login: 'guest'
                      , password: 'guest'
                      , authMechanism: 'AMQPLAIN'
-                     , ssl: { 
-                              enabled : false
-                            }
                      , vhost: '/'
+                     , ssl: { enabled : false
+                            }
                      };
 
 var defaultSslOptions = { port: defaultPorts['amqps']
+                        , ssl: { rejectUnauthorized : true
+                               }
                         };
 
 var defaultImplOptions = { defaultExchangeName: ''
@@ -978,16 +979,16 @@ Connection.prototype.connect = function () {
       debug('making ssl connection');
     }
     var sslConnectionOptions = {};
-    if (this.options.ssl.keyfile) {
-      sslConnectionOptions.key = fs.readFileSync(this.options.ssl.keyfile)
+    if (this.options.ssl.keyFile) {
+      sslConnectionOptions.key = fs.readFileSync(this.options.ssl.keyFile)
     }
-    if (this.options.ssl.certfile) {
-      sslConnectionOptions.cert = fs.readFileSync(this.options.ssl.certfile)
+    if (this.options.ssl.certFile) {
+      sslConnectionOptions.cert = fs.readFileSync(this.options.ssl.certFile)
     }
-    if (this.options.ssl.cacertfile) {
-      sslConnectionOptions.ca = fs.readFileSync(this.options.ssl.cacertfile)
+    if (this.options.ssl.caFile) {
+      sslConnectionOptions.ca = fs.readFileSync(this.options.ssl.caFile)
     }
-    sslConnectionOptions.rejectUnauthorized = true;
+    sslConnectionOptions.rejectUnauthorized = this.options.ssl.rejectUnauthorized;
     this.conn = tls.connect(this.options.port, connectToHost, sslConnectionOptions);
   } else {
     if (DEBUG) {
