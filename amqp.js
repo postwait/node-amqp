@@ -2247,6 +2247,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
 
     case methods.basicAck:
       this.emit('basic-ack', args);
+      var sequenceNumber = args.deliveryTag.readUInt32BE(4);
 
       if(args.deliveryTag == 0 && args.multiple == true){
         // we must ack everything
@@ -2262,10 +2263,10 @@ Exchange.prototype._onMethod = function (channel, method, args) {
             delete this._unAcked[tag]
           }
         }
-      }else if(this._unAcked[args.deliveryTag] && args.multiple == false){
+      }else if(this._unAcked[sequenceNumber] && args.multiple == false){
         // simple single ack
-        this._unAcked[args.deliveryTag].emitAck()
-        delete this._unAcked[args.deliveryTag]
+        this._unAcked[sequenceNumber].emitAck()
+        delete this._unAcked[sequenceNumber]
       }
       
       break;
