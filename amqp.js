@@ -1854,9 +1854,13 @@ Queue.prototype.subscribe = function (/* options, messageListener */) {
 Queue.prototype.subscribeJSON = Queue.prototype.subscribe;
 
 /* Acknowledges the last message */
-Queue.prototype.shift = function () {
+Queue.prototype.shift = function (reject, requeue) {
   if (this._lastMessage) {
-    this._lastMessage.acknowledge();
+    if (reject) {
+      this._lastMessage.reject(requeue ? true : false);
+    } else {
+      this._lastMessage.acknowledge();
+    } 
   }
 };
 
