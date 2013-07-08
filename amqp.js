@@ -23,12 +23,12 @@ function proxyGetter(obj, property) {
 function proxySetter(obj, property, value) {
   obj[property] = value;
 }
-function objectProxy(a, b) {
+function objectProxy(a, b, overwrite) {
   // if ('object' !== typeof b) { return;}
   var bproto = Object.getPrototypeOf(b);
   for ( var i in bproto) {
-
-    if ('undefined' !== typeof a[i]) {
+    
+    if (!overwrite && 'undefined' !== typeof a[i]) {
       continue;
     }
     var btype = typeof b[i];
@@ -49,7 +49,7 @@ function objectProxy(a, b) {
   for ( var i in b) {
     var btype = typeof b[i];
 
-    if ('undefined' !== typeof a[i]) {
+    if (!overwrite && 'undefined' !== typeof a[i]) {
       continue;
     }
 
@@ -996,7 +996,7 @@ Connection.prototype.connect = function () {
     }
     this.conn = net.connect(this.options.port, connectToHost);
   }
-  objectProxy(this, this.conn);
+  objectProxy(this, this.conn, true);
   this.addAllListeners();
 
   // Apparently, it is not possible to determine if an authentication error
@@ -2272,7 +2272,7 @@ Exchange.prototype._onMethod = function (channel, method, args) {
         this._unAcked[sequenceNumber].emitAck()
         delete this._unAcked[sequenceNumber]
       }
-
+      
       break;
 
     case methods.basicReturn:
