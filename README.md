@@ -185,7 +185,7 @@ random name.
 
 ### connection.queue(name, options, openCallback)
 
-Returns a reference to a queue. The options are
+Returns a reference to a queue. The name parameter is required, unlike pika which defaults the name to `''`. The options are
 
 - `passive`: boolean, default false.
     If set, the server will not create the queue.  The client can use
