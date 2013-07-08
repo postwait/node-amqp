@@ -973,6 +973,8 @@ Connection.prototype.connect = function () {
 
   // Connect socket
   
+  // Keep previous connection for listeners
+  var oldConn = this.conn;
 
   if (this.options.ssl.enabled) {
     if (DEBUG) {
@@ -997,24 +999,13 @@ Connection.prototype.connect = function () {
     this.conn = net.connect(this.options.port, connectToHost);
   }
   objectProxy(this, this.conn, true);
-  this.addAllListeners();
-
-  // Apparently, it is not possible to determine if an authentication error
-  // has occurred, but when the connection closes then we can HINT that a
-  // possible authentication error has occured.  Although this may be a bug
-  // in the spec, handling it as a possible error is considerably better than
-  // failing silently.
-  function possibleAuthErrorHandler() {
-    this.removeListener('end', possibleAuthErrorHandler);
-    this.emit('error', {
-      message: 'Connection ended: possibly due to an authentication failure.'
-    });
+  if (oldConn === undefined) {
+    this.addAllListeners();
+  } else {
+    // Preserve external listeners from previous connection
+    this.removeAllListeners();
+    this.addListenersFromConnection(oldConn);
   }
-  // add this handler with #on not #once (so it can be removed by #removeListener)
-  this.on('end', possibleAuthErrorHandler);
-  this.once('ready', function () {
-    this.removeListener('end', possibleAuthErrorHandler);
-  });
 };
 
 Connection.prototype.addAllListeners = function() {
@@ -1175,6 +1166,40 @@ Connection.prototype.addAllListeners = function() {
     // Restart the heartbeat to the server
     self._outboundHeartbeatTimerReset();
   });
+  
+
+  // Apparently, it is not possible to determine if an authentication error
+  // has occurred, but when the connection closes then we can HINT that a
+  // possible authentication error has occured.  Although this may be a bug
+  // in the spec, handling it as a possible error is considerably better than
+  // failing silently.
+  function possibleAuthErrorHandler() {
+    self.removeListener('end', possibleAuthErrorHandler);
+    self.emit('error', {
+      message: 'Connection ended: possibly due to an authentication failure.'
+    });
+  }
+  // add this handler with #on not #once (so it can be removed by #removeListener)
+  self.on('end', possibleAuthErrorHandler);
+  self.once('ready', function () {
+    self.removeListener('end', possibleAuthErrorHandler);
+  });
+}
+
+Connection.prototype.addListenersFromConnection = function(oldConnection) {
+  for ( var eventName in oldConnection._events) {
+    // readable is a special event that is added when 'data' is added
+    if(eventName === 'readable'){
+      continue;
+    }
+    var oldListeners = oldConnection.listeners(eventName);
+    var newListeners = this.listeners(eventName);
+    for ( var i in oldListeners) {
+      if (newListeners.indexOf(oldListeners[i]) <= -1) {
+        this.addListener(eventName, oldListeners[i]);
+      }
+    }
+  }
 }
 
 Connection.prototype._onMethod = function (channel, method, args) {
