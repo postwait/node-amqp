@@ -1203,6 +1203,7 @@ Connection.prototype.addListenersFromConnection = function(oldConnection) {
 }
 
 Connection.prototype._onMethod = function (channel, method, args) {
+  this.emit(method.name, args);
   if (DEBUG) { debug(channel + " > " + method.name + " " + JSON.stringify(args)); }
 
   // Channel 0 is the control channel. If not zero then delegate to
