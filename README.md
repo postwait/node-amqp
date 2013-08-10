@@ -323,6 +323,16 @@ argument must contain the routing keys and the `x-match` value (`all` or `any`).
 
 If the `exchange` argument is left out `'amq.headers'` will be used.
 
+### queue.unbind_headers([exchange,] routing)
+
+This method unbinds a queue from an exchange.  Whilst a queue is
+bound it will continue receive messages that have matching headers.
+
+This method is to be used on an "headers"-type exchange. The routing
+argument must contain the routing keys and the `x-match` value (`all` or `any`).
+
+If the `exchange` argument is left out `'amq.headers'` will be used.
+
 ### queue.destroy(options)
 
 Delete the queue. Without options, the queue will be deleted even if it has
