@@ -1998,6 +1998,35 @@ Queue.prototype.bind_headers = function (/* [exchange,] matchingPairs */) {
   });
 };
 
+Queue.prototype.unbind_headers = function (/* [exchange,] matchingPairs */) {
+  var self = this;
+
+  // The first argument, exchange is optional.
+  // If not supplied the connection will use the default 'amq.topic'
+  // exchange.
+
+  var exchange, matchingPairs;
+
+  if (arguments.length === 2) {
+    exchange = arguments[0];
+    matchingPairs = arguments[1];
+  } else {
+    exchange = 'amq.headers';
+    matchingPairs = arguments[0];
+  }
+
+  return this._taskPush(methods.queueUnbindOk, function () {
+    var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
+    self.connection._sendMethod(self.channel, methods.queueUnbind,
+        { reserved1: 0
+        , queue: self.name
+        , exchange: exchangeName
+        , routingKey: ''
+        , noWait: false
+        , "arguments": matchingPairs
+        });
+  });
+};
 
 Queue.prototype.destroy = function (options) {
   var self = this;
@@ -2097,6 +2126,9 @@ Queue.prototype._onMethod = function (channel, method, args) {
             this._bindCallback = null;
             cb(this);
       }
+      break;
+
+    case methods.queueUnbindOk:
       break;
 
     case methods.basicQosOk:
