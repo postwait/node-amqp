@@ -1925,6 +1925,17 @@ Queue.prototype.bind = function (/* [exchange,] routingKey [, bindCallback] */) 
     this.exchange.binds++;
   }
 
+  if (!this._bindings) this._bindings = { '__count__': 0 };
+  if (!this._bindings.hasOwnProperty(exchangeName)) {
+      ++this._bindings['__count__'];
+      this._bindings[exchangeName] = { '__count__': 0 };
+  }
+  if (!this._bindings[exchangeName].hasOwnProperty(routingKey)) {
+      this._bindings[exchangeName][routingKey] = 0;
+      ++this._bindings[exchangeName]['__count__'];
+  }
+  ++this._bindings[exchangeName][routingKey];
+
   self.connection._sendMethod(self.channel, methods.queueBind,
       { reserved1: 0
       , queue: self.name
@@ -1953,6 +1964,13 @@ Queue.prototype.unbind = function (/* [exchange,] routingKey */) {
     routingKey = arguments[0];
   }
 
+  if (!--this._bindings[exchangeName][routingKey]) {
+	  delete this._bindings[exchangeName][routingKey];
+      if (!--this._bindings[exchangeName]['__count__']) {
+          delete this._bindings[exchangeName];
+          --this._bindings['__count__'];
+      }
+  }
 
   return this._taskPush(methods.queueUnbindOk, function () {
     var exchangeName = exchange instanceof Exchange ? exchange.name : exchange;
@@ -2083,6 +2101,15 @@ Queue.prototype._onMethod = function (channel, method, args) {
             delete this.consumerTagOptions[consumerTags[index]];
           }
         }
+      }
+      if (this._bindings) {
+          for (var exchangeName in this._bindings) {
+              if (exchangeName == '__count__') continue;
+              for (var routingKey in this._bindings[exchangeName]) {
+                  if (routingKey == '__count__') continue;
+                  this.bind(exchangeName, routingKey);
+              }
+          }
       }
       break;
 
