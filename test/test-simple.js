@@ -12,6 +12,7 @@ connection.addListener('ready', function () {
         q.on('queueBindOk', function() {
           q.on('basicConsumeOk', function () {
             puts("publishing message");
+            debugger;
             exchange.publish("message.text", body, {contentType: 'text/plain'});
 
             setTimeout(function () {
