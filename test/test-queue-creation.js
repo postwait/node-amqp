@@ -4,8 +4,8 @@ function countdownLatch(num, callback) {
   var count = num;
 
   function tick() {
-    process.nextTick(function() {
-      if (0 == count) {
+    setImmediate(function() {
+      if (0 === count) {
         callback();
       }
       else {
@@ -19,7 +19,7 @@ function countdownLatch(num, callback) {
     decr: function() {
       count--;
     }
-  }
+  };
 }
 
 var testsLeft = countdownLatch(3, function() {

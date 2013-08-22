@@ -26,8 +26,12 @@ for (var i = 0; i < 3; i++){
     console.log("Connecting to host " + i + " " + options.host[i]);
     connection = amqp.createConnection(connectionOptions, implOpts);
   
+    connection.on('error', function() {
+      console.log('err');
+    })
     connection.on('ready', function() {
-        connection.destroy();
+      console.log('connected');
+      connection.destroy();
     });
 
   })(i);

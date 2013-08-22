@@ -11,7 +11,7 @@ setTimeout(function() {
   // and close the connection.
   connection.options['heartbeat'] = 0;
   setTimeout(function() { assert.ok(closed); }, 3500);
-}, 5000);
+}, 1000);
 
 connection.on('heartbeat', function() {
   puts(" <- heartbeat");
@@ -25,7 +25,7 @@ connection.addListener('ready', function () {
 
   var e = connection.exchange();
 
-  var q = connection.queue('node-test-hearbeat', {autoDelete: true});
+  var q = connection.queue('node-test-heartbeat', {autoDelete: true});
   q.on('queueDeclareOk', function (args) {
     puts('queue opened.');
     assert.equal(0, args.messageCount);
