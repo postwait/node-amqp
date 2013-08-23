@@ -1,4 +1,4 @@
-require('./harness');
+require('./harness').run();
 var testName = __filename.replace(__dirname+'/','').replace('.js','');
 connection.addListener('ready', function () {
     puts("connected to " + connection.serverProperties.product);

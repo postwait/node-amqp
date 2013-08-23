@@ -1,4 +1,4 @@
-require('./harness');
+require('./harness').run();
 
 var recvCount = 0;
 var body = "Some say the devil is dead";

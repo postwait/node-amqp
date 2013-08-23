@@ -1,4 +1,4 @@
-require('./harness');
+require('./harness').run();
 
 function countdownLatch(num, callback) {
   var count = num;

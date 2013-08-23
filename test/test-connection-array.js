@@ -1,33 +1,23 @@
-testLog = function(name, message) { console.log("Test case: "+name+":", message); };
-assert =  require('assert');
-amqp = require('../amqp');
-
-var options = global.options || {};
-if (process.argv[2]) {
-  var server = process.argv[2].split(':');
-  if (server[0]) options.host = server[0];
-  if (server[1]) options.port = parseInt(server[1]);
-}
+var harness = require('./harness');
 
 options.host = [options.host,"nohost"];
 
-var implOpts = {
-  defaultExchangeName: 'amq.topic'
-};
-
 var callbackCalled = false;
-    
-var connection;
 
-callbackCalled = false;
-
-connection = amqp.createConnection(options, implOpts);
+// 50% of the time, this will throw as it attempts to connect to 'nohost'. We want that, it should reconnect
+// to options.host the next time.
+try {
+  harness.run();    
+} catch(e) {
+  // nothing
+}
 
 connection.on('ready', function() {
-    connection.destroy();
+  callbackCalled = true;
+  connection.destroy();
 });
 
-
-
-
+connection.on('close', function() {
+  assert(callbackCalled);
+});
 

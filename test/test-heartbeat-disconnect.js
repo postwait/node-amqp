@@ -1,6 +1,6 @@
 global.options = { heartbeat: 1 };
 
-require('./harness');
+require('./harness').run();
 
 var closed = false;
 
@@ -24,7 +24,7 @@ connection.addListener('ready', function () {
 
   var e = connection.exchange();
 
-  var q = connection.queue('node-test-hearbeat', {autoDelete: true});
+  var q = connection.queue('node-test-heartbeat', {autoDelete: true});
   q.on('queueDeclareOk', function (args) {
     puts('queue opened.');
     assert.equal(0, args.messageCount);

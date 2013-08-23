@@ -1,4 +1,4 @@
-require('./harness');
+require('./harness').run();
 
 var recvCount = 0;
 var body = new Buffer([1,99,253,255,0,1,5,6]);

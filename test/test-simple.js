@@ -1,4 +1,4 @@
-require('./harness');
+require('./harness').run();
 
 var recvCount = 0;
 var body = "hello world";
@@ -12,7 +12,6 @@ connection.addListener('ready', function () {
         q.on('queueBindOk', function() {
           q.on('basicConsumeOk', function () {
             puts("publishing message");
-            debugger;
             exchange.publish("message.text", body, {contentType: 'text/plain'});
 
             setTimeout(function () {

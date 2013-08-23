@@ -1,4 +1,4 @@
-require('./harness');
+require('./harness').run();
 
 var recvCount = 0;
 var body = "hello world";
@@ -53,12 +53,12 @@ connection.addListener('ready', function () {
         } else {
           throw new Error('Too many message!');
         }
-      })
-    })
+      });
+    });
   });
 });
 
 
 process.addListener('exit', function () {
-  assert.equal(2, recvCount);
+  assert.equal(4, recvCount);
 });

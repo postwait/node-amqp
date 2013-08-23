@@ -1,6 +1,6 @@
 global.options = { heartbeat: 1 };
 
-require('./harness');
+require('./harness').run();
 
 var closed = false;
 
