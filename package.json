@@ -42,4 +42,8 @@
   {
     "optimist": "~0.6.0"
   }
+, "scripts" :
+  {
+    "test": "make test"
+  }
 }
