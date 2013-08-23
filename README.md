@@ -43,7 +43,7 @@ connection.on('ready', function () {
 `amqp.createConnection()` returns an instance of `amqp.Connection`, which is
 a subclass of `net.Stream`. All the event and methods which work on
 `net.Stream` can also be used on an `amqp.Connection` instance. (e.g., the
-events `'connected'` and `'closed'`.)
+events `'connect'` and `'close'`.)
 
 ### Connection options and URL
 
@@ -374,7 +374,7 @@ object for the second. The options are
 - `confirm`: boolean, default false.
     If set when connecting to a exchange the channel will send acks 
     for publishes. Published tasks will emit 'ack' when it is acked.
-- `autoDelete`: boolean, default false.
+- `autoDelete`: boolean, default true.
     If set, the exchange is deleted when there are no longer queues
     bound to it.
 - `noDeclare`: boolean, default false.
