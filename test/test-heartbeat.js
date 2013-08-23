@@ -12,7 +12,6 @@ setTimeout(function() {
   connection.options['heartbeat'] = 0;
   setTimeout(function() { 
     assert.ok(isClosed); 
-    q.destroy();
   }, 3500);
 }, 1000);
 

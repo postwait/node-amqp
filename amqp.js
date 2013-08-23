@@ -5,7 +5,7 @@ module.exports = {
   Connection: Connection,
   createConnection: function (options, implOptions, readyCallback) {
     var c = new Connection(options, implOptions, readyCallback);
-    c._connect();
+    c.connect();
     return c;
   }
 };

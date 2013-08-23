@@ -1,23 +1,33 @@
 var harness = require('./harness');
 
+// Test that connection handles an array of hostnames.
+// If given one, without an index (`this.hosti`), it will randomly pick one.
 options.host = [options.host,"nohost"];
+options.reconnect = true;
 
-var callbackCalled = false;
 
-// 50% of the time, this will throw as it attempts to connect to 'nohost'. We want that, it should reconnect
-// to options.host the next time.
-try {
-  harness.run();    
-} catch(e) {
-  // nothing
+for (var i = 0; i < options.host.length; i++){
+  test();
 }
 
-connection.on('ready', function() {
-  callbackCalled = true;
-  connection.destroy();
-});
+function test() {
+  var conn = harness.createConnection();
 
-connection.on('close', function() {
-  assert(callbackCalled);
-});
+  var callbackCalled = false;
+  conn.once('ready', function() {
+    callbackCalled = true;
+    conn.destroy();
+  });
+
+  conn.once('close', function() {
+    assert(callbackCalled);
+    callbackCalled = false;
+  });
+
+  conn.once('error', function(e) {
+    // If we get an error, it should be ENOTFOUND (bad dns);
+    assert(e.code === 'ENOTFOUND');
+    callbackCalled = true;
+  });
+}
 

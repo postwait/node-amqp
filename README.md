@@ -40,9 +40,9 @@ connection.on('ready', function () {
 `new amqp.Connection()` Instantiates a new connection. Use
 `connection.connect()` to connect to a server.
 
-`amqp.createConnection()` returns an instance of `amqp.Connection`, which is
-a subclass of `net.Stream`. All the event and methods which work on
-`net.Stream` can also be used on an `amqp.Connection` instance. (e.g., the
+`amqp.createConnection()` returns an instance of `amqp.Connection`, which contains
+an instance of `net.Socket` at its `socket` property. All events and methods which work on
+`net.Socket` can also be used on an `amqp.Connection` instance. (e.g., the
 events `'connect'` and `'close'`.)
 
 ### Connection options and URL
