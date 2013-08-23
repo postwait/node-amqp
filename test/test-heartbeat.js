@@ -2,15 +2,18 @@ global.options = { heartbeat: 1 };
 
 require('./harness').run();
 
-var closed = false;
+var isClosed = false, q;
 
 setTimeout(function() {
-  assert.ok(!closed);
+  assert.ok(!isClosed);
   // Change the local heartbeat interval (without changing the negotiated
   // interval).  This will cause the server to notice we've dropped off,
   // and close the connection.
   connection.options['heartbeat'] = 0;
-  setTimeout(function() { assert.ok(closed); }, 3500);
+  setTimeout(function() { 
+    assert.ok(isClosed); 
+    q.destroy();
+  }, 3500);
 }, 1000);
 
 connection.on('heartbeat', function() {
@@ -18,21 +21,20 @@ connection.on('heartbeat', function() {
 });
 connection.on('close', function() {
   puts("closed");
-  closed = true;
+  isClosed = true;
 });
 connection.addListener('ready', function () {
   puts("connected to " + connection.serverProperties.product);
 
-  var e = connection.exchange();
-
-  var q = connection.queue('node-test-heartbeat', {autoDelete: true});
+  q = connection.queue('node-test-heartbeat', {autoDelete: true});
   q.on('queueDeclareOk', function (args) {
     puts('queue opened.');
     assert.equal(0, args.messageCount);
     assert.equal(0, args.consumerCount);
 
-    q.bind(e, "#");
+    q.bind("#");
     q.subscribe(function(json) {
+      // We should not be subscribed to the queue, the heartbeat will peter out before.
       assert.ok(false);
     });
   });
