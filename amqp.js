@@ -870,7 +870,8 @@ function Connection (connectionArgs, options, readyCallback) {
   
   this.connectionAttemptScheduled = false;
   this._defaultExchange = null;
-  this.channelCounter = 0;
+  this.channelMax = 65536; // default AMQP maximum: unsigned short range
+  this.lastUsedChannelID = 0;
   this._sendBuffer = new Buffer(maxFrameBuffer);
 }
 exports.Connection = Connection;
@@ -1255,6 +1256,10 @@ Connection.prototype._onMethod = function (channel, method, args) {
           if (DEBUG) { debug("tweaking maxFrameBuffer to " + args.frameMax); }
           maxFrameBuffer = args.frameMax;
       }
+      if (args.channelMax) {
+          // @todo this should be eventually implemented, but works for RabbitMQ for now
+          throw 'ability to change channelMax from default is not implemented! server requests value:' + args.channelMax;
+      }
       // 5. We respond with connectionTuneOk
       this._sendMethod(0, methods.connectionTuneOk,
           { channelMax: 0
@@ -1493,6 +1498,32 @@ Connection.prototype._bodyToBuffer = function (body) {
   }
 };
 
+Connection.prototype.generateChannelID = function () {
+  var attemptCount = 0,
+      minChannelID = 1, // avoid channel 0
+      channelID;
+
+  while (attemptCount < this.channelMax) {
+    attemptCount += 1;
+
+    // actual new channel ID follows the last known one, avoiding channel 0
+    channelID = minChannelID + (this.lastUsedChannelID - minChannelID + attemptCount) % (this.channelMax - minChannelID);
+
+    // try again if already taken
+    if (this.channels[channelID]) {
+      continue;
+    }
+
+    // otherwise, remember this as the last used ID
+    this.lastUsedChannelID = channelID;
+
+    return channelID;
+  }
+
+  // this usually means developer error
+  // @todo handle better
+  throw 'ran out of unused channel IDs';
+}
 
 // Options
 // - passive (boolean)
@@ -1508,8 +1539,7 @@ Connection.prototype.queue = function (name /* options, openCallback */) {
     callback = arguments[1];
   }
 
-  this.channelCounter++;
-  var channel = this.channelCounter;
+  var channel = this.generateChannelID();
 
   var q = new Queue(this, channel, name, options, callback);
   this.channels[channel] = q;
@@ -1539,8 +1569,7 @@ Connection.prototype.exchange = function (name, options, openCallback) {
   if (!options) options = {};
   if (name != '' && options.type === undefined) options.type = 'topic';
 
-  this.channelCounter++;
-  var channel = this.channelCounter;
+  var channel = this.generateChannelID();
   var exchange = new Exchange(this, channel, name, options, openCallback);
   this.channels[channel] = exchange;
   this.exchanges[name] = exchange;
