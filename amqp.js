@@ -1501,13 +1501,17 @@ Connection.prototype._bodyToBuffer = function (body) {
 Connection.prototype.generateChannelID = function () {
   var attemptCount = 0,
       minChannelID = 1, // avoid channel 0
+      maxChannelID = this.channelMax,
       channelID;
 
   while (attemptCount < this.channelMax) {
     attemptCount += 1;
 
-    // actual new channel ID follows the last known one, avoiding channel 0
-    channelID = minChannelID + (this.lastUsedChannelID - minChannelID + attemptCount) % (this.channelMax - minChannelID);
+    // new suggested channel ID follows the last known one
+    channelID = this.lastUsedChannelID + attemptCount;
+
+    // keep suggested channel ID in bounds
+    channelID = minChannelID + (channelID - minChannelID) % (maxChannelID - minChannelID);
 
     // try again if already taken
     if (this.channels[channelID]) {
