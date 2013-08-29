@@ -21,10 +21,14 @@ connection.addListener('ready', function () {
                 puts("bind callback called");
                 assert.ok(true, "This callback should have be called, as the last of the sequential callbacks");}
             );
-            
+
+            setTimeout(function() { 
+                queue.destroy();
+                connection.destroy();
+            }, 2000);
         });
         
-        setTimeout(function() { connection.destroy();}, 2000);
+
     });
 });
   

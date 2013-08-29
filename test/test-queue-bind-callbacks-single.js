@@ -25,8 +25,9 @@ connection.addListener('ready', function () {
             setTimeout(function() {
                 assert.ok(callbackCalled, "Callback was not called");
                 puts("Single queue bind callback succeeded");
-                connection.destroy();},
-                2000);
+                queue.destroy();
+                connection.destroy();
+            }, 2000);
         });
     });
 });

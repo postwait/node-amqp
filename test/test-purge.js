@@ -39,10 +39,7 @@ connection.addListener('ready', function () {
             throw new Error('Too many message!');
            }
         });
-
       });
-
-
     });
   });
 });
