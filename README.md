@@ -1,16 +1,45 @@
 [![build status](https://secure.travis-ci.org/postwait/node-amqp.png)](http://travis-ci.org/postwait/node-amqp)
-# node-amqp
 
-IMPORTANT: This module only works with node v0.4.0 and later.
+# node-amqp
 
 This is a client for RabbitMQ (and maybe other servers?). It partially
 implements the 0.9.1 version of the AMQP protocol.
+
+## Table of Contents 
+
+- [Installation](#installation)
+- [Synopsis](#synopsis)
+- [Connection](#connection)
+  - [Connection options and URL](#connection-options-and-url)
+  - [connection.publish(queueName, body, options, callback)](#connectionpublishqueuename-body-options-callback)
+  - [connection.end()](#connectionend)
+- [Queue](#queue)
+  - [connection.queue(name, options, openCallback)](#connectionqueuename-options-opencallback)
+  - [queue.subscribe([options,] listener)](#queuesubscribeoptions-listener)
+  - [queue.subscribeRaw([options,] listener)](#queuesubscriberawoptions-listener)
+  - [queue.unsubscribe(consumerTag)](#queueunsubscribeconsumertag)
+  - [queue.shift([reject[, requeue]])](#queueshiftreject-requeue)
+  - [queue.bind([exchange,] routing)](#queuebindexchange-routing)
+  - [queue.unbind([exchange,] routing)](#queueunbindexchange-routing)
+  - [queue.bind_headers([exchange,] routing)](#queuebind_headersexchange-routing)
+  - [queue.destroy(options)](#queuedestroyoptions)
+- [Exchange](#exchange)
+  - [exchange.on('open', callback)](#exchangeon'open'-callback)
+  - [connection.exchange()](#connectionexchange)
+  - [connection.exchange(name, options={}, openCallback)](#connectionexchangename-options={}-opencallback)
+  - [exchange.publish(routingKey, message, options, callback)](#exchangepublishroutingkey-message-options-callback)
+  - [exchange.destroy(ifUnused = true)](#exchangedestroyifunused-=-true)
+  - [exchange.bind(srcExchange, routingKey [, callback])](#exchangebindsrcexchange-routingkey--callback)
+  - [exchange.unbind(srcExchange, routingKey [, callback])](#exchangeunbindsrcexchange-routingkey--callback)
+  - [exchange.bind_headers(exchange, routing [, bindCallback])](#exchangebind_headersexchange-routing--bindcallback)
 
 ## Installation
 
     npm install amqp
 
 ## Synopsis
+
+IMPORTANT: This module only works with node v0.4.0 and later.
 
 An example of connecting to a server and listening on a queue.
 
