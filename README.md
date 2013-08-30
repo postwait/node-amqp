@@ -1,16 +1,45 @@
 [![build status](https://secure.travis-ci.org/postwait/node-amqp.png)](http://travis-ci.org/postwait/node-amqp)
-# node-amqp
 
-IMPORTANT: This module only works with node v0.4.0 and later.
+# node-amqp
 
 This is a client for RabbitMQ (and maybe other servers?). It partially
 implements the 0.9.1 version of the AMQP protocol.
+
+## Table of Contents 
+
+- [Installation](#installation)
+- [Synopsis](#synopsis)
+- [Connection](#connection)
+  - [Connection options and URL](#connection-options-and-url)
+  - [connection.publish(queueName, body, options, callback)](#connectionpublishqueuename-body-options-callback)
+  - [connection.end()](#connectionend)
+- [Queue](#queue)
+  - [connection.queue(name, options, openCallback)](#connectionqueuename-options-opencallback)
+  - [queue.subscribe([options,] listener)](#queuesubscribeoptions-listener)
+  - [queue.subscribeRaw([options,] listener)](#queuesubscriberawoptions-listener)
+  - [queue.unsubscribe(consumerTag)](#queueunsubscribeconsumertag)
+  - [queue.shift([reject[, requeue]])](#queueshiftreject-requeue)
+  - [queue.bind([exchange,] routing)](#queuebindexchange-routing)
+  - [queue.unbind([exchange,] routing)](#queueunbindexchange-routing)
+  - [queue.bind_headers([exchange,] routing)](#queuebind_headersexchange-routing)
+  - [queue.destroy(options)](#queuedestroyoptions)
+- [Exchange](#exchange)
+  - [exchange.on('open', callback)](#exchangeon'open'-callback)
+  - [connection.exchange()](#connectionexchange)
+  - [connection.exchange(name, options={}, openCallback)](#connectionexchangename-options={}-opencallback)
+  - [exchange.publish(routingKey, message, options, callback)](#exchangepublishroutingkey-message-options-callback)
+  - [exchange.destroy(ifUnused = true)](#exchangedestroyifunused-=-true)
+  - [exchange.bind(srcExchange, routingKey [, callback])](#exchangebindsrcexchange-routingkey--callback)
+  - [exchange.unbind(srcExchange, routingKey [, callback])](#exchangeunbindsrcexchange-routingkey--callback)
+  - [exchange.bind_headers(exchange, routing [, bindCallback])](#exchangebind_headersexchange-routing--bindcallback)
 
 ## Installation
 
     npm install amqp
 
 ## Synopsis
+
+IMPORTANT: This module only works with node v0.4.0 and later.
 
 An example of connecting to a server and listening on a queue.
 
@@ -40,10 +69,10 @@ connection.on('ready', function () {
 `new amqp.Connection()` Instantiates a new connection. Use
 `connection.connect()` to connect to a server.
 
-`amqp.createConnection()` returns an instance of `amqp.Connection`, which is
-a subclass of `net.Stream`. All the event and methods which work on
-`net.Stream` can also be used on an `amqp.Connection` instance. (e.g., the
-events `'connected'` and `'closed'`.)
+`amqp.createConnection()` returns an instance of `amqp.Connection`, which contains
+an instance of `net.Socket` at its `socket` property. All events and methods which work on
+`net.Socket` can also be used on an `amqp.Connection` instance. (e.g., the
+events `'connect'` and `'close'`.)
 
 ### Connection options and URL
 
@@ -154,11 +183,14 @@ include a 'routingKey' key in the JSON payload.  If the key
 deliveryTag of the incoming message will be placed in the JSON payload.
 
 
-### connection.publish(queueName, body)
+### connection.publish(queueName, body, options, callback)
 
 Publishes a message to the default exchange; if the defaultExchange is
 left as `''`, this effectively publishes the message to the queue
 named.
+
+This method proxies to the default exchange's `publish` method and parameters are passed
+through untouched.
 
 ### connection.end()
 
@@ -374,7 +406,7 @@ object for the second. The options are
 - `confirm`: boolean, default false.
     If set when connecting to a exchange the channel will send acks 
     for publishes. Published tasks will emit 'ack' when it is acked.
-- `autoDelete`: boolean, default false.
+- `autoDelete`: boolean, default true.
     If set, the exchange is deleted when there are no longer queues
     bound to it.
 - `noDeclare`: boolean, default false.

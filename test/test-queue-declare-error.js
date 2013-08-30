@@ -1,4 +1,4 @@
-helper = require('./harness');
+helper = require('./harness').run();
 
 connection.removeListener('error', errorCallback);
 
