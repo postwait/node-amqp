@@ -154,11 +154,14 @@ include a 'routingKey' key in the JSON payload.  If the key
 deliveryTag of the incoming message will be placed in the JSON payload.
 
 
-### connection.publish(queueName, body)
+### connection.publish(queueName, body, options, callback)
 
 Publishes a message to the default exchange; if the defaultExchange is
 left as `''`, this effectively publishes the message to the queue
 named.
+
+This method proxies to the default exchange's `publish` method and parameters are passed
+through untouched.
 
 ### connection.end()
 
