@@ -1,4 +1,4 @@
-require('./harness');
+require('./harness').run();
 var testName = __filename.replace(__dirname+'/','').replace('.js','');
 var msgsReceived = 0;
 

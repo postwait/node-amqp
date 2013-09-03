@@ -1,1 +1,3 @@
 lib/amqp/constants-generated.js
+node_modules/
+.DS_Store
