@@ -89,7 +89,7 @@ objects as parameters.  The first options object has these defaults:
            }
     }
 
-An example `options` object for creting an SSL connection has these properties:
+An example `options` object for creating an SSL connection has these properties:
 
     { host: 'localhost'
     , port: 5671
