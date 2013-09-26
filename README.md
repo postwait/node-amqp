@@ -153,7 +153,7 @@ var conn =
                         {defaultExchangeName: "amq.topic"});
 ```
 
- If the "reconnect" option is true, then the driver will attempt to reconnect using the
+ If the `reconnect` option is true, then the driver will attempt to reconnect using the
  configured strategy *any time* the connection becomes unavailable.  If this is not
  appropriate for your application, set this option to false.
 
@@ -161,8 +161,8 @@ var conn =
  reconnections will be attempted.  Valid strategies are "linear" and "exponential".
 
  Backoff times are in milliseconds.  Under the "linear" strategy, the driver will pause
- 'reconnectBackoffTime' ms before the first attempt, and between each subsequent attempt.
- Under the "exponential" strategy, the driver will pause 'reconnectBackoffTime' ms before
+ `reconnectBackoffTime` ms before the first attempt, and between each subsequent attempt.
+ Under the "exponential" strategy, the driver will pause `reconnectBackoffTime` ms before
  the first attempt, and will double the previous pause between each subsequent attempt
  until a connection is reestablished.
 
@@ -172,11 +172,11 @@ must be completed before any communication can begin. `net.Connection` does
 the handshake automatically and emits the `'ready'` event when the handshaking
 is complete.
 
-For backward compatability, two additional options are available. Older
+For backward compatibility, two additional options are available. Older
 versions of this library placed the routingKey and deliveryTag for incoming
 messages into the JSON payload received. This module was changed to
 leave inbound JSON payloads pristine.  Some applications may need the
-old behaviour. If the key 'routingKeyInPayload' is set to true in the
+old behaviour. If the key `routingKeyInPayload` is set to true in the
 connection `options`, the messages resulting from a subscribe call will
 include a 'routingKey' key in the JSON payload.  If the key
 `deliveryTagInPayload` is set to true in the connection options, the
@@ -239,7 +239,7 @@ Returns a reference to a queue. The options are
     won't be deleted.
 - `noDeclare`: boolean, default false.
     If set, the queue will not be declared, this will allow a queue to be
-    deleted if you dont know its previous options.
+    deleted if you don't know its previous options.
 - `arguments`: a map of additional arguments to pass in when creating a queue.
 - `closeChannelOnUnsubscribe` : a boolean when true the channel will close on 
     unsubscrube, default false.
@@ -265,19 +265,19 @@ messages as fast as they come in.
 
 You can also use the prefetchCount option to increase the window of how
 many messages the server will send you before you need to ack (quality of service).
-'{ ack: true, prefetchCount: 1 }' is the default and will only send you one
+`{ ack: true, prefetchCount: 1 }` is the default and will only send you one
 message before you ack. Setting prefetchCount to 0 will make that window unlimited.
 
-The 'routingKeyInPayload' and 'deliveryKeyInPayload' options determine
+The `routingKeyInPayload` and `deliveryKeyInPayload` options determine
 if the reception process will inject the routingKey and deliveryKey,
 respectively, into the JSON payload received.  These default to unset
 thus adopting the parent connection's values (which default to false).
-Setting these to true provide backward compability for older
+Setting these to true provide backward compatibility for older
 applications.
 
-The 'exclusive' option will subscribe to the queue in exclusive mode. Only one
+The `exclusive` option will subscribe to the queue in exclusive mode. Only one
 subscriber is allowed at a time, and subsequent attempts to subscribe to the
-same queue will result in an exception. This option differes from the exclusive
+same queue will result in an exception. This option differs from the exclusive
 option passed when creating in a queue in that the queue itself is not exclusive,
 only the consumers. This means that long lived durable queues can be used
 as exclusive queues.
