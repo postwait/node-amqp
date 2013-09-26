@@ -132,6 +132,22 @@ var conn =
 Options provided as individual fields will override values given in
 the URL.
 
+
+You can also specify additional client properties for your connection
+by setting the `clientProperties` field on the `options` object.
+
+    { clientProperties: { applicationName: 'myApplication'
+                        }
+    }
+
+By default the following client properties are set
+
+    { product: 'node-amqp'
+    , platform: 'node-' + process.version
+    , version: nodeAMQPVersion
+    }
+
+
 The second options are specific to the node AMQP implementation. It has
 the default values:
 
