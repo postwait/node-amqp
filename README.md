@@ -179,7 +179,7 @@ leave inbound JSON payloads pristine.  Some applications may need the
 old behaviour. If the key 'routingKeyInPayload' is set to true in the
 connection `options`, the messages resulting from a subscribe call will
 include a 'routingKey' key in the JSON payload.  If the key
-'devliryTagInPayload' is set to true in the connection options, the
+`deliveryTagInPayload` is set to true in the connection options, the
 deliveryTag of the incoming message will be placed in the JSON payload.
 
 
