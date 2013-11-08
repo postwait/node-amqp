@@ -11,7 +11,7 @@ implements the 0.9.1 version of the AMQP protocol.
 - [Synopsis](#synopsis)
 - [Connection](#connection)
   - [Connection options and URL](#connection-options-and-url)
-  - [connection.publish(queueName, body, options, callback)](#connectionpublishqueuename-body-options-callback)
+  - [connection.publish(routingKey, body, options, callback)](#connectionpublishroutingkey-body-options-callback)
   - [connection.end()](#connectionend)
 - [Queue](#queue)
   - [connection.queue(name, options, openCallback)](#connectionqueuename-options-opencallback)
@@ -199,11 +199,10 @@ include a 'routingKey' key in the JSON payload.  If the key
 deliveryTag of the incoming message will be placed in the JSON payload.
 
 
-### connection.publish(queueName, body, options, callback)
+### connection.publish(routingKey, body, options, callback)
 
 Publishes a message to the default exchange; if the defaultExchange is
-left as `''`, this effectively publishes the message to the queue
-named.
+left as `''`, this effectively publishes the message on the routing key named.
 
 This method proxies to the default exchange's `publish` method and parameters are passed
 through untouched.
