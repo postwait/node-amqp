@@ -18,13 +18,14 @@
   , { "name" : "James Carr" }
   , { "name" : "David Barshow" }
   , { "name" : "Jason Pincin" }
+  , { "name" : "Arto Vuori" }
   ]
 , "repository" :
   { "type" : "git"
-  , "url" : "git://github.com/postwait/node-amqp.git"
+  , "url" : "git://github.com/avuori/node-amqp.git"
   }
 , "bugs" :
-  { "url" : "http://github.com/postwait/node-amqp/issues"
+  { "url" : "http://github.com/avuori/node-amqp/issues"
   }
 , "main" : "./amqp"
 , "engines" : { "node" : "0.4 || 0.6 || 0.8 || 0.9 || 0.10" }
