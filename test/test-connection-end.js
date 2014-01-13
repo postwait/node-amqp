@@ -1,5 +1,4 @@
 require('./harness').run();
-var assert = require('assert');
 var cbcnt = 0;
 
 // Only way to test if we disconnect cleanly is to look for
@@ -14,12 +13,13 @@ connection._onMethod = function (channel, method, args) {
 
 // And verify that we do really call end on the socket.
 connection.on('end', function() {
-	cbcnt++;
+  cbcnt++;
 });
 
 connection.on('ready', function(){
-    connection.end();
+  connection.end();
 });
+
 process.addListener('exit', function () {
   assert.equal(cbcnt, 2);
 });
