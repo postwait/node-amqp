@@ -265,7 +265,7 @@ Returns a reference to a queue. The options are
 An easy subscription command. It works like this
 
 ```javascript
-q.subscribe(function (message, headers, deliveryInfo) {
+q.subscribe(function (message, headers, deliveryInfo, messageObject) {
   console.log('Got a message with routing key ' + deliveryInfo.routingKey);
 });
     
@@ -297,6 +297,11 @@ same queue will result in an exception. This option differs from the exclusive
 option passed when creating in a queue in that the queue itself is not exclusive,
 only the consumers. This means that long lived durable queues can be used
 as exclusive queues.
+
+The `messageObject` can be used to acknowledge a given message using: 
+```javascript
+messageObject.acknowledge(false); // use true if you want to acknowledge all previous messages of the queue
+``` 
 
 This method will emit `'basicQosOk'` when ready.
 
