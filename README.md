@@ -341,7 +341,7 @@ message if no arguments are provided or if `reject` is false. If
 the queue if `requeue` is true, otherwise it will be discarded.
 
 
-### queue.bind([exchange,] routing)
+### queue.bind([exchange,] routing[, callback])
 
 This method binds a queue to an exchange.  Until a queue is
 bound it will not receive any messages, unless they are sent through
@@ -350,6 +350,10 @@ the unnamed exchange (see `defaultExchangeName` above).
 If the `exchange` argument is left out `'amq.topic'` will be used.
 
 This method will emit `'queueBindOk'` when complete.
+
+If `callback` is provided it will also be triggered when complete,
+note that if you perform multiple bindings, only the last callback
+will be called.
 
 
 ### queue.unbind([exchange,] routing)
