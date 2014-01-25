@@ -120,6 +120,11 @@ exec('which rabbitmqctl', function(err,res){
               }
             });
           });
+          // also create a temp queue, which shouldn't be recreated on reconnection,
+          // because declaring amq.* named queues are forbidden
+          connection.queue('', {autoDelete: true, durable: false, exclusive: true}, function (q) {
+            queue.bind(exchange, '#');
+          });
         } else if (readyCount === 2) {
           // Ensure that the backoff timeline is approximately correct.  We
           // expect a 500ms backoff, followed by a 1000ms backoff, followed
