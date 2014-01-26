@@ -92,9 +92,8 @@ exec('which rabbitmqctl', function(err,res){
           exchange = connection.exchange('node-reconnect-exchange', {type: 'topic', durable: true});
           // Now, create a queue.  Bind it to an exchange, and pump a few messages
           // in to it.  This is just to prove that the queue is working *before*
-          // we disconnect it.  Remember to make it durable for the same reason
-          // as the exchange.
-          connection.queue('node-reconnect-queue', {autoDelete: false, durable: true}, function (q) {
+          // we disconnect it.
+          connection.queue('', {autoDelete: true, durable: false, exclusive: true}, function (q) {
             queue = q;
             queue.on('queueBindOk', function () {
               queue.once('basicConsumeOk', function () {
@@ -115,7 +114,7 @@ exec('which rabbitmqctl', function(err,res){
                   exchange.publish('node-reconnect', 'three');
                   console.log('Message three published');
                 });
-              } else if (messageCount === 4) {
+              } else if (messageCount === 6) {
                 return done();
               }
             });
@@ -166,8 +165,8 @@ exec('which rabbitmqctl', function(err,res){
     process.addListener('exit', function () {
       // 1 ready on initial connection, 1 on reconnection
       assert.equal(2, readyCount);
-      // 4 messages sent and received
-      assert.equal(4, messageCount);
+      // 6 messages sent and received
+      assert.equal(6, messageCount);
     });
   }
 })
