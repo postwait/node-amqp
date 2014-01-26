@@ -120,10 +120,15 @@ exec('which rabbitmqctl', function(err,res){
               }
             });
           });
+
           // also create a temp queue, which shouldn't be recreated on reconnection,
-          // because declaring amq.* named queues are forbidden
+          // because declaring amq.* named queues is forbidden
+          var tempQueueMsgCount = 0;
           connection.queue('', {autoDelete: true, durable: false, exclusive: true}, function (q) {
-            queue.bind(exchange, '#');
+            q.bind(exchange, 'tmp.*');
+            q.subscribe(function (message) {
+              tempQueueMsgCount += 1;
+            });
           });
         } else if (readyCount === 2) {
           // Ensure that the backoff timeline is approximately correct.  We
