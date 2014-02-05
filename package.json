@@ -42,4 +42,8 @@
     "optimist": "~0.6.0"
   , "longjohn": "~0.2.1"
   }
+, "scripts" :
+  {
+    "test": "make test"
+  }
 }
