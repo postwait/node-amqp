@@ -258,7 +258,7 @@ Returns a reference to a queue. The options are
     deleted if you don't know its previous options.
 - `arguments`: a map of additional arguments to pass in when creating a queue.
 - `closeChannelOnUnsubscribe` : a boolean when true the channel will close on 
-    unsubscrube, default false.
+    unsubscribe, default false.
 
 ### queue.subscribe([options,] listener)
 
