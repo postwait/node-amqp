@@ -28,7 +28,7 @@ implements the 0.9.1 version of the AMQP protocol.
   - [connection.exchange()](#connectionexchange)
   - [connection.exchange(name, options={}, openCallback)](#connectionexchangename-options={}-opencallback)
   - [exchange.publish(routingKey, message, options, callback)](#exchangepublishroutingkey-message-options-callback)
-  - [exchange.destroy(ifUnused = true)](#exchangedestroyifunused-=-true)
+  - [exchange.destroy(ifUnused = true)](#exchangedestroyifunused--true)
   - [exchange.bind(srcExchange, routingKey [, callback])](#exchangebindsrcexchange-routingkey--callback)
   - [exchange.unbind(srcExchange, routingKey [, callback])](#exchangeunbindsrcexchange-routingkey--callback)
   - [exchange.bind_headers(exchange, routing [, bindCallback])](#exchangebind_headersexchange-routing--bindcallback)
