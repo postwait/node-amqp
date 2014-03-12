@@ -141,8 +141,14 @@ You can also specify additional client properties for your connection
 by setting the `clientProperties` field on the `options` object.
 
     { clientProperties: { applicationName: 'myApplication'
+                        , capabilities: { consumer_cancel_notify: true
+                                        }
                         }
     }
+
+If the `consumer_cancel_notify` capability is set to `true` (as above), then
+RabbitMQ's [Consumer Cancel Notification](http://www.rabbitmq.com/consumer-cancel.html)
+feature will be enabled.
 
 By default the following client properties are set
 
@@ -309,6 +315,11 @@ The `messageObject` can be used to acknowledge a given message using:
 ```javascript
 messageObject.acknowledge(false); // use true if you want to acknowledge all previous messages of the queue
 ``` 
+If the `consumer_cancel_notify` capability was enabled when the connection was
+created, the queue will emit `basicCancel` upon receiving a consumer cancel
+notification from the server.  The queue's channel will be automatically closed.
+In a clustered environment, developers may want to consider automatically
+re-subscribing to the queue on this event.
 
 This method will emit `'basicQosOk'` when ready.
 
@@ -405,6 +416,9 @@ the queue will only be deleted if there are no consumers. If
 +options.ifEmpty+ is true, the queue will only be deleted if it has no
 messages.
 
+Note: the successful destruction of a queue will cause a consumer cancel 
+notification to be emitted (for clients who have enabled the 
+`consumer_cancel_notify` option when creating the connection).
 
 
 
