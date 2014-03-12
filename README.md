@@ -12,7 +12,7 @@ implements the 0.9.1 version of the AMQP protocol.
 - [Connection](#connection)
   - [Connection options and URL](#connection-options-and-url)
   - [connection.publish(routingKey, body, options, callback)](#connectionpublishroutingkey-body-options-callback)
-  - [connection.end()](#connectionend)
+  - [connection.disconnect()](#connectiondisconnect)
 - [Queue](#queue)
   - [connection.queue(name, options, openCallback)](#connectionqueuename-options-opencallback)
   - [queue.subscribe([options,] listener)](#queuesubscribeoptions-listener)
@@ -217,11 +217,10 @@ left as `''`, this effectively publishes the message on the routing key named.
 This method proxies to the default exchange's `publish` method and parameters are passed
 through untouched.
 
-### connection.end()
+### connection.disconnect()
 
-`amqp.Connection` is derived from `net.Stream` and has all the same methods.
-So use `connection.end()` to terminate a connection gracefully.
-
+Cleanly disconnect from the server, the socket will not be closed until the
+server responds to the disconnection request.
 
 
 
