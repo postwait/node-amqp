@@ -28,7 +28,7 @@ implements the 0.9.1 version of the AMQP protocol.
   - [connection.exchange()](#connectionexchange)
   - [connection.exchange(name, options={}, openCallback)](#connectionexchangename-options=%7B%7D-opencallback)
   - [exchange.publish(routingKey, message, options, callback)](#exchangepublishroutingkey-message-options-callback)
-  - [exchange.destroy(ifUnused = true)](#exchangedestroyifunused-=-true)
+  - [exchange.destroy(ifUnused = true)](#exchangedestroyifunused--true)
   - [exchange.bind(srcExchange, routingKey [, callback])](#exchangebindsrcexchange-routingkey--callback)
   - [exchange.unbind(srcExchange, routingKey [, callback])](#exchangeunbindsrcexchange-routingkey--callback)
   - [exchange.bind_headers(exchange, routing [, bindCallback])](#exchangebind_headersexchange-routing--bindcallback)
@@ -258,7 +258,7 @@ Returns a reference to a queue. The name parameter is required, unlike pika whic
     deleted if you don't know its previous options.
 - `arguments`: a map of additional arguments to pass in when creating a queue.
 - `closeChannelOnUnsubscribe` : a boolean when true the channel will close on 
-    unsubscrube, default false.
+    unsubscribe, default false.
 
 ### queue.subscribe([options,] listener)
 
@@ -423,9 +423,6 @@ object for the second. The options are
     durable.  Durable exchanges remain active when a server restarts.
     Non-durable exchanges (transient exchanges) are purged if/when a
     server restarts.
-- `confirm`: boolean, default false.
-    If set when connecting to a exchange the channel will send acks 
-    for publishes. Published tasks will emit 'ack' when it is acked.
 - `autoDelete`: boolean, default true.
     If set, the exchange is deleted when there are no longer queues
     bound to it.
