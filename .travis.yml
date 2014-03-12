@@ -4,3 +4,8 @@ node_js:
   - "0.10"
   - "0.8"
   - "0.6"
+
+services: rabbitmq
+
+notifications:
+  email: false
