@@ -86,6 +86,7 @@ objects as parameters.  The first options object has these defaults:
     , connectionTimeout: 0,
     , authMechanism: 'AMQPLAIN'
     , vhost: '/'
+    , noDelay: true
     , ssl: { enabled : false
            }
     }
