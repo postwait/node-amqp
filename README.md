@@ -83,6 +83,7 @@ objects as parameters.  The first options object has these defaults:
     , port: 5672
     , login: 'guest'
     , password: 'guest'
+    , connectionTimeout: 10000,
     , authMechanism: 'AMQPLAIN'
     , vhost: '/'
     , ssl: { enabled : false
