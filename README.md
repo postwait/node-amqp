@@ -120,6 +120,10 @@ of the path, i.e., the only unencoded slash is that leading; leaving
 the path entirely empty indicates that the vhost `/`, as
 above, should be used (it could also be supplied as the path `/%2f`).
 
+The `heartbeat` setting sets the heartbeat interval (in seconds) for
+the connection.  There is no default for this option meaning no
+heartbeating is taking place.
+
 This URL is supplied as the field `url` in the options; for example
 
 ```javascript
