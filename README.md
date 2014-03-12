@@ -85,6 +85,7 @@ objects as parameters.  The first options object has these defaults:
     , password: 'guest'
     , authMechanism: 'AMQPLAIN'
     , vhost: '/'
+    , heartbeat: 580
     , ssl: { enabled : false
            }
     }
@@ -97,6 +98,7 @@ An example `options` object for creating an SSL connection has these properties:
     , password: 'guest'
     , authMechanism: 'AMQPLAIN'
     , vhost: '/'
+    , heartbeat: 580
     , ssl: { enabled : true
            , keyFile : '/path/to/key/file'
            , certFile : '/path/to/cert/file'
@@ -119,6 +121,10 @@ Note that the vhost must be URL-encoded and appear as the only segment
 of the path, i.e., the only unencoded slash is that leading; leaving
 the path entirely empty indicates that the vhost `/`, as
 above, should be used (it could also be supplied as the path `/%2f`).
+
+The `heartbeat` setting sets the heartbeat preference for the connection. The
+default of 580 seconds is a good mix between robustness (dead connections
+are properly reaped) and efficiency. Set to `0` to disable heartbeats.
 
 This URL is supplied as the field `url` in the options; for example
 
