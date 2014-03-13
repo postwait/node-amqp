@@ -18,6 +18,7 @@
   , { "name" : "James Carr" }
   , { "name" : "David Barshow" }
   , { "name" : "Jason Pincin" }
+  , { "name" : "Carl Hörberg" }
   ]
 , "repository" :
   { "type" : "git"
