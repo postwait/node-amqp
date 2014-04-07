@@ -14,7 +14,7 @@ implements the 0.9.1 version of the AMQP protocol.
   - [connection.publish(routingKey, body, options, callback)](#connectionpublishroutingkey-body-options-callback)
   - [connection.disconnect()](#connectiondisconnect)
 - [Queue](#queue)
-  - [connection.queue(name, options, openCallback)](#connectionqueuename-options-opencallback)
+  - [connection.queue(name[, options][, openCallback])](#connectionqueuename-options-opencallback)
   - [queue.subscribe([options,] listener)](#queuesubscribeoptions-listener)
   - [queue.subscribeRaw([options,] listener)](#queuesubscriberawoptions-listener)
   - [queue.unsubscribe(consumerTag)](#queueunsubscribeconsumertag)
@@ -51,7 +51,7 @@ var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 // Wait for connection to become established.
 connection.on('ready', function () {
   // Use the default 'amq.topic' exchange
-  connection.queue('my-queue', function(q){
+  connection.queue('my-queue', function (q) {
       // Catch all messages
       q.bind('#');
     
@@ -241,7 +241,7 @@ var q = connection.queue('my-queue', function (queue) {
 Declaring a queue with an empty name will make the server generate a
 random name.
 
-### connection.queue(name, options, openCallback)
+### connection.queue(name[, options][, openCallback])
 
 Returns a reference to a queue. The name parameter is required, unlike pika which defaults the name to `''`. The options are
 
