@@ -11,24 +11,24 @@ implements the 0.9.1 version of the AMQP protocol.
 - [Synopsis](#synopsis)
 - [Connection](#connection)
   - [Connection options and URL](#connection-options-and-url)
-  - [connection.publish(queueName, body, options, callback)](#connectionpublishqueuename-body-options-callback)
-  - [connection.end()](#connectionend)
+  - [connection.publish(routingKey, body, options, callback)](#connectionpublishroutingkey-body-options-callback)
+  - [connection.disconnect()](#connectiondisconnect)
 - [Queue](#queue)
-  - [connection.queue(name, options, openCallback)](#connectionqueuename-options-opencallback)
+  - [connection.queue(name[, options][, openCallback])](#connectionqueuename-options-opencallback)
   - [queue.subscribe([options,] listener)](#queuesubscribeoptions-listener)
   - [queue.subscribeRaw([options,] listener)](#queuesubscriberawoptions-listener)
   - [queue.unsubscribe(consumerTag)](#queueunsubscribeconsumertag)
   - [queue.shift([reject[, requeue]])](#queueshiftreject-requeue)
-  - [queue.bind([exchange,] routing)](#queuebindexchange-routing)
+  - [queue.bind([exchange,] routing)](#queuebindexchange-routing-callback)
   - [queue.unbind([exchange,] routing)](#queueunbindexchange-routing)
   - [queue.bind_headers([exchange,] routing)](#queuebind_headersexchange-routing)
   - [queue.destroy(options)](#queuedestroyoptions)
 - [Exchange](#exchange)
-  - [exchange.on('open', callback)](#exchangeon'open'-callback)
+  - [exchange.on('open', callback)](#exchangeon%27open%27-callback)
   - [connection.exchange()](#connectionexchange)
-  - [connection.exchange(name, options={}, openCallback)](#connectionexchangename-options={}-opencallback)
+  - [connection.exchange(name, options={}, openCallback)](#connectionexchangename-options=%7B%7D-opencallback)
   - [exchange.publish(routingKey, message, options, callback)](#exchangepublishroutingkey-message-options-callback)
-  - [exchange.destroy(ifUnused = true)](#exchangedestroyifunused-=-true)
+  - [exchange.destroy(ifUnused = true)](#exchangedestroyifunused--true)
   - [exchange.bind(srcExchange, routingKey [, callback])](#exchangebindsrcexchange-routingkey--callback)
   - [exchange.unbind(srcExchange, routingKey [, callback])](#exchangeunbindsrcexchange-routingkey--callback)
   - [exchange.bind_headers(exchange, routing [, bindCallback])](#exchangebind_headersexchange-routing--bindcallback)
@@ -51,7 +51,7 @@ var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
 // Wait for connection to become established.
 connection.on('ready', function () {
   // Use the default 'amq.topic' exchange
-  connection.queue('my-queue', function(q){
+  connection.queue('my-queue', function (q) {
       // Catch all messages
       q.bind('#');
     
@@ -83,8 +83,10 @@ objects as parameters.  The first options object has these defaults:
     , port: 5672
     , login: 'guest'
     , password: 'guest'
+    , connectionTimeout: 0,
     , authMechanism: 'AMQPLAIN'
     , vhost: '/'
+    , noDelay: true
     , ssl: { enabled : false
            }
     }
@@ -120,6 +122,10 @@ of the path, i.e., the only unencoded slash is that leading; leaving
 the path entirely empty indicates that the vhost `/`, as
 above, should be used (it could also be supplied as the path `/%2f`).
 
+The `heartbeat` setting sets the heartbeat interval (in seconds) for
+the connection.  There is no default for this option meaning no
+heartbeating is taking place.
+
 This URL is supplied as the field `url` in the options; for example
 
 ```javascript
@@ -131,6 +137,28 @@ var conn =
 
 Options provided as individual fields will override values given in
 the URL.
+
+
+You can also specify additional client properties for your connection
+by setting the `clientProperties` field on the `options` object.
+
+    { clientProperties: { applicationName: 'myApplication'
+                        , capabilities: { consumer_cancel_notify: true
+                                        }
+                        }
+    }
+
+If the `consumer_cancel_notify` capability is set to `true` (as above), then
+RabbitMQ's [Consumer Cancel Notification](http://www.rabbitmq.com/consumer-cancel.html)
+feature will be enabled.
+
+By default the following client properties are set
+
+    { product: 'node-amqp'
+    , platform: 'node-' + process.version
+    , version: nodeAMQPVersion
+    }
+
 
 The second options are specific to the node AMQP implementation. It has
 the default values:
@@ -153,7 +181,7 @@ var conn =
                         {defaultExchangeName: "amq.topic"});
 ```
 
- If the "reconnect" option is true, then the driver will attempt to reconnect using the
+ If the `reconnect` option is true, then the driver will attempt to reconnect using the
  configured strategy *any time* the connection becomes unavailable.  If this is not
  appropriate for your application, set this option to false.
 
@@ -161,8 +189,8 @@ var conn =
  reconnections will be attempted.  Valid strategies are "linear" and "exponential".
 
  Backoff times are in milliseconds.  Under the "linear" strategy, the driver will pause
- 'reconnectBackoffTime' ms before the first attempt, and between each subsequent attempt.
- Under the "exponential" strategy, the driver will pause 'reconnectBackoffTime' ms before
+ `reconnectBackoffTime` ms before the first attempt, and between each subsequent attempt.
+ Under the "exponential" strategy, the driver will pause `reconnectBackoffTime` ms before
  the first attempt, and will double the previous pause between each subsequent attempt
  until a connection is reestablished.
 
@@ -172,31 +200,29 @@ must be completed before any communication can begin. `net.Connection` does
 the handshake automatically and emits the `'ready'` event when the handshaking
 is complete.
 
-For backward compatability, two additional options are available. Older
+For backward compatibility, two additional options are available. Older
 versions of this library placed the routingKey and deliveryTag for incoming
 messages into the JSON payload received. This module was changed to
 leave inbound JSON payloads pristine.  Some applications may need the
-old behaviour. If the key 'routingKeyInPayload' is set to true in the
+old behaviour. If the key `routingKeyInPayload` is set to true in the
 connection `options`, the messages resulting from a subscribe call will
 include a 'routingKey' key in the JSON payload.  If the key
-'devliryTagInPayload' is set to true in the connection options, the
+`deliveryTagInPayload` is set to true in the connection options, the
 deliveryTag of the incoming message will be placed in the JSON payload.
 
 
-### connection.publish(queueName, body, options, callback)
+### connection.publish(routingKey, body, options, callback)
 
 Publishes a message to the default exchange; if the defaultExchange is
-left as `''`, this effectively publishes the message to the queue
-named.
+left as `''`, this effectively publishes the message on the routing key named.
 
 This method proxies to the default exchange's `publish` method and parameters are passed
 through untouched.
 
-### connection.end()
+### connection.disconnect()
 
-`amqp.Connection` is derived from `net.Stream` and has all the same methods.
-So use `connection.end()` to terminate a connection gracefully.
-
+Cleanly disconnect from the server, the socket will not be closed until the
+server responds to the disconnection request.
 
 
 
@@ -215,9 +241,9 @@ var q = connection.queue('my-queue', function (queue) {
 Declaring a queue with an empty name will make the server generate a
 random name.
 
-### connection.queue(name, options, openCallback)
+### connection.queue(name[, options][, openCallback])
 
-Returns a reference to a queue. The options are
+Returns a reference to a queue. The name parameter is required, unlike pika which defaults the name to `''`. The options are
 
 - `passive`: boolean, default false.
     If set, the server will not create the queue.  The client can use
@@ -239,17 +265,17 @@ Returns a reference to a queue. The options are
     won't be deleted.
 - `noDeclare`: boolean, default false.
     If set, the queue will not be declared, this will allow a queue to be
-    deleted if you dont know its previous options.
+    deleted if you don't know its previous options.
 - `arguments`: a map of additional arguments to pass in when creating a queue.
 - `closeChannelOnUnsubscribe` : a boolean when true the channel will close on 
-    unsubscrube, default false.
+    unsubscribe, default false.
 
 ### queue.subscribe([options,] listener)
 
 An easy subscription command. It works like this
 
 ```javascript
-q.subscribe(function (message, headers, deliveryInfo) {
+q.subscribe(function (message, headers, deliveryInfo, messageObject) {
   console.log('Got a message with routing key ' + deliveryInfo.routingKey);
 });
     
@@ -265,22 +291,35 @@ messages as fast as they come in.
 
 You can also use the prefetchCount option to increase the window of how
 many messages the server will send you before you need to ack (quality of service).
-'{ ack: true, prefetchCount: 1 }' is the default and will only send you one
+`{ ack: true, prefetchCount: 1 }` is the default and will only send you one
 message before you ack. Setting prefetchCount to 0 will make that window unlimited.
+If this option is used `q.shift()` should not be called. Instead the listener 
+function should take four parameters `(message, headers, deliveryInfo, ack)` and
+`ack.acknowledge()` should be called to ack a single message.
 
-The 'routingKeyInPayload' and 'deliveryKeyInPayload' options determine
+The `routingKeyInPayload` and `deliveryKeyInPayload` options determine
 if the reception process will inject the routingKey and deliveryKey,
 respectively, into the JSON payload received.  These default to unset
 thus adopting the parent connection's values (which default to false).
-Setting these to true provide backward compability for older
+Setting these to true provide backward compatibility for older
 applications.
 
-The 'exclusive' option will subscribe to the queue in exclusive mode. Only one
+The `exclusive` option will subscribe to the queue in exclusive mode. Only one
 subscriber is allowed at a time, and subsequent attempts to subscribe to the
-same queue will result in an exception. This option differes from the exclusive
+same queue will result in an exception. This option differs from the exclusive
 option passed when creating in a queue in that the queue itself is not exclusive,
 only the consumers. This means that long lived durable queues can be used
 as exclusive queues.
+
+The `messageObject` can be used to acknowledge a given message using: 
+```javascript
+messageObject.acknowledge(false); // use true if you want to acknowledge all previous messages of the queue
+``` 
+If the `consumer_cancel_notify` capability was enabled when the connection was
+created, the queue will emit `basicCancel` upon receiving a consumer cancel
+notification from the server.  The queue's channel will be automatically closed.
+In a clustered environment, developers may want to consider automatically
+re-subscribing to the queue on this event.
 
 This method will emit `'basicQosOk'` when ready.
 
@@ -325,7 +364,7 @@ message if no arguments are provided or if `reject` is false. If
 the queue if `requeue` is true, otherwise it will be discarded.
 
 
-### queue.bind([exchange,] routing)
+### queue.bind([exchange,] routing[, callback])
 
 This method binds a queue to an exchange.  Until a queue is
 bound it will not receive any messages, unless they are sent through
@@ -334,6 +373,10 @@ the unnamed exchange (see `defaultExchangeName` above).
 If the `exchange` argument is left out `'amq.topic'` will be used.
 
 This method will emit `'queueBindOk'` when complete.
+
+If `callback` is provided it will also be triggered when complete,
+note that if you perform multiple bindings, only the last callback
+will be called.
 
 
 ### queue.unbind([exchange,] routing)
@@ -355,6 +398,16 @@ argument must contain the routing keys and the `x-match` value (`all` or `any`).
 
 If the `exchange` argument is left out `'amq.headers'` will be used.
 
+### queue.unbind_headers([exchange,] routing)
+
+This method unbinds a queue from an exchange.  Whilst a queue is
+bound it will continue receive messages that have matching headers.
+
+This method is to be used on an "headers"-type exchange. The routing
+argument must contain the routing keys and the `x-match` value (`all` or `any`).
+
+If the `exchange` argument is left out `'amq.headers'` will be used.
+
 ### queue.destroy(options)
 
 Delete the queue. Without options, the queue will be deleted even if it has
@@ -363,6 +416,9 @@ the queue will only be deleted if there are no consumers. If
 +options.ifEmpty+ is true, the queue will only be deleted if it has no
 messages.
 
+Note: the successful destruction of a queue will cause a consumer cancel 
+notification to be emitted (for clients who have enabled the 
+`consumer_cancel_notify` option when creating the connection).
 
 
 
@@ -403,9 +459,6 @@ object for the second. The options are
     durable.  Durable exchanges remain active when a server restarts.
     Non-durable exchanges (transient exchanges) are purged if/when a
     server restarts.
-- `confirm`: boolean, default false.
-    If set when connecting to a exchange the channel will send acks 
-    for publishes. Published tasks will emit 'ack' when it is acked.
 - `autoDelete`: boolean, default true.
     If set, the exchange is deleted when there are no longer queues
     bound to it.
