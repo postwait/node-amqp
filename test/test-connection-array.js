@@ -2,7 +2,7 @@ var harness = require('./harness');
 
 // Test that connection handles an array of hostnames.
 // If given one, without an index (`this.hosti`), it will randomly pick one.
-options.host = [options.host,"nohost"];
+options.host = [options.host,"nohost:5673"];
 options.reconnect = true;
 
 
