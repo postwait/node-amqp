@@ -108,7 +108,8 @@ An example `options` object for creating an SSL connection has these properties:
     }
 
 The key, certificate, and certificate authority files must be in pem format.
-If `port` is not specified, the default AMQPS port 5671 is used.
+Alternatively, `pfxFile` can be used to read key and certificate from a single
+file. If `port` is not specified, the default AMQPS port 5671 is used.
 If `rejectUnauthorized` is not specified, it defaults to true.
 
 Options can also be passed in a single URL of the form
