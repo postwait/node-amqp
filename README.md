@@ -386,7 +386,7 @@ This method unbinds a queue from an exchange.
 
 If the exchange argument is left out `'amq.topic'` will be used.
 
-Ths method will emit `'queueUnbindOk'` when complete.
+This method will emit `'queueUnbindOk'` when complete.
 
 
 ### queue.bind_headers([exchange,] routing)
