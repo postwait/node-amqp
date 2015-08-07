@@ -25,7 +25,7 @@ conn.once('ready', function () {
     later(function(){
       // This will emit a NOT_FOUND error b/c we're no longer bound to the exchange
       var thrown = false;
-      conn.addListener('error', function(e){
+      exchange.addListener('error', function(e){
         thrown = true;
         assert.equal(e.code, 404);
       });
