@@ -499,7 +499,7 @@ is converted to JSON.
 - `headers`: default `{}`. Arbitrary application-specific message headers.
 - `deliveryMode`: Non-persistent (1) or persistent (2)
 - `priority`: The message priority, 0 to 9.
-- `correlationId`: default null. Application correlation identifier
+- `correlationId`: string, default null. Application correlation identifier
 - `replyTo`: Usually used to name a reply queue for a request message.
 - `expiration`: default null. Message expiration specification
 - `messageId`: default null. Application message identifier
