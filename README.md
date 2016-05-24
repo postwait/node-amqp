@@ -470,6 +470,7 @@ object for the second. The options are
     If set, the exchange will be in confirm mode, and you will get a 
     'ack'|'error' event emitted on a publish, or the callback on the publish
     will be called.
+- `arguments`: a map of additional arguments to pass in when creating an exchange.
 
 An exchange will emit the `'open'` event when it is finally declared.
 
