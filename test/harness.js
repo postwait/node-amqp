@@ -30,7 +30,7 @@ global.util = require('util');
 global.puts = console.log;
 global.assert = require('assert');
 global.amqp = require('../amqp');
-global.options = _.extend(global.options || {}, argv);
+global.options = _.assignIn(global.options || {}, argv);
 
 
 global.implOpts = {

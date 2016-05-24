@@ -4,7 +4,7 @@ require('./harness');
 var Connection = require('../amqp').Connection;
 var _ = require('lodash');
 var EventEmitter = require('events').EventEmitter;
-_.extend(Connection.prototype, EventEmitter.prototype);
+_.assignIn(Connection.prototype, EventEmitter.prototype);
 
 var errorThrown = false;
 
