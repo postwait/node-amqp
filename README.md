@@ -13,6 +13,7 @@ implements the 0.9.1 version of the AMQP protocol.
   - [Connection options and URL](#connection-options-and-url)
   - [connection.publish(routingKey, body, options, callback)](#connectionpublishroutingkey-body-options-callback)
   - [connection.disconnect()](#connectiondisconnect)
+  - [connection.on('tag.change', callback)](#connectionontagchange-callback)
 - [Queue](#queue)
   - [connection.queue(name[, options][, openCallback])](#connectionqueuename-options-opencallback)
   - [queue.subscribe([options,] listener)](#queuesubscribeoptions-listener)
@@ -229,6 +230,81 @@ through untouched.
 
 Cleanly disconnect from the server, the socket will not be closed until the
 server responds to the disconnection request.
+
+### connection.on('tag.change', callback)
+
+Fired when an existing consumer tag has changed. Use this event to update your consumer tag references.
+
+When an error or reconnection occurs, any existing consumers will be automatically replaced with new ones.
+If your application is holding onto a reference to a consumer tag (e.g. to unsubscribe later) and reconnects, 
+the held tag will no longer be valid, preventing the application from gracefully unsubscribing.
+
+The `callback` function takes one parameter, `event`, which contains two properties: `oldConsumerTag` and `consumerTag`.
+
+```javascript
+var connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
+
+// Local references to the exchange, queue and consumer tag
+var _exchange = null;
+var _queue = null;
+var _consumerTag = null;
+
+// Report errors
+connection.on('error', function(err) { 
+    console.error('Connection error', err); 
+});
+
+// Update our stored tag when it changes
+connection.on('tag.change', function(event) {
+    if (_consumerTag === event.oldConsumerTag) {
+        _consumerTag = event.consumerTag;
+        // Consider unsubscribing from the old tag just in case it lingers
+        _queue.unsubscribe(event.oldConsumerTag);
+    }
+});
+
+// Initialize the exchange, queue and subscription
+connection.on('ready', function() {
+    connection.exchange('exchange-name', function(exchange) {
+        _exchange = exchange;
+        
+        connection.queue('queue-name', function(queue) {
+            _queue = queue;
+            
+            // Bind to the exchange
+            queue.bind('exchange-name', 'routing-key');
+            
+            // Subscribe to the queue
+            queue
+                .subscribe(function(message) {
+                    // Handle message here
+                    console.log('Got message', message);
+                    queue.shift(false, false);
+                })
+                .addCallback(function(res) {
+                    // Hold on to the consumer tag so we can unsubscribe later
+                    _consumerTag = res.consumerTag;
+                })
+            ;
+        });
+    });
+});
+
+// Some time in the future, you'll want to unsubscribe or shutdown 
+setTimeout(function() {
+    if (_queue) {
+        _queue
+            .unsubscribe(_consumerTag)
+            .addCallback(function() {
+                // unsubscribed
+            })
+        ;
+    } else {
+        // unsubscribed
+    }
+}, 60000);
+
+```
 
 
 
