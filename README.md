@@ -630,3 +630,6 @@ This method will emit `'exchangeUnbindOk'` when complete.
 
 This method is to be used on an "headers"-type exchange. The routing
 argument must contain the routing keys and the `x-match` value (`all` or `any`).
+
+## Debugging
+The `NODE_DEBUG_AMQP=1` environment variable enables built-in low-level debugging support.
