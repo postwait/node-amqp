@@ -490,6 +490,12 @@ argument must contain the routing keys and the `x-match` value (`all` or `any`).
 
 If the `exchange` argument is left out `'amq.headers'` will be used.
 
+### queue.purge()
+
+This method purges a queue. 
+
+This method will emit `'queuePurgeOk'` when complete.
+
 ### queue.destroy(options)
 
 Delete the queue. Without options, the queue will be deleted even if it has
