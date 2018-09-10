@@ -1,3 +1,8 @@
+# MAINTAINER NEEDED
+
+This project is now unmaintained.  Please reach out if you'd like to fix that.
+
+
 [![build status](https://secure.travis-ci.org/postwait/node-amqp.png)](http://travis-ci.org/postwait/node-amqp)
 
 # node-amqp
